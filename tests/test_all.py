@@ -41,9 +41,10 @@ class TestLastMileGuard(unittest.TestCase):
 
     def test_navigation_engine(self):
         nav = NavigationEngine()
+        # Location 150m before first turn
         gps = GPSData(
-            latitude=22.5726,
-            longitude=88.3639,
+            latitude=22.5710,
+            longitude=88.3620,
             speed_kmh=40.0,
             heading_deg=90.0,
             altitude_m=10.0,
@@ -53,6 +54,7 @@ class TestLastMileGuard(unittest.TestCase):
         maneuver = nav.update_location(gps)
         self.assertIn("Central Ave", maneuver.instruction)
         self.assertGreaterEqual(maneuver.eta_minutes, 0)
+        self.assertGreater(maneuver.distance_to_turn_m, 0)
 
     def test_delivery_parser(self):
         zomato = DeliveryParser.parse_notification(
