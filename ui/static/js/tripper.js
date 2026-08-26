@@ -77,20 +77,27 @@ function initLeafletMap(initialLat = 22.5643, initialLng = 88.3693) {
             iconAnchor: [15, 28]
         });
 
-        destMarker = L.marker([22.5855, 88.4168], { icon: destIcon }).addTo(mapInstance);
+        destMarker = L.marker([initialLat, initialLng], { icon: destIcon });
     } catch (e) {
         console.warn("[MAP INIT]", e);
     }
 }
 
-function renderGoogleMapsBlueRoute(polyline, trafficSegments) {
+function clearGoogleMapsRoute() {
+    if (!mapInstance) return;
+    if (blueGlowPolyline) { mapInstance.removeLayer(blueGlowPolyline); blueGlowPolyline = null; }
+    if (blueCorePolyline) { mapInstance.removeLayer(blueCorePolyline); blueCorePolyline = null; }
+    trafficOverlays.forEach(p => { try { mapInstance.removeLayer(p); } catch (e) {} });
+    trafficOverlays = [];
+    if (destMarker && mapInstance.hasLayer(destMarker)) {
+        mapInstance.removeLayer(destMarker);
+    }
+}
+
+function renderGoogleMapsBlueRoute(polyline, trafficSegments, destCoords) {
     if (!mapInstance || !polyline || polyline.length < 2) return;
 
-    // Clear old route lines
-    if (blueGlowPolyline) mapInstance.removeLayer(blueGlowPolyline);
-    if (blueCorePolyline) mapInstance.removeLayer(blueCorePolyline);
-    trafficOverlays.forEach(p => mapInstance.removeLayer(p));
-    trafficOverlays = [];
+    clearGoogleMapsRoute();
 
     // 1. Google Maps Outer Blue Glow Boundary
     blueGlowPolyline = L.polyline(polyline, {
@@ -128,6 +135,11 @@ function renderGoogleMapsBlueRoute(polyline, trafficSegments) {
             }
         });
     }
+
+    // 4. Attach Destination Pin
+    if (destCoords && destMarker) {
+        destMarker.setLatLng([destCoords.lat, destCoords.lng]).addTo(mapInstance);
+    }
 }
 
 // ==============================================================================
@@ -138,19 +150,21 @@ function HUDApp() {
     const [celebration, setCelebration] = useState(null);
     const [dashcamOpen, setDashcamOpen] = useState(false);
     const wsRef = useRef(null);
+    const lastPosRef = useRef({ lat: 0, lng: 0, isInitialized: false });
 
     // 1. WebSocket & Initial HTTP Fetch
     useEffect(() => {
-        // Initial Fetch for instantaneous mount
         fetch('/api/telemetry')
             .then(res => res.json())
             .then(data => {
                 setTelemetry(data);
-                if (data.gps) initLeafletMap(data.gps.latitude, data.gps.longitude);
+                if (data.gps) {
+                    initLeafletMap(data.gps.latitude, data.gps.longitude);
+                    lastPosRef.current = { lat: data.gps.latitude, lng: data.gps.longitude, isInitialized: true };
+                }
             })
             .catch(() => {});
 
-        // Setup WebSocket
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = `${protocol}//${window.location.host}/ws/telemetry`;
 
@@ -177,29 +191,53 @@ function HUDApp() {
         };
     }, []);
 
-    // 2. Synchronize Leaflet map with Telemetry Updates
+    // 2. Synchronize Leaflet map with Telemetry Updates (ROCK-SOLID WHEN IDLE)
     useEffect(() => {
         if (!telemetry) return;
 
         const gps = telemetry.gps;
+        const orderPhase = telemetry.order_phase || "IDLE";
+        const isMoving = gps && gps.speed_kmh > 0.5;
+
         if (gps) {
             if (!mapInstance) {
                 initLeafletMap(gps.latitude, gps.longitude);
+                lastPosRef.current = { lat: gps.latitude, lng: gps.longitude, isInitialized: true };
             } else if (riderMarker) {
-                riderMarker.setLatLng([gps.latitude, gps.longitude]);
-                mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.25 });
-                
+                const prev = lastPosRef.current;
+                const distMoved = Math.abs(gps.latitude - prev.lat) + Math.abs(gps.longitude - prev.lng);
+
+                // Only move puck and camera if position actually shifted or on initial lock
+                if (distMoved > 0.00002 || !prev.isInitialized) {
+                    riderMarker.setLatLng([gps.latitude, gps.longitude]);
+                    lastPosRef.current = { lat: gps.latitude, lng: gps.longitude, isInitialized: true };
+
+                    // Only pan camera if actively in transit
+                    if (isMoving) {
+                        mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.2 });
+                    }
+                }
+
+                // Update heading puck
                 const puckEl = document.getElementById("riderPuck");
-                if (puckEl) puckEl.style.transform = `rotate(${gps.heading_deg}deg)`;
+                if (puckEl && isMoving) {
+                    puckEl.style.transform = `rotate(${gps.heading_deg}deg)`;
+                }
             }
         }
 
-        // Render Google Maps Blue Polyline Route
-        if (telemetry.navigation && telemetry.navigation.route_polyline) {
-            renderGoogleMapsBlueRoute(telemetry.navigation.route_polyline, telemetry.navigation.traffic_segments);
-            if (destMarker && telemetry.navigation.destination_coords) {
-                destMarker.setLatLng([telemetry.navigation.destination_coords.lat, telemetry.navigation.destination_coords.lng]);
+        // Render Blue Route ONLY during active transit phases
+        if (orderPhase === "ROUTE_TO_STORE" || orderPhase === "AT_STORE" || orderPhase === "ROUTE_TO_CUSTOMER") {
+            if (telemetry.navigation && telemetry.navigation.route_polyline) {
+                renderGoogleMapsBlueRoute(
+                    telemetry.navigation.route_polyline,
+                    telemetry.navigation.traffic_segments,
+                    telemetry.navigation.destination_coords
+                );
             }
+        } else {
+            // Idle / Delivered: Keep map clean and completely still!
+            clearGoogleMapsRoute();
         }
     }, [telemetry]);
 
@@ -207,12 +245,10 @@ function HUDApp() {
     const dispatchAction = async (action, payload = {}) => {
         playAudioChime(850, 0.08);
         
-        // 1. WS
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ action, ...payload }));
         }
 
-        // 2. HTTP REST endpoint
         try {
             let url = null;
             let body = null;
@@ -320,7 +356,7 @@ function HUDApp() {
                 </div>
             )}
 
-            {/* TOP-RIGHT: MULTI-APP POP-UP NOTIFICATION STACK (REACT VIRTUAL DOM) */}
+            {/* TOP-RIGHT: MULTI-APP POP-UP NOTIFICATION STACK */}
             {(orderPhase === "IDLE" || orderPhase === "DELIVERED") && (
                 <div className="order-notification-stack">
                     {activeOffers.length > 0 ? (
