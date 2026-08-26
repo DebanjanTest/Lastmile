@@ -478,15 +478,18 @@ body.workbench-theme {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 160;
+    z-index: 1000;
+    pointer-events: auto;
     animation: strobe-bg 0.8s infinite alternate;
 }
-.emergency-card { text-align: center; background: #000; padding: 20px 30px; border-radius: 14px; border: 3px solid #FFF; box-shadow: 0 0 50px #FF0000; }
+.emergency-card { text-align: center; background: #000; padding: 20px 30px; border-radius: 14px; border: 3px solid #FFF; box-shadow: 0 0 50px #FF0000; pointer-events: auto; }
 .emergency-icon { font-size: 40px; }
 .emergency-title { font-size: 22px; font-weight: 900; color: #FF1744; margin-top: 4px; }
 .emergency-sub { font-size: 13px; color: #CFD8DC; margin-top: 4px; }
 .emergency-gps { font-size: 12px; color: #FFD54F; margin-top: 8px; font-family: monospace; }
-.btn-reset { margin-top: 14px; background: #FF1744; color: #FFF; border: none; padding: 8px 20px; font-size: 13px; font-weight: 800; border-radius: 8px; cursor: pointer; }
+.btn-reset { margin-top: 14px; background: #FF1744; color: #FFF; border: none; padding: 10px 24px; font-size: 13px; font-weight: 900; border-radius: 8px; cursor: pointer; pointer-events: auto; box-shadow: 0 4px 15px rgba(255, 23, 68, 0.5); transition: transform 0.08s; }
+.btn-reset:hover { filter: brightness(1.2); transform: scale(1.04); }
+.btn-reset:active { transform: scale(0.96); }
 
 /* ==============================================================================
    TEST BENCH HARDWARE CONTROLS (UNDERNEATH 5-INCH DISPLAY)

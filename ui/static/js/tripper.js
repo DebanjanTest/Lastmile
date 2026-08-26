@@ -268,6 +268,10 @@ function HUDApp() {
             }
             else if (action === "trigger_sos") url = '/api/test/sos';
             else if (action === "trigger_tilt") url = '/api/test/tilt';
+            else if (action === "reset_emergency") {
+                url = '/api/test/reset-emergency';
+                setTelemetry(prev => prev ? { ...prev, is_emergency: false, emergency_reason: "" } : prev);
+            }
 
             if (url) {
                 const res = await fetch(url, {
@@ -303,6 +307,7 @@ function HUDApp() {
             dismissOffer: (id) => dispatchAction("dismiss_offer", { order_id: id }),
             triggerSos: () => dispatchAction("trigger_sos"),
             triggerTilt: () => dispatchAction("trigger_tilt"),
+            resetEmergency: () => dispatchAction("reset_emergency"),
             toggleDashcam: () => setDashcamOpen(prev => !prev)
         };
 
@@ -317,6 +322,7 @@ function HUDApp() {
             else if (k === "S") window.hudDispatcher.triggerSos();
             else if (k === "T") window.hudDispatcher.triggerTilt();
             else if (k === "D") window.hudDispatcher.toggleDashcam();
+            else if (e.key === "Escape") window.hudDispatcher.resetEmergency();
         };
 
         window.addEventListener("keydown", handleKeyDown);

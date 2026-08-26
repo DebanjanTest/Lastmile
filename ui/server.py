@@ -179,4 +179,10 @@ def create_app(engine: LastMileEngine) -> FastAPI:
         await engine.broadcast_snapshot()
         return {"status": "Tilt crash triggered", "snapshot": engine.get_latest_telemetry_snapshot()}
 
+    @app.post("/api/test/reset-emergency")
+    async def api_reset_emergency():
+        engine.reset_emergency()
+        await engine.broadcast_snapshot()
+        return {"status": "Emergency reset", "snapshot": engine.get_latest_telemetry_snapshot()}
+
     return app
