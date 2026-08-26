@@ -67,7 +67,7 @@ class TestLastMileGuard(unittest.TestCase):
         
         # 1. Refresh & generate competing offers
         offers = feed.refresh_order_pool(rider_lat, rider_lng)
-        self.assertEqual(len(offers), 3)
+        self.assertGreaterEqual(len(offers), 3)
         self.assertGreater(offers[0].payout_inr, 40.0)
         self.assertGreater(offers[0].total_dist_km, 1.0)
 

@@ -1,7 +1,7 @@
 """
 Multi-App Order Dispatch & Feed Manager
-Generates realistic incoming delivery notifications from Zomato, Swiggy, Zepto, and Amazon Flex
-calculated dynamically from the rider's current static/live GPS location.
+Pre-populates rich mock orders from Zomato, Swiggy, Zepto, and Amazon Fresh
+with exact restaurant coordinates, drop-off coordinates, items, and Google Maps 2-phase routing.
 """
 
 import time
@@ -33,8 +33,9 @@ class DeliveryOffer:
     payment_mode: str                # "PREPAID", "COD"
     cod_amount: float
     delivery_otp: str
+    prep_time_minutes: int = 4
     created_at: float = field(default_factory=time.time)
-    expiry_seconds: int = 45
+    expiry_seconds: int = 120        # Ample time for rider selection
 
     def to_dict(self) -> Dict[str, Any]:
         remaining = max(0, int(self.expiry_seconds - (time.time() - self.created_at)))
@@ -57,27 +58,92 @@ class DeliveryOffer:
             "payment_mode": self.payment_mode,
             "cod_amount": self.cod_amount,
             "delivery_otp": self.delivery_otp,
+            "prep_time_minutes": self.prep_time_minutes,
             "remaining_seconds": remaining
         }
 
 class OrderFeedManager:
-    STORE_TEMPLATES = [
-        {"platform": "zomato", "color": "#E23744", "name": "Arsalan Mughlai Restaurant", "addr": "Park Circus 7-Point", "items": "2x Special Mutton Biryani, 1x Firni", "payout_base": 40.0},
-        {"platform": "swiggy", "color": "#FC8019", "name": "Wow! Momo Express", "addr": "Central Avenue Hub", "items": "2x Steam Momo Platter, 1x Thums Up", "payout_base": 35.0},
-        {"platform": "zepto", "color": "#7C4DFF", "name": "Zepto Dark Store #104", "addr": "Kankurgachi Quick Hub", "items": "1x Fresh Milk, 2x Bread, 1x Butter", "payout_base": 30.0},
-        {"platform": "swiggy", "color": "#FC8019", "name": "Haldiram's Sweets & Snacks", "addr": "VIP Road Food Plaza", "items": "1x Kaju Katli (500g), 2x Raj Kachori", "payout_base": 42.0},
-        {"platform": "zomato", "color": "#E23744", "name": "Burger King Flagship", "addr": "Mani Square Mall", "items": "2x Crispy Veg Burgers, 2x Fries, 2x Coke", "payout_base": 38.0},
-        {"platform": "amazon", "color": "#FF9900", "name": "Amazon Fresh Fulfillment", "addr": "Sector V Logistics Depot", "items": "3x Grocery Package Bins", "payout_base": 45.0}
-    ]
-
-    CUSTOMER_NAMES = ["Debanjan M.", "Ananya S.", "Rahul B.", "Priyanka G.", "Sourav K.", "Tanushree D."]
-    AREAS = ["Salt Lake Sector V, Block EP", "New Town Action Area 1", "Lake Town Block B", "Kestopur Main Road", "Park Street Area", "Chinar Park Near City Centre 2"]
-    INSTRUCTIONS = [
-        "🚪 Leave at door & do not ring bell (Baby sleeping)",
-        "👮 Hand over to security guard at main gate",
-        "📞 Please call once you reach the building",
-        "🐕 Beware of pet dog; place package on table",
-        "🏢 Flat 402, 4th Floor (Lift is operational)"
+    RICH_ORDER_PRESETS = [
+        {
+            "platform": "zomato",
+            "color": "#E23744",
+            "store_name": "Arsalan Mughlai Restaurant",
+            "store_addr": "Park Circus 7-Point, Kolkata",
+            "store_offset": (0.0082, 0.0065),
+            "cust_name": "Debanjan Mondal",
+            "cust_addr": "Salt Lake Sector V, Block EP, Flat 4B",
+            "cust_offset": (0.0175, 0.0165),
+            "items": "2x Special Mutton Biryani, 1x Firni Pot, 1x Extra Raita",
+            "instr": "🚪 Leave at door & do not ring bell (Baby sleeping)",
+            "payout_base": 42.0,
+            "prep_mins": 4,
+            "payment": "PREPAID",
+            "cod": 0.0
+        },
+        {
+            "platform": "swiggy",
+            "color": "#FC8019",
+            "store_name": "Wow! Momo Express",
+            "store_addr": "Central Avenue Quick Hub, Kolkata",
+            "store_offset": (0.0055, -0.0045),
+            "cust_name": "Ananya Sen",
+            "cust_addr": "New Town Action Area 1, Tower 3",
+            "cust_offset": (0.0192, 0.0210),
+            "items": "2x Darjeeling Steamed Momos, 1x Chicken Pan-Fried, 2x Thums Up",
+            "instr": "👮 Hand over to building security guard at Gate 2",
+            "payout_base": 38.0,
+            "prep_mins": 3,
+            "payment": "COD",
+            "cod": 360.0
+        },
+        {
+            "platform": "zepto",
+            "color": "#7C4DFF",
+            "store_name": "Zepto 10-Min Dark Store #104",
+            "store_addr": "Kankurgachi Logistics Depot",
+            "store_offset": (0.0040, 0.0080),
+            "cust_name": "Rahul Banerjee",
+            "cust_addr": "Lake Town Block B, House 12",
+            "cust_offset": (0.0110, 0.0125),
+            "items": "2x Amul Taaza Milk (1L), 1x Brown Bread, 1x Amul Butter 500g",
+            "instr": "📞 Please call once you arrive near the gate",
+            "payout_base": 32.0,
+            "prep_mins": 2,
+            "payment": "PREPAID",
+            "cod": 0.0
+        },
+        {
+            "platform": "swiggy",
+            "color": "#FC8019",
+            "store_name": "Mainland China Delights",
+            "store_addr": "South City Mall Restaurant Hub",
+            "store_offset": (-0.0075, 0.0060),
+            "cust_name": "Priyanka Ghosh",
+            "cust_addr": "Jadavpur Central Road, Green Enclave",
+            "cust_offset": (-0.0160, 0.0180),
+            "items": "1x Steamed Dim Sum Basket, 1x Hakka Noodles, 1x Chilli Chicken",
+            "instr": "🏢 Flat 302, 3rd Floor (Lift operational)",
+            "payout_base": 48.0,
+            "prep_mins": 5,
+            "payment": "PREPAID",
+            "cod": 0.0
+        },
+        {
+            "platform": "amazon",
+            "color": "#FF9900",
+            "store_name": "Amazon Fresh Fulfillment Depot",
+            "store_addr": "EM Bypass Logistics Complex",
+            "store_offset": (0.0095, -0.0085),
+            "cust_name": "Sourav Karmakar",
+            "cust_addr": "Chinar Park Near City Centre 2",
+            "cust_offset": (0.0230, 0.0240),
+            "items": "3x Fresh Grocery Package Bins",
+            "instr": "🐕 Beware of pet dog; place package on veranda table",
+            "payout_base": 55.0,
+            "prep_mins": 2,
+            "payment": "PREPAID",
+            "cod": 0.0
+        }
     ]
 
     def __init__(self, on_route_change: Callable[[str, float, float], None]):
@@ -98,68 +164,57 @@ class OrderFeedManager:
         a = math.sin(dp/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
         return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-    def generate_random_offer(self, rider_lat: float, rider_lng: float) -> DeliveryOffer:
-        tmpl = random.choice(self.STORE_TEMPLATES)
-        
-        # Store is placed 0.8km to 2.2km from rider
-        s_angle = random.uniform(0, 2 * math.pi)
-        s_dist_deg = random.uniform(0.007, 0.016)
-        store_lat = rider_lat + s_dist_deg * math.cos(s_angle)
-        store_lng = rider_lng + s_dist_deg * math.sin(s_angle)
-        store_dist_km = max(0.8, self._haversine_km(rider_lat, rider_lng, store_lat, store_lng))
+    def build_offer_from_preset(self, preset: Dict[str, Any], rider_lat: float, rider_lng: float) -> DeliveryOffer:
+        store_lat = rider_lat + preset["store_offset"][0]
+        store_lng = rider_lng + preset["store_offset"][1]
+        store_dist_km = max(0.6, self._haversine_km(rider_lat, rider_lng, store_lat, store_lng))
 
-        # Customer is placed 1.5km to 3.5km from store
-        c_angle = random.uniform(0, 2 * math.pi)
-        c_dist_deg = random.uniform(0.012, 0.024)
-        cust_lat = store_lat + c_dist_deg * math.cos(c_angle)
-        cust_lng = store_lng + c_dist_deg * math.sin(c_angle)
-        drop_dist_km = max(1.5, self._haversine_km(store_lat, store_lng, cust_lat, cust_lng))
+        cust_lat = rider_lat + preset["cust_offset"][0]
+        cust_lng = rider_lng + preset["cust_offset"][1]
+        drop_dist_km = max(1.2, self._haversine_km(store_lat, store_lng, cust_lat, cust_lng))
 
         total_dist_km = store_dist_km + drop_dist_km
         
-        # Indian Delivery Rate Card: Base + (Distance * 8.5/km) + Surge
-        surge = random.choice([10.0, 15.0, 20.0, 25.0])
-        payout = tmpl["payout_base"] + (total_dist_km * 8.5) + surge
+        # Real Indian Delivery Rate Card: Base + (Distance * 8.5/km) + Surge
+        surge = random.choice([15.0, 20.0, 25.0])
+        payout = preset["payout_base"] + (total_dist_km * 8.5) + surge
 
-        is_cod = random.random() < 0.25
-        offer = DeliveryOffer(
+        return DeliveryOffer(
             order_id=str(uuid.uuid4())[:6].upper(),
-            platform=tmpl["platform"],
-            platform_color=tmpl["color"],
-            store_name=tmpl["name"],
-            store_address=tmpl["addr"],
+            platform=preset["platform"],
+            platform_color=preset["color"],
+            store_name=preset["store_name"],
+            store_address=preset["store_addr"],
             store_lat=store_lat,
             store_lng=store_lng,
             store_dist_km=store_dist_km,
-            customer_name=random.choice(self.CUSTOMER_NAMES),
-            customer_address=random.choice(self.AREAS),
+            customer_name=preset["cust_name"],
+            customer_address=preset["cust_addr"],
             customer_lat=cust_lat,
             customer_lng=cust_lng,
             drop_dist_km=drop_dist_km,
             total_dist_km=total_dist_km,
             payout_inr=payout,
-            items_summary=tmpl["items"],
-            customer_instructions=random.choice(self.INSTRUCTIONS),
-            payment_mode="COD" if is_cod else "PREPAID",
-            cod_amount=round(random.uniform(250.0, 520.0), 2) if is_cod else 0.0,
+            items_summary=preset["items"],
+            customer_instructions=preset["instr"],
+            payment_mode=preset["payment"],
+            cod_amount=preset["cod"],
             delivery_otp=str(random.randint(1000, 9999)),
+            prep_time_minutes=preset["prep_mins"],
             created_at=time.time(),
-            expiry_seconds=45
+            expiry_seconds=120
         )
-        return offer
 
     def refresh_order_pool(self, rider_lat: float, rider_lng: float) -> List[DeliveryOffer]:
-        """Generates 3 fresh incoming order offers from competing delivery platforms."""
-        self.active_offers = [
-            self.generate_random_offer(rider_lat, rider_lng),
-            self.generate_random_offer(rider_lat, rider_lng),
-            self.generate_random_offer(rider_lat, rider_lng)
-        ]
-        print(f"[FEED] Refreshed order pool: {len(self.active_offers)} gigs available near ({rider_lat:.4f}, {rider_lng:.4f})")
+        """Pre-populates 4 rich mock orders from Zomato, Swiggy, Zepto, and Amazon Fresh."""
+        # Pick 4 distinct presets
+        chosen_presets = random.sample(self.RICH_ORDER_PRESETS, min(4, len(self.RICH_ORDER_PRESETS)))
+        self.active_offers = [self.build_offer_from_preset(p, rider_lat, rider_lng) for p in chosen_presets]
+        print(f"[FEED] Refreshed with {len(self.active_offers)} rich mock orders around ({rider_lat:.4f}, {rider_lng:.4f})")
         return self.active_offers
 
     def select_and_accept_order(self, order_id: str) -> Optional[DeliveryOffer]:
-        """Rider selects which order to opt for. Immediately switches to Phase 1 (Route to Shop)."""
+        """Rider selects an order. Immediately transitions to Phase 1: Route to Restaurant."""
         chosen = None
         for offer in self.active_offers:
             if offer.order_id == order_id:
@@ -173,11 +228,11 @@ class OrderFeedManager:
             return None
 
         self.selected_order = chosen
-        self.active_offers = []  # Clear other offers
+        self.active_offers = []  # Clear pending offers
         self.order_phase = "ROUTE_TO_STORE"
-        print(f"[ACCEPT] Rider selected order #{chosen.order_id} ({chosen.platform.upper()})! Phase 1: Marking route to shop: {chosen.store_name}")
+        print(f"[ACCEPT] Rider selected order #{chosen.order_id} ({chosen.platform.upper()})! Phase 1: Marking Google Maps Blue Route to Shop: {chosen.store_name}")
         
-        # Mark Phase 1 Route: To the Shop/Store
+        # Route to Shop First (Phase 1)
         self.on_route_change(
             f"Pickup: {chosen.store_name}",
             chosen.store_lat,
@@ -189,18 +244,18 @@ class OrderFeedManager:
         if not self.selected_order:
             return None
         self.order_phase = "AT_STORE"
-        print(f"[STORE] Rider reached {self.selected_order.store_name}. Verifying items...")
+        print(f"[STORE] Rider arrived at {self.selected_order.store_name}. Verifying items & collecting package.")
         return self.selected_order
 
     def confirm_pickup_and_route_to_customer(self) -> Optional[DeliveryOffer]:
-        """Phase 2: Food is picked up from shop. Marks route to Customer Delivery Location."""
+        """Phase 2: Food picked up. Immediately transitions to Phase 2: Route to Drop-off Location."""
         if not self.selected_order:
             return None
         
         self.order_phase = "ROUTE_TO_CUSTOMER"
-        print(f"[PICKUP] Food picked up from {self.selected_order.store_name}! Phase 2: Marking route to customer: {self.selected_order.customer_name}")
+        print(f"[PICKUP] Package collected from {self.selected_order.store_name}! Phase 2: Marking Google Maps Blue Route to Drop-off: {self.selected_order.customer_name}")
         
-        # Mark Phase 2 Route: To the Customer Drop Location
+        # Route to Customer Drop-Off (Phase 2)
         self.on_route_change(
             f"Drop: {self.selected_order.customer_name}",
             self.selected_order.customer_lat,
@@ -212,11 +267,10 @@ class OrderFeedManager:
         if not self.selected_order:
             return None
         self.order_phase = "AT_CUSTOMER"
-        print(f"[CUSTOMER] Rider reached customer doorstep: {self.selected_order.customer_name}. Awaiting OTP.")
+        print(f"[CUSTOMER] Rider reached customer doorstep: {self.selected_order.customer_name}. Awaiting OTP handover.")
         return self.selected_order
 
     def complete_delivery(self) -> Dict[str, Any]:
-        """Completes delivery, credits wallet, and generates fresh offers."""
         if not self.selected_order:
             return {"success": False, "error": "No active order"}
 
@@ -227,7 +281,7 @@ class OrderFeedManager:
         completed = self.selected_order
         self.selected_order = None
         self.order_phase = "DELIVERED"
-        print(f"[DELIVERED] Order #{completed.order_id} delivered! Earned: Rs.{payout:.2f}. Wallet: Rs.{self.earnings_today_inr:.2f}")
+        print(f"[DELIVERED] Order #{completed.order_id} DELIVERED! +Rs.{payout:.2f} Credited. Wallet: Rs.{self.earnings_today_inr:.2f}")
         return {
             "success": True,
             "order": completed.to_dict(),
@@ -240,11 +294,11 @@ class OrderFeedManager:
         self.active_offers = [o for o in self.active_offers if o.order_id != order_id]
 
     def get_snapshot(self, rider_lat: float, rider_lng: float) -> Dict[str, Any]:
-        # Purge expired offers
+        # Purge expired offers if any
         now = time.time()
         self.active_offers = [o for o in self.active_offers if (now - o.created_at) < o.expiry_seconds]
         
-        # If idle and no offers, auto-generate a fresh pool
+        # Auto-seed mock orders if idle and empty
         if self.order_phase in ("IDLE", "DELIVERED") and not self.active_offers:
             self.refresh_order_pool(rider_lat, rider_lng)
 

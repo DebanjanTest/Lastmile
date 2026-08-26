@@ -1,14 +1,8 @@
 // ==============================================================================
-// LastMile Guard - Multi-App Delivery Notification HUD & 2-Phase Routing Client
+// LastMile Guard - React 18 Multi-App Delivery HUD & 2-Phase Routing System
 // ==============================================================================
 
-let ws = null;
-let audioCtx = null;
-let mapInstance = null;
-let riderMarker = null;
-let destMarker = null;
-let trafficPolylines = [];
-let isMapInitialized = false;
+const { useState, useEffect, useRef } = React;
 
 // Maneuver SVG Icons (Google Maps Navigation Style)
 const SVG_ICONS = {
@@ -22,14 +16,11 @@ const SVG_ICONS = {
     UTURN: "M30 80 L30 45 Q30 20 50 20 Q70 20 70 45 L70 80 L80 80 L60 95 L40 80 L52 80 L52 45 Q52 35 50 35 Q48 35 48 45 L48 80 Z"
 };
 
+let audioCtx = null;
 function playAudioChime(freq = 880, duration = 0.12) {
     try {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = "sine";
@@ -43,8 +34,16 @@ function playAudioChime(freq = 880, duration = 0.12) {
     } catch (e) {}
 }
 
-function initMap(initialLat = 22.5726, initialLng = 88.3639) {
-    if (isMapInitialized || typeof L === 'undefined') return;
+// Leaflet Map & Blue Polyline Bridge
+let mapInstance = null;
+let riderMarker = null;
+let destMarker = null;
+let blueGlowPolyline = null;
+let blueCorePolyline = null;
+let trafficOverlays = [];
+
+function initLeafletMap(initialLat = 22.5643, initialLng = 88.3693) {
+    if (mapInstance || typeof L === 'undefined') return;
 
     try {
         const mapEl = document.getElementById('mapView');
@@ -79,418 +78,419 @@ function initMap(initialLat = 22.5726, initialLng = 88.3639) {
         });
 
         destMarker = L.marker([22.5855, 88.4168], { icon: destIcon }).addTo(mapInstance);
-        isMapInitialized = true;
     } catch (e) {
         console.warn("[MAP INIT]", e);
     }
 }
 
-function initWebSocket() {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/telemetry`;
-    
-    try {
-        ws = new WebSocket(wsUrl);
+function renderGoogleMapsBlueRoute(polyline, trafficSegments) {
+    if (!mapInstance || !polyline || polyline.length < 2) return;
 
-        ws.onopen = () => {
-            console.log("[HUD WS] Connected to LastMile Engine.");
-        };
+    // Clear old route lines
+    if (blueGlowPolyline) mapInstance.removeLayer(blueGlowPolyline);
+    if (blueCorePolyline) mapInstance.removeLayer(blueCorePolyline);
+    trafficOverlays.forEach(p => mapInstance.removeLayer(p));
+    trafficOverlays = [];
 
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                updateHUD(data);
-            } catch (err) {
-                console.error("[HUD ERROR] Failed to parse telemetry:", err);
-            }
-        };
+    // 1. Google Maps Outer Blue Glow Boundary
+    blueGlowPolyline = L.polyline(polyline, {
+        color: '#0D47A1',
+        weight: 12,
+        opacity: 0.5,
+        lineCap: 'round',
+        lineJoin: 'round'
+    }).addTo(mapInstance);
 
-        ws.onclose = () => {
-            setTimeout(initWebSocket, 1500);
-        };
-    } catch (e) {
-        console.error("[WS CONNECT ERROR]", e);
-    }
-}
+    // 2. Google Maps Authentic Core Blue Line (#1A73E8)
+    blueCorePolyline = L.polyline(polyline, {
+        color: '#1A73E8',
+        weight: 7,
+        opacity: 0.98,
+        lineCap: 'round',
+        lineJoin: 'round'
+    }).addTo(mapInstance);
 
-function updateHUD(data) {
-    if (!data) return;
-
-    // 1. GPS Telemetry & Vehicle Puck
-    if (data.gps) {
-        const gps = data.gps;
-        const spdEl = document.getElementById("speedNum");
-        if (spdEl) spdEl.textContent = Math.round(gps.speed_kmh);
-
-        if (!isMapInitialized) {
-            initMap(gps.latitude, gps.longitude);
-        }
-
-        if (mapInstance && riderMarker) {
-            riderMarker.setLatLng([gps.latitude, gps.longitude]);
-            mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.25 });
-            
-            const puckEl = document.getElementById("riderPuck");
-            if (puckEl) {
-                puckEl.style.transform = `rotate(${gps.heading_deg}deg)`;
-            }
-        }
-    }
-
-    // 2. Navigation Turn Card & Traffic Polyline (Shown during active phases)
-    if (data.navigation) {
-        const nav = data.navigation;
-        const turnCard = document.getElementById("turnCard");
-        const orderPhase = data.order_phase;
-
-        if (orderPhase && orderPhase !== "IDLE" && orderPhase !== "DELIVERED") {
-            if (turnCard) turnCard.style.display = "flex";
-            const distEl = document.getElementById("turnDistNum");
-            if (distEl) distEl.textContent = nav.distance_to_turn_m;
-            const roadEl = document.getElementById("turnRoadName");
-            if (roadEl) roadEl.textContent = nav.road_name;
-            const prevEl = document.getElementById("turnNextPreview");
-            if (prevEl) prevEl.textContent = `Then: ${nav.next_instruction}`;
-
-            const trafficBadge = document.getElementById("trafficConditionBadge");
-            if (trafficBadge) {
-                if (nav.current_traffic_status === "HEAVY_JAM") {
-                    trafficBadge.textContent = "🔴 Heavy Jam";
-                    trafficBadge.style.backgroundColor = "#FF1744";
-                } else if (nav.current_traffic_status === "MODERATE") {
-                    trafficBadge.textContent = "🟠 Moderate";
-                    trafficBadge.style.backgroundColor = "#FF9100";
-                } else {
-                    trafficBadge.textContent = "🟢 Flowing";
-                    trafficBadge.style.backgroundColor = "#00E676";
+    // 3. Traffic Congestion Overlays (Orange / Red)
+    if (trafficSegments && trafficSegments.length > 0) {
+        trafficSegments.forEach(seg => {
+            if (seg.status === "MODERATE" || seg.status === "HEAVY_JAM") {
+                const pts = polyline.slice(seg.start_idx, seg.end_idx + 1);
+                if (pts.length >= 2) {
+                    const line = L.polyline(pts, {
+                        color: seg.color,
+                        weight: 7,
+                        opacity: 0.95,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                    }).addTo(mapInstance);
+                    trafficOverlays.push(line);
                 }
             }
-
-            const pathData = SVG_ICONS[nav.maneuver_type] || SVG_ICONS.STRAIGHT;
-            const turnPathEl = document.getElementById("turnPath");
-            if (turnPathEl) turnPathEl.setAttribute("d", pathData);
-        } else {
-            if (turnCard) turnCard.style.display = "none";
-        }
-
-        // Bottom Trip Summary
-        const timeEl = document.getElementById("tripTimeVal");
-        if (timeEl) timeEl.textContent = `${nav.eta_minutes} min`;
-        const tDistEl = document.getElementById("tripDistVal");
-        if (tDistEl) tDistEl.textContent = `${nav.remaining_total_dist_km} km`;
-        const dNameEl = document.getElementById("destName");
-        if (dNameEl) dNameEl.textContent = nav.destination_name;
-
-        const delayEl = document.getElementById("trafficDelayText");
-        if (delayEl) {
-            if (nav.traffic_delay_minutes > 0) {
-                delayEl.textContent = `+${nav.traffic_delay_minutes} min delay`;
-                delayEl.style.color = "#FF1744";
-            } else {
-                delayEl.textContent = "Fastest route";
-                delayEl.style.color = "#00E676";
-            }
-        }
-
-        const arrival = new Date(Date.now() + nav.eta_minutes * 60000);
-        const etaEl = document.getElementById("tripEtaVal");
-        if (etaEl) etaEl.textContent = arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        if (mapInstance && nav.route_polyline && nav.traffic_segments) {
-            renderTrafficPolyline(nav.route_polyline, nav.traffic_segments);
-        }
-
-        if (destMarker && nav.destination_coords) {
-            destMarker.setLatLng([nav.destination_coords.lat, nav.destination_coords.lng]);
-        }
-    }
-
-    // 3. Top-Right Multi-App Pop-up Notification Stack
-    renderNotificationStack(data.active_offers, data.order_phase);
-
-    // 4. Active 2-Phase Routing Banner & Transitions
-    renderActiveRouteBanner(data.selected_order, data.order_phase);
-
-    // 5. Emergency SOS Overlay
-    const emerg = document.getElementById("emergencyOverlay");
-    if (emerg) {
-        if (data.is_emergency) {
-            emerg.style.display = "flex";
-            const titleEl = document.getElementById("emergencyTitle");
-            if (titleEl) titleEl.textContent = data.emergency_reason || "EMERGENCY SOS ACTIVE";
-            const gpsEl = document.getElementById("emergencyGps");
-            if (gpsEl && data.gps) {
-                gpsEl.textContent = `GPS: ${data.gps.latitude.toFixed(6)}, ${data.gps.longitude.toFixed(6)} | Speed: ${data.gps.speed_kmh} km/h`;
-            }
-        } else {
-            emerg.style.display = "none";
-        }
+        });
     }
 }
 
-function renderNotificationStack(offers, orderPhase) {
-    const stackEl = document.getElementById("orderNotificationStack");
-    if (!stackEl) return;
+// ==============================================================================
+// REACT 18 MAIN HUD APPLICATION COMPONENT
+// ==============================================================================
+function HUDApp() {
+    const [telemetry, setTelemetry] = useState(null);
+    const [celebration, setCelebration] = useState(null);
+    const [dashcamOpen, setDashcamOpen] = useState(false);
+    const wsRef = useRef(null);
 
-    // Only display incoming notifications when Idle or Delivered (not during active transit)
-    if (orderPhase && orderPhase !== "IDLE" && orderPhase !== "DELIVERED") {
-        stackEl.innerHTML = "";
-        return;
-    }
+    // 1. WebSocket & Initial HTTP Fetch
+    useEffect(() => {
+        // Initial Fetch for instantaneous mount
+        fetch('/api/telemetry')
+            .then(res => res.json())
+            .then(data => {
+                setTelemetry(data);
+                if (data.gps) initLeafletMap(data.gps.latitude, data.gps.longitude);
+            })
+            .catch(() => {});
 
-    if (!offers || offers.length === 0) {
-        stackEl.innerHTML = `
-            <div class="notification-card" style="border-left-color:#38BDF8;background:rgba(15,23,42,0.9);">
-                <div style="font-size:11px;font-weight:800;color:#38BDF8;display:flex;align-items:center;gap:6px;">
-                    <span style="font-size:14px;">🛰️</span> Scanning for incoming orders...
+        // Setup WebSocket
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${protocol}//${window.location.host}/ws/telemetry`;
+
+        function connectWs() {
+            const ws = new WebSocket(wsUrl);
+            wsRef.current = ws;
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    setTelemetry(data);
+                } catch (e) {}
+            };
+
+            ws.onclose = () => {
+                setTimeout(connectWs, 1500);
+            };
+        }
+
+        connectWs();
+
+        return () => {
+            if (wsRef.current) wsRef.current.close();
+        };
+    }, []);
+
+    // 2. Synchronize Leaflet map with Telemetry Updates
+    useEffect(() => {
+        if (!telemetry) return;
+
+        const gps = telemetry.gps;
+        if (gps) {
+            if (!mapInstance) {
+                initLeafletMap(gps.latitude, gps.longitude);
+            } else if (riderMarker) {
+                riderMarker.setLatLng([gps.latitude, gps.longitude]);
+                mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.25 });
+                
+                const puckEl = document.getElementById("riderPuck");
+                if (puckEl) puckEl.style.transform = `rotate(${gps.heading_deg}deg)`;
+            }
+        }
+
+        // Render Google Maps Blue Polyline Route
+        if (telemetry.navigation && telemetry.navigation.route_polyline) {
+            renderGoogleMapsBlueRoute(telemetry.navigation.route_polyline, telemetry.navigation.traffic_segments);
+            if (destMarker && telemetry.navigation.destination_coords) {
+                destMarker.setLatLng([telemetry.navigation.destination_coords.lat, telemetry.navigation.destination_coords.lng]);
+            }
+        }
+    }, [telemetry]);
+
+    // 3. Dispatch action method (Dual WS + HTTP REST)
+    const dispatchAction = async (action, payload = {}) => {
+        playAudioChime(850, 0.08);
+        
+        // 1. WS
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ action, ...payload }));
+        }
+
+        // 2. HTTP REST endpoint
+        try {
+            let url = null;
+            let body = null;
+
+            if (action === "refresh_orders") url = '/api/feed/refresh';
+            else if (action === "accept_order") {
+                url = '/api/feed/accept';
+                body = JSON.stringify({ order_id: payload.order_id || "" });
+            }
+            else if (action === "reach_store") url = '/api/feed/reach-store';
+            else if (action === "pickup_order") url = '/api/feed/pickup';
+            else if (action === "reach_customer") url = '/api/feed/reach-customer';
+            else if (action === "complete_delivery") url = '/api/feed/deliver';
+            else if (action === "dismiss_offer") {
+                url = '/api/feed/dismiss';
+                body = JSON.stringify({ order_id: payload.order_id || "" });
+            }
+            else if (action === "trigger_sos") url = '/api/test/sos';
+            else if (action === "trigger_tilt") url = '/api/test/tilt';
+
+            if (url) {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: body ? { 'Content-Type': 'application/json' } : {},
+                    body: body
+                });
+                const jsonRes = await res.json();
+                if (jsonRes && jsonRes.snapshot) {
+                    setTelemetry(jsonRes.snapshot);
+                }
+                if (action === "complete_delivery" && jsonRes && jsonRes.result && jsonRes.result.success) {
+                    setCelebration({ payout: jsonRes.result.payout });
+                    playAudioChime(1200, 0.3);
+                    setTimeout(() => setCelebration(null), 4000);
+                }
+            }
+        } catch (e) {
+            console.warn("[ACTION ERROR]", e);
+        }
+    };
+
+    // 4. Expose dispatcher globally for test bench buttons and hotkeys
+    useEffect(() => {
+        window.hudDispatcher = {
+            refreshOrders: () => dispatchAction("refresh_orders"),
+            acceptTopOrder: () => dispatchAction("accept_order", { order_id: "" }),
+            acceptOrder: (id) => dispatchAction("accept_order", { order_id: id }),
+            reachStore: () => dispatchAction("reach_store"),
+            confirmPickup: () => dispatchAction("pickup_order"),
+            reachCustomer: () => dispatchAction("reach_customer"),
+            completeDelivery: () => dispatchAction("complete_delivery"),
+            dismissOffer: (id) => dispatchAction("dismiss_offer", { order_id: id }),
+            triggerSos: () => dispatchAction("trigger_sos"),
+            triggerTilt: () => dispatchAction("trigger_tilt"),
+            toggleDashcam: () => setDashcamOpen(prev => !prev)
+        };
+
+        const handleKeyDown = (e) => {
+            const k = e.key.toUpperCase();
+            if (k === "O") window.hudDispatcher.refreshOrders();
+            else if (k === "A") window.hudDispatcher.acceptTopOrder();
+            else if (k === "R") window.hudDispatcher.reachStore();
+            else if (k === "K") window.hudDispatcher.confirmPickup();
+            else if (k === "C") window.hudDispatcher.reachCustomer();
+            else if (k === "U") window.hudDispatcher.completeDelivery();
+            else if (k === "S") window.hudDispatcher.triggerSos();
+            else if (k === "T") window.hudDispatcher.triggerTilt();
+            else if (k === "D") window.hudDispatcher.toggleDashcam();
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
+
+    const nav = telemetry?.navigation || {};
+    const feed = telemetry?.feed || {};
+    const orderPhase = telemetry?.order_phase || "IDLE";
+    const selectedOrder = telemetry?.selected_order;
+    const activeOffers = telemetry?.active_offers || [];
+    const speedKmh = Math.round(telemetry?.gps?.speed_kmh || 0);
+
+    const isInTransit = orderPhase === "ROUTE_TO_STORE" || orderPhase === "ROUTE_TO_CUSTOMER";
+
+    return (
+        <div className="react-hud-overlay">
+            {/* TOP-LEFT: GOOGLE MAPS GREEN TURN CARD */}
+            {isInTransit && (
+                <div className="gmaps-turn-card" style={{ display: 'flex' }}>
+                    <div className="turn-icon-box">
+                        <svg className="turn-svg" viewBox="0 0 100 100">
+                            <path d={SVG_ICONS[nav.maneuver_type] || SVG_ICONS.STRAIGHT} fill="#FFFFFF" />
+                        </svg>
+                    </div>
+                    <div className="turn-text-content">
+                        <div className="turn-dist-row">
+                            <span className="turn-dist-num">{nav.distance_to_turn_m || 0}</span>
+                            <span className="turn-dist-unit">m</span>
+                            <span className="traffic-condition-badge" style={{ backgroundColor: nav.current_traffic_color || '#00E676' }}>
+                                {nav.current_traffic_status === 'HEAVY_JAM' ? '🔴 Heavy Jam' : (nav.current_traffic_status === 'MODERATE' ? '🟠 Moderate' : '🟢 Flowing')}
+                            </span>
+                        </div>
+                        <div className="turn-road-name">{nav.road_name || 'Main Road'}</div>
+                        <div className="turn-next-preview">Then: {nav.next_instruction || 'Proceed'}</div>
+                    </div>
+                </div>
+            )}
+
+            {/* TOP-RIGHT: MULTI-APP POP-UP NOTIFICATION STACK (REACT VIRTUAL DOM) */}
+            {(orderPhase === "IDLE" || orderPhase === "DELIVERED") && (
+                <div className="order-notification-stack">
+                    {activeOffers.length > 0 ? (
+                        activeOffers.map(offer => (
+                            <div key={offer.order_id} className="notification-card" style={{ borderLeftColor: offer.platform_color }}>
+                                <div className="card-top-row">
+                                    <span className="card-platform-badge" style={{ background: offer.platform_color }}>
+                                        {offer.platform.toUpperCase()}
+                                    </span>
+                                    <span className="card-payout">₹{offer.payout_inr.toFixed(2)}</span>
+                                </div>
+                                <div className="card-store-row">
+                                    <span>🏪</span>
+                                    <div>
+                                        <strong>{offer.store_name}</strong>
+                                        <small style={{ display: 'block', color: '#94A3B8', fontSize: '10px' }}>{offer.items_summary}</small>
+                                    </div>
+                                    <span className="card-dist-pill">{offer.store_dist_km} km to store</span>
+                                </div>
+                                <div className="card-drop-row">
+                                    <span>🏠</span>
+                                    <span>{offer.customer_address} ({offer.drop_dist_km} km drop)</span>
+                                </div>
+                                <div className="card-actions-row">
+                                    <span className="total-dist-tag">📍 {offer.total_dist_km} km total</span>
+                                    <div className="card-buttons">
+                                        <button className="btn-card-dismiss" onClick={() => dispatchAction("dismiss_offer", { order_id: offer.order_id })}>
+                                            ✕ Dismiss
+                                        </button>
+                                        <button className="btn-card-accept" onClick={() => dispatchAction("accept_order", { order_id: offer.order_id })}>
+                                            ✅ Opt In
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="notification-card" style={{ borderLeftColor: '#38BDF8', background: 'rgba(15,23,42,0.95)' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 800, color: '#38BDF8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '14px' }}>🛰️</span> Scanning for incoming delivery gigs...
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* FLOATING SPEEDOMETER BUBBLE */}
+            <div className="gmaps-speed-bubble">
+                <span className="speed-num">{speedKmh}</span>
+                <span className="speed-label">km/h</span>
+            </div>
+
+            {/* ACTIVE 2-PHASE ROUTE BANNER */}
+            {selectedOrder && (orderPhase === "ROUTE_TO_STORE" || orderPhase === "AT_STORE" || orderPhase === "ROUTE_TO_CUSTOMER") && (
+                <div className="active-route-banner" style={{ display: 'flex' }}>
+                    <div className="route-phase-info">
+                        {orderPhase === "ROUTE_TO_STORE" && (
+                            <>
+                                <span className="route-phase-badge" style={{ color: '#FC8019' }}>📍 PHASE 1: BLUE ROUTE TO STORE</span>
+                                <h4 className="route-target-title">{selectedOrder.store_name}</h4>
+                                <small className="route-target-sub">{selectedOrder.store_address} • {selectedOrder.store_dist_km} km travel distance</small>
+                            </>
+                        )}
+                        {orderPhase === "AT_STORE" && (
+                            <>
+                                <span className="route-phase-badge" style={{ color: '#00B0FF' }}>🏪 AT STORE: COLLECTING ORDER</span>
+                                <h4 className="route-target-title">Token #{selectedOrder.order_id} • {selectedOrder.items_summary}</h4>
+                                <small className="route-target-sub">Package ready at {selectedOrder.store_name}</small>
+                            </>
+                        )}
+                        {orderPhase === "ROUTE_TO_CUSTOMER" && (
+                            <>
+                                <span className="route-phase-badge" style={{ color: '#00E676' }}>📦 PHASE 2: BLUE ROUTE TO DROP-OFF</span>
+                                <h4 className="route-target-title">{selectedOrder.customer_name} • {selectedOrder.customer_address}</h4>
+                                <small className="route-target-sub">{selectedOrder.customer_instructions} • {selectedOrder.drop_dist_km} km drop distance</small>
+                            </>
+                        )}
+                    </div>
+                    <div className="route-actions">
+                        {orderPhase === "ROUTE_TO_STORE" && (
+                            <button className="route-action-btn" style={{ background: '#F59E0B' }} onClick={() => dispatchAction("reach_store")}>
+                                🏪 REACHED STORE [R]
+                            </button>
+                        )}
+                        {orderPhase === "AT_STORE" && (
+                            <button className="route-action-btn" style={{ background: '#00B0FF' }} onClick={() => dispatchAction("pickup_order")}>
+                                🍴 FOOD PICKED UP [K]
+                            </button>
+                        )}
+                        {orderPhase === "ROUTE_TO_CUSTOMER" && (
+                            <button className="route-action-btn" style={{ background: '#7C4DFF', color: '#FFF' }} onClick={() => dispatchAction("complete_delivery")}>
+                                ✅ COMPLETE DELIVERY [U]
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* CELEBRATION TOAST */}
+            {celebration && (
+                <div className="order-delivered-toast" style={{ display: 'flex' }}>
+                    <span className="toast-icon">🎉</span>
+                    <div className="toast-text">
+                        <strong>Order Successfully Delivered!</strong>
+                        <small>+₹{celebration.payout.toFixed(2)} Credited to Rider Wallet</small>
+                    </div>
+                </div>
+            )}
+
+            {/* DASHCAM PIP */}
+            {dashcamOpen && (
+                <div className="gmaps-dashcam-pip" style={{ display: 'block' }}>
+                    <div className="dashcam-pip-bar">
+                        <span>WITNESS DASHCAM [LIVE]</span>
+                        <button className="pip-close" onClick={() => setDashcamOpen(false)}>✕</button>
+                    </div>
+                    <img src="/api/camera/stream" alt="Dashcam Stream" />
+                </div>
+            )}
+
+            {/* BOTTOM GOOGLE MAPS TRIP BAR */}
+            <div className="gmaps-bottom-card">
+                <div className="trip-time-box">
+                    <div className="trip-time-row">
+                        <span className="trip-time-val">{nav.eta_minutes || 0} min</span>
+                        <span className="traffic-delay-text" style={{ color: nav.traffic_delay_minutes > 0 ? '#FF1744' : '#00E676' }}>
+                            {nav.traffic_delay_minutes > 0 ? `+${nav.traffic_delay_minutes} min delay` : 'Fastest route'}
+                        </span>
+                    </div>
+                    <div className="trip-sub-row">
+                        <span className="trip-dist-val">{nav.remaining_total_dist_km || 0} km</span>
+                        <span className="trip-dot">•</span>
+                        <span className="trip-eta-val">
+                            {new Date(Date.now() + (nav.eta_minutes || 0) * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="destination-preview-box">
+                    <span className="dest-label">
+                        {orderPhase === "ROUTE_TO_STORE" ? "PHASE 1 (SHOP PICKUP):" : (orderPhase === "ROUTE_TO_CUSTOMER" ? "PHASE 2 (DROP-OFF):" : "ACTIVE DESTINATION:")}
+                    </span>
+                    <span className="dest-name">{nav.destination_name || 'Scanning for orders nearby...'}</span>
+                </div>
+
+                <div className="trip-actions">
+                    <button className="btn-import-dest" onClick={() => dispatchAction("refresh_orders")}>🔄 Refresh</button>
+                    <button className="btn-end-route" onClick={() => dispatchAction("trigger_sos")}>🚨 SOS</button>
                 </div>
             </div>
-        `;
-        return;
-    }
 
-    stackEl.innerHTML = offers.map(offer => `
-        <div class="notification-card" style="border-left-color: ${offer.platform_color}">
-            <div class="card-top-row">
-                <span class="card-platform-badge" style="background: ${offer.platform_color}">
-                    ${offer.platform.toUpperCase()}
-                </span>
-                <span class="card-payout">₹${offer.payout_inr.toFixed(2)}</span>
-            </div>
-
-            <div class="card-store-row">
-                <span>🏪</span>
-                <div>
-                    <strong>${offer.store_name}</strong>
-                    <small style="display:block;color:#94A3B8;font-size:10px;">${offer.items_summary}</small>
+            {/* EMERGENCY OVERLAY */}
+            {telemetry?.is_emergency && (
+                <div className="emergency-overlay" style={{ display: 'flex' }}>
+                    <div className="emergency-card">
+                        <div className="emergency-icon">🚨</div>
+                        <div className="emergency-title">{telemetry.emergency_reason || 'EMERGENCY SOS ACTIVE'}</div>
+                        <div className="emergency-sub">Video Evidence Locked to /evidence/incidents/</div>
+                        <div className="emergency-gps">GPS: {telemetry.gps?.latitude?.toFixed(6)}, {telemetry.gps?.longitude?.toFixed(6)} | Speed: {telemetry.gps?.speed_kmh} km/h</div>
+                        <button className="btn-reset" onClick={() => dispatchAction("reset_emergency")}>DISMISS & RESUME NAVIGATION</button>
+                    </div>
                 </div>
-                <span class="card-dist-pill">${offer.store_dist_km} km away</span>
-            </div>
-
-            <div class="card-drop-row">
-                <span>🏠</span>
-                <span>${offer.customer_address} (${offer.drop_dist_km} km drop)</span>
-            </div>
-
-            <div class="card-actions-row">
-                <span class="total-dist-tag">📍 ${offer.total_dist_km} km total</span>
-                <div class="card-buttons">
-                    <button class="btn-card-dismiss" onclick="dismissOffer('${offer.order_id}')">✕ Dismiss</button>
-                    <button class="btn-card-accept" onclick="acceptSpecificOrder('${offer.order_id}')">✅ Opt In</button>
-                </div>
-            </div>
+            )}
         </div>
-    `).join("");
+    );
 }
 
-function renderActiveRouteBanner(order, orderPhase) {
-    const banner = document.getElementById("activeRouteBanner");
-    const badge = document.getElementById("routePhaseBadge");
-    const title = document.getElementById("routeTargetTitle");
-    const sub = document.getElementById("routeTargetSub");
-    const actions = document.getElementById("routeActions");
-    const destHeader = document.getElementById("destHeaderLabel");
-
-    if (!order || orderPhase === "IDLE" || orderPhase === "DELIVERED") {
-        if (banner) banner.style.display = "none";
-        if (destHeader) destHeader.textContent = "TARGET DESTINATION:";
-        return;
-    }
-
-    if (banner) banner.style.display = "flex";
-
-    // PHASE 1: Route to Shop
-    if (orderPhase === "ROUTE_TO_STORE") {
-        badge.textContent = "📍 PHASE 1: ROUTE TO STORE";
-        badge.style.color = "#FC8019";
-        title.textContent = order.store_name;
-        sub.textContent = `${order.store_address} (${order.store_dist_km} km travel distance from current location)`;
-        actions.innerHTML = `
-            <button class="route-action-btn" onclick="reachStore()" style="background:#F59E0B;">🏪 REACHED STORE [R]</button>
-        `;
-        if (destHeader) destHeader.textContent = "SHOP PICKUP:";
-    }
-    // PHASE 1.5: At Shop
-    else if (orderPhase === "AT_STORE") {
-        badge.textContent = "🏪 AT SHOP: PACKING & PREP";
-        badge.style.color = "#00B0FF";
-        title.textContent = `Pick up: ${order.items_summary}`;
-        sub.textContent = `Match Order Token #${order.order_id} at ${order.store_name}`;
-        actions.innerHTML = `
-            <button class="route-action-btn" onclick="confirmPickup()" style="background:#00B0FF;">🍴 FOOD PICKED UP [K]</button>
-        `;
-        if (destHeader) destHeader.textContent = "SHOP PICKUP:";
-    }
-    // PHASE 2: Route to Customer
-    else if (orderPhase === "ROUTE_TO_CUSTOMER") {
-        badge.textContent = "📦 PHASE 2: ROUTE TO CUSTOMER";
-        badge.style.color = "#00E676";
-        title.textContent = `${order.customer_name} • ${order.customer_address}`;
-        sub.textContent = `${order.customer_instructions} (${order.drop_dist_km} km drop distance)`;
-        actions.innerHTML = `
-            <button class="route-action-btn" onclick="completeDelivery()" style="background:#7C4DFF;color:#FFF;">✅ COMPLETE DELIVERY [U]</button>
-        `;
-        if (destHeader) destHeader.textContent = "CUSTOMER DROP:";
-    }
+// Mount React 18 Application Root
+const rootElement = document.getElementById('reactHudRoot');
+if (rootElement) {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<HUDApp />);
 }
-
-function showDeliveryCelebration(payout = 85.0) {
-    const toast = document.getElementById("deliveredToast");
-    if (!toast) return;
-    document.getElementById("toastPayoutText").textContent = `+₹${payout.toFixed(2)} Credited to Rider Wallet`;
-    toast.style.display = "flex";
-    playAudioChime(1200, 0.3);
-    setTimeout(() => {
-        toast.style.display = "none";
-    }, 4000);
-}
-
-function renderTrafficPolyline(polyline, trafficSegments) {
-    if (!mapInstance) return;
-    trafficPolylines.forEach(p => {
-        try { mapInstance.removeLayer(p); } catch (e) {}
-    });
-    trafficPolylines = [];
-
-    if (!trafficSegments || trafficSegments.length === 0) {
-        const poly = L.polyline(polyline, { color: '#1A73E8', weight: 7, opacity: 0.9 }).addTo(mapInstance);
-        trafficPolylines.push(poly);
-        return;
-    }
-
-    trafficSegments.forEach(seg => {
-        const pts = polyline.slice(seg.start_idx, seg.end_idx + 1);
-        if (pts.length >= 2) {
-            const line = L.polyline(pts, {
-                color: seg.color,
-                weight: 7,
-                opacity: 0.92,
-                lineCap: 'round',
-                lineJoin: 'round'
-            }).addTo(mapInstance);
-            trafficPolylines.push(line);
-        }
-    });
-}
-
-// Dispatches commands via WebSocket and HTTP REST with immediate state update
-async function sendCommand(cmdObj) {
-    playAudioChime(850, 0.08);
-    console.log("[FEED ACTION]", cmdObj);
-    
-    // 1. Try WebSocket
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(cmdObj));
-    }
-    
-    // 2. Immediate REST Endpoint Call
-    try {
-        const act = cmdObj.action;
-        let url = null;
-        let body = null;
-
-        if (act === "refresh_orders") url = '/api/feed/refresh';
-        else if (act === "accept_order") {
-            url = '/api/feed/accept';
-            body = JSON.stringify({ order_id: cmdObj.order_id || "" });
-        }
-        else if (act === "reach_store") url = '/api/feed/reach-store';
-        else if (act === "pickup_order") url = '/api/feed/pickup';
-        else if (act === "reach_customer") url = '/api/feed/reach-customer';
-        else if (act === "complete_delivery") url = '/api/feed/deliver';
-        else if (act === "dismiss_offer") {
-            url = '/api/feed/dismiss';
-            body = JSON.stringify({ order_id: cmdObj.order_id || "" });
-        }
-        else if (act === "trigger_sos") url = '/api/test/sos';
-        else if (act === "trigger_tilt") url = '/api/test/tilt';
-
-        if (url) {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: body ? { 'Content-Type': 'application/json' } : {},
-                body: body
-            });
-            const jsonRes = await res.json();
-            if (jsonRes && jsonRes.snapshot) {
-                updateHUD(jsonRes.snapshot);
-            }
-            if (act === "complete_delivery" && jsonRes && jsonRes.result && jsonRes.result.success) {
-                showDeliveryCelebration(jsonRes.result.payout);
-            }
-        }
-    } catch (err) {
-        console.warn("[REST DISPATCH]", err);
-    }
-}
-
-// Public action bindings
-function refreshOrders() {
-    sendCommand({ action: "refresh_orders" });
-}
-
-function acceptSpecificOrder(orderId) {
-    sendCommand({ action: "accept_order", order_id: orderId });
-}
-
-function acceptTopOrder() {
-    sendCommand({ action: "accept_order", order_id: "" });
-}
-
-function dismissOffer(orderId) {
-    sendCommand({ action: "dismiss_offer", order_id: orderId });
-}
-
-function reachStore() {
-    sendCommand({ action: "reach_store" });
-}
-
-function confirmPickup() {
-    sendCommand({ action: "pickup_order" });
-}
-
-function reachCustomer() {
-    sendCommand({ action: "reach_customer" });
-}
-
-function completeDelivery() {
-    sendCommand({ action: "complete_delivery" });
-}
-
-function triggerSos() {
-    sendCommand({ action: "trigger_sos" });
-}
-
-function triggerTilt() {
-    sendCommand({ action: "trigger_tilt" });
-}
-
-function resetEmergency() {
-    sendCommand({ action: "reset_emergency" });
-}
-
-function toggleDashcam() {
-    const pip = document.getElementById("dashcamPip");
-    if (pip) pip.style.display = pip.style.display === "none" ? "block" : "none";
-}
-
-// Global Keyboard Shortcuts
-document.addEventListener("keydown", (e) => {
-    const key = e.key.toUpperCase();
-    if (key === "O") refreshOrders();
-    else if (key === "A") acceptTopOrder();
-    else if (key === "R") reachStore();
-    else if (key === "K") confirmPickup();
-    else if (key === "C") reachCustomer();
-    else if (key === "U") completeDelivery();
-    else if (key === "S") triggerSos();
-    else if (key === "T") triggerTilt();
-    else if (key === "D") toggleDashcam();
-    else if (key === "ESCAPE") resetEmergency();
-});
-
-// Initialize on page load
-window.addEventListener("DOMContentLoaded", () => {
-    initMap(22.572645, 88.363892);
-    initWebSocket();
-});
