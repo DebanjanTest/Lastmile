@@ -1,6 +1,7 @@
 """
 Mock Hardware Drivers for Windows Simulation & Testing
 Integrates KinematicVehicleSimulator for genuine, physics-based vehicle motion and traffic jam effects.
+Rider remains completely stationary until an active delivery gig is accepted.
 """
 
 import time
@@ -35,15 +36,9 @@ class MockGPS(BaseGPS):
         self.origin_lat = sys_loc["lat"]
         self.origin_lng = sys_loc["lng"]
 
-        # Initial fallback route
-        init_route = [
-            [self.origin_lat, self.origin_lng],
-            [self.origin_lat + 0.0040, self.origin_lng + 0.0030],
-            [self.origin_lat + 0.0080, self.origin_lng + 0.0075],
-            [self.origin_lat + 0.0130, self.origin_lng + 0.0120],
-            [self.origin_lat + 0.0180, self.origin_lng + 0.0190]
-        ]
-        self.kinematics.load_polyline(init_route)
+        # Rider starts stationary at origin location
+        self.kinematics.set_position(self.origin_lat, self.origin_lng)
+        self.kinematics.set_motion_enabled(False)
 
         self._latest_fix = GPSData(
             latitude=self.origin_lat,
@@ -55,6 +50,11 @@ class MockGPS(BaseGPS):
             is_fixed=True,
             satellites=10
         )
+
+    def set_motion_enabled(self, enabled: bool) -> None:
+        """Enables vehicle transit when on order, or halts rider when idle / at store / delivered."""
+        with self._lock:
+            self.kinematics.set_motion_enabled(enabled)
 
     def set_route_waypoints(self, waypoints: List[List[float]]) -> None:
         """Loads new road polyline into kinematics simulator."""
@@ -84,7 +84,7 @@ class MockGPS(BaseGPS):
                     longitude=lng,
                     speed_kmh=speed,
                     heading_deg=heading,
-                    altitude_m=12.0 + math.sin(time.time()) * 1.5,
+                    altitude_m=12.0 + math.sin(time.time()) * 0.5,
                     timestamp=datetime.now(timezone.utc),
                     is_fixed=True,
                     satellites=10
@@ -113,102 +113,114 @@ class MockCamera(BaseCamera):
         self.running = False
 
     def _capture_loop(self) -> None:
-        frame_count = 0
         while self.running:
-            time.sleep(0.1)
             now = time.time()
-            frame = self._generate_synthetic_frame(frame_count, now)
-            frame_count += 1
-
+            frame = self._generate_synthetic_frame(now)
             with self._lock:
                 self._frame_buffer.append((now, frame))
                 cutoff = now - self.buffer_seconds
-                while self._frame_buffer and self._frame_buffer[0][0] < cutoff:
-                    self._frame_buffer.pop(0)
+                self._frame_buffer = [f for f in self._frame_buffer if f[0] >= cutoff]
+            time.sleep(0.1)
 
-    def _generate_synthetic_frame(self, frame_num: int, timestamp: float):
+    def _generate_synthetic_frame(self, timestamp: float) -> Any:
         if cv2 is None or np is None:
-            return None
+            return f"FRAME_DATA_{timestamp}".encode('utf-8')
+        
+        # 640x360 Dashcam Canvas
         img = np.zeros((360, 640, 3), dtype=np.uint8)
-        img[:] = (25, 25, 30)
-
-        # Draw road horizon lines
-        cv2.line(img, (0, 240), (640, 240), (60, 60, 70), 2)
-        cv2.line(img, (200, 240), (50, 360), (120, 120, 120), 3)
-        cv2.line(img, (440, 240), (590, 360), (120, 120, 120), 3)
-
-        # Moving center dashed line
-        offset = int((frame_num * 10) % 60)
-        for y in range(240 + offset, 360, 40):
-            cv2.line(img, (320, y), (320, min(360, y + 20)), (0, 215, 255), 3)
-
-        time_str = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-        cv2.putText(img, f"LASTMILE GUARD - WITNESS DASHCAM [SIM]", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 180), 1)
-        cv2.putText(img, f"REC (RAM-BUF) | {time_str} | 38.5 KM/H", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (220, 220, 220), 1)
-        cv2.putText(img, f"RAM DISK: /run/shm/ OK | BUF: {len(self._frame_buffer)} frames", (20, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
+        img[:] = (24, 28, 36)
+        
+        # Road lane markings
+        cv2.line(img, (0, 360), (280, 200), (60, 60, 60), 4)
+        cv2.line(img, (640, 360), (360, 200), (60, 60, 60), 4)
+        cv2.line(img, (320, 360), (320, 200), (0, 200, 255), 2)
+        
+        # OSD Telemetry HUD Stamp
+        time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-4]
+        cv2.putText(img, f"LASTMILE DASHCAM - {time_str}", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 230, 118), 1)
+        cv2.putText(img, "REC [BUFFERING 60s RAM]", (15, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 255), 1)
         return img
 
-    def get_latest_frame_jpeg(self) -> Optional[bytes]:
+    def get_latest_frame(self) -> Optional[Any]:
         with self._lock:
-            if not self._frame_buffer or cv2 is None:
-                return None
-            latest_frame = self._frame_buffer[-1][1]
-            if latest_frame is None:
-                return None
-            _, buf = cv2.imencode('.jpg', latest_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-            return buf.tobytes()
+            if self._frame_buffer:
+                return self._frame_buffer[-1][1]
+        return None
 
     def lock_incident(self, reason: str, metadata: Dict[str, Any]) -> str:
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"incident_{reason.lower().replace(' ', '_')}_{timestamp_str}.mp4"
-        filepath = self.storage_dir / filename
+        safe_reason = reason.lower().replace(" ", "_").replace("/", "_")
+        dest_filename = f"incident_{safe_reason}_{timestamp_str}.mp4"
+        dest_path = str(self.storage_dir / dest_filename)
+        return self.dump_buffer_to_disk(dest_path, reason, metadata)
 
+    def get_latest_frame_jpeg(self) -> Optional[bytes]:
+        frame = self.get_latest_frame()
+        if frame is None:
+            return None
+        if isinstance(frame, bytes):
+            return frame
+        if cv2 is not None:
+            _, buffer = cv2.imencode('.jpg', frame)
+            return buffer.tobytes()
+        return None
+
+    def dump_buffer_to_disk(self, destination_path: str, reason: str, metadata: Dict[str, Any]) -> str:
         with self._lock:
-            frames_to_save = [f[1] for f in self._frame_buffer if f[1] is not None]
-
-        if cv2 and frames_to_save:
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(str(filepath), fourcc, 10.0, (640, 360))
-            for frame in frames_to_save:
-                annotated = frame.copy()
-                cv2.putText(annotated, f"INCIDENT LOCKED: {reason.upper()}", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                out.write(annotated)
-            out.release()
-
-        meta_path = filepath.with_suffix(".json")
+            frames_to_save = list(self._frame_buffer)
+        
+        dest_file = Path(destination_path)
+        dest_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        meta_file = dest_file.with_suffix('.json')
         import json
-        meta_path.write_text(json.dumps({
-            "incident_reason": reason,
-            "timestamp": datetime.now().isoformat(),
-            "telemetry": metadata,
-            "locked_frames_count": len(frames_to_save),
-            "file_path": str(filepath)
-        }, indent=2))
-        return str(filepath)
+        with open(meta_file, 'w') as f:
+            json.dump({
+                "reason": reason,
+                "timestamp": datetime.now().isoformat(),
+                "frame_count": len(frames_to_save),
+                "metadata": metadata
+            }, f, indent=2)
+            
+        with open(dest_file, 'wb') as f:
+            f.write(b"MOCK_LOCKED_MP4_EVIDENCE_BUFFER")
+            
+        return str(dest_file)
 
 class MockSensors(BaseSensors):
     def __init__(self):
-        self.brightness = 85
-        self.on_sos_callback: Optional[Callable[[], None]] = None
-        self.on_tilt_callback: Optional[Callable[[], None]] = None
+        self.brightness = 0.85
+        self.is_sos_pressed = False
+        self.is_tilted = False
+        self._on_sos_callback: Optional[Callable[[], None]] = None
+        self._on_tilt_callback: Optional[Callable[[], None]] = None
 
     def start(self, on_sos: Callable[[], None], on_tilt: Callable[[], None]) -> None:
-        self.on_sos_callback = on_sos
-        self.on_tilt_callback = on_tilt
+        self._on_sos_callback = on_sos
+        self._on_tilt_callback = on_tilt
 
     def stop(self) -> None:
         pass
 
-    def trigger_sos(self) -> None:
-        if self.on_sos_callback:
-            self.on_sos_callback()
-
-    def trigger_tilt(self) -> None:
-        if self.on_tilt_callback:
-            self.on_tilt_callback()
-
-    def get_brightness(self) -> int:
+    def get_brightness(self) -> float:
         return self.brightness
 
-    def set_brightness(self, level: int) -> None:
-        self.brightness = max(10, min(100, level))
+    def trigger_sos(self) -> None:
+        if self._on_sos_callback:
+            self._on_sos_callback()
+
+    def trigger_tilt(self) -> None:
+        if self._on_tilt_callback:
+            self._on_tilt_callback()
+
+class MockSystemHealth(BaseSystemHealth):
+    def get_health(self) -> SystemHealthData:
+        return SystemHealthData(
+            cpu_temp_c=48.5,
+            is_throttled=False,
+            voltage_status="OK",
+            ram_usage_pct=34.2,
+            cpu_usage_pct=18.5,
+            device_model="Windows x86_64 Dev Simulation",
+            uptime_seconds=1200
+        )

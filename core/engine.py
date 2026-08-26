@@ -1,6 +1,7 @@
 """
 LastMile Guard Core Engine
 Coordinates HAL, Navigation, Traffic, Dashcam, and the Multi-App Order Feed & 2-Phase Routing System.
+Keeps rider completely stationary at a specific location until an active delivery is accepted.
 """
 
 import asyncio
@@ -37,9 +38,9 @@ class LastMileEngine:
         # Seed initial pool of notifications
         self.feed.refresh_order_pool(self.navigation.current_lat, self.navigation.current_lng)
 
-        # Sync kinematics waypoints
-        if hasattr(self.hal.gps, "set_route_waypoints") and self.navigation.route_polyline:
-            self.hal.gps.set_route_waypoints(self.navigation.route_polyline)
+        # Rider starts stationary at origin location
+        if hasattr(self.hal.gps, "set_motion_enabled"):
+            self.hal.gps.set_motion_enabled(False)
 
         self.dashcam = DashcamManager(self.hal.camera)
         self.sentinel = SystemHealthSentinel(
@@ -110,19 +111,39 @@ class LastMileEngine:
         return self.feed.refresh_order_pool(self.navigation.current_lat, self.navigation.current_lng)
 
     def select_and_accept_order(self, order_id: str) -> Optional[DeliveryOffer]:
-        return self.feed.select_and_accept_order(order_id)
+        order = self.feed.select_and_accept_order(order_id)
+        # Enable vehicle motion along the route to the restaurant
+        if hasattr(self.hal.gps, "set_motion_enabled"):
+            self.hal.gps.set_motion_enabled(True)
+        return order
 
     def reach_store(self) -> Optional[DeliveryOffer]:
-        return self.feed.advance_to_at_store()
+        order = self.feed.advance_to_at_store()
+        # Halt motion while at restaurant
+        if hasattr(self.hal.gps, "set_motion_enabled"):
+            self.hal.gps.set_motion_enabled(False)
+        return order
 
     def pickup_order_and_route_to_customer(self) -> Optional[DeliveryOffer]:
-        return self.feed.confirm_pickup_and_route_to_customer()
+        order = self.feed.confirm_pickup_and_route_to_customer()
+        # Enable vehicle motion along the route to customer drop-off
+        if hasattr(self.hal.gps, "set_motion_enabled"):
+            self.hal.gps.set_motion_enabled(True)
+        return order
 
     def reach_customer(self) -> Optional[DeliveryOffer]:
-        return self.feed.advance_to_at_customer()
+        order = self.feed.advance_to_at_customer()
+        # Halt motion at customer doorstep
+        if hasattr(self.hal.gps, "set_motion_enabled"):
+            self.hal.gps.set_motion_enabled(False)
+        return order
 
     def complete_delivery(self) -> Dict[str, Any]:
-        return self.feed.complete_delivery()
+        res = self.feed.complete_delivery()
+        # Parked / stationary while scanning for new orders
+        if hasattr(self.hal.gps, "set_motion_enabled"):
+            self.hal.gps.set_motion_enabled(False)
+        return res
 
     def dismiss_offer(self, order_id: str) -> None:
         self.feed.dismiss_offer(order_id)

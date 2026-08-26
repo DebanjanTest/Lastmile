@@ -1,6 +1,6 @@
 """
 LastMile Guard - Test Suite
-Verifies HAL, Kinematics, Traffic Engine, Multi-App Order Feed & 2-Phase Routing.
+Verifies HAL, Kinematics (Stationary vs Moving), Traffic Engine, Multi-App Order Feed & 2-Phase Routing.
 """
 
 import unittest
@@ -41,15 +41,30 @@ class TestLastMileGuard(unittest.TestCase):
         fix = hal.gps.get_latest_fix()
         self.assertIsInstance(fix, GPSData)
         self.assertTrue(fix.is_fixed)
+        self.assertEqual(fix.speed_kmh, 0.0)  # Rider starts stationary
 
-    def test_kinematic_physics_movement(self):
+    def test_stationary_vs_moving_kinematics(self):
         kin = KinematicVehicleSimulator(target_cruise_speed_kmh=40.0)
         route = [[22.5700, 88.3600], [22.5710, 88.3610], [22.5720, 88.3620]]
         kin.load_polyline(route)
         
-        lat, lng, speed, heading = kin.step(traffic_speed_factor=1.0)
-        self.assertGreaterEqual(speed, 0.0)
-        self.assertGreater(heading, 0.0)
+        # 1. By default, rider is stationary (speed = 0.0, coordinates locked)
+        lat1, lng1, speed1, _ = kin.step()
+        self.assertEqual(speed1, 0.0)
+        self.assertEqual(lat1, 22.5700)
+        self.assertEqual(lng1, 88.3600)
+
+        # 2. When delivery is accepted, motion is enabled
+        kin.set_motion_enabled(True)
+        lat2, lng2, speed2, _ = kin.step()
+        self.assertGreater(speed2, 0.0)
+
+        # 3. When rider arrives at store / completes delivery, motion is paused
+        kin.set_motion_enabled(False)
+        lat3, lng3, speed3, _ = kin.step()
+        self.assertEqual(speed3, 0.0)
+        self.assertEqual(lat3, lat2)
+        self.assertEqual(lng3, lng2)
 
     def test_traffic_engine(self):
         polyline = [[22.5700 + i*0.001, 88.3600 + i*0.001] for i in range(10)]
@@ -65,7 +80,7 @@ class TestLastMileGuard(unittest.TestCase):
         feed = OrderFeedManager(on_route_change=mock_route_change)
         rider_lat, rider_lng = 22.5643, 88.3693
         
-        # 1. Refresh & generate competing offers
+        # 1. Refresh & generate rich competing offers
         offers = feed.refresh_order_pool(rider_lat, rider_lng)
         self.assertGreaterEqual(len(offers), 3)
         self.assertGreater(offers[0].payout_inr, 40.0)
