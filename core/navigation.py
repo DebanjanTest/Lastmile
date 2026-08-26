@@ -1,6 +1,7 @@
 """
 Turn-by-Turn Navigation & Road Plan Engine
 Leverages real system location, OSRM/Google road routing, and live traffic segment modeling.
+When idle, route is empty until a delivery gig is accepted.
 """
 
 import math
@@ -22,7 +23,7 @@ class Maneuver:
     eta_minutes: int
     bearing_deg: float
     destination_name: str
-    destination_coords: Dict[str, float]
+    destination_coords: Optional[Dict[str, float]]
     route_polyline: List[List[float]] = field(default_factory=list)
     traffic_segments: List[Dict[str, Any]] = field(default_factory=list)
     traffic_delay_minutes: int = 0
@@ -49,9 +50,8 @@ class Maneuver:
         }
 
 class NavigationEngine:
-    def __init__(self, origin_name: str = "Dispatch Origin", destination_name: str = "Delivery Destination", google_api_key: str = ""):
+    def __init__(self, origin_name: str = "Dispatch Origin", destination_name: str = "", google_api_key: str = ""):
         self.google_api_key = google_api_key
-        self.destination_name = destination_name
         
         # 1. Detect physical starting location
         sys_loc = get_system_location()
@@ -59,25 +59,16 @@ class NavigationEngine:
         self.current_lat = sys_loc["lat"]
         self.current_lng = sys_loc["lng"]
         
-        # Default destination (~3 km away)
-        self.dest_lat = self.current_lat + 0.0160
-        self.dest_lng = self.current_lng + 0.0180
-        self.destination_coords = {"lat": self.dest_lat, "lng": self.dest_lng}
+        # When idle on boot, no route exists until an order is accepted
+        self.destination_name = destination_name or "Scanning for orders nearby..."
+        self.dest_lat: Optional[float] = None
+        self.dest_lng: Optional[float] = None
+        self.destination_coords: Optional[Dict[str, float]] = None
 
-        # 2. Fetch road network routing
-        self.route_steps, self.route_polyline = fetch_road_route(
-            start_lat=self.current_lat,
-            start_lng=self.current_lng,
-            dest_lat=self.dest_lat,
-            dest_lng=self.dest_lng,
-            dest_name=self.destination_name,
-            google_api_key=self.google_api_key
-        )
-        
-        # 3. Model traffic conditions along route
-        self.traffic_segments = TrafficEngine.generate_traffic_segments(self.route_polyline)
-        self.traffic_delay_min = TrafficEngine.calculate_total_delay_minutes(self.traffic_segments)
-        
+        self.route_steps: List[RoutePoint] = []
+        self.route_polyline: List[List[float]] = []
+        self.traffic_segments: List[TrafficSegment] = []
+        self.traffic_delay_min: int = 0
         self._current_step_idx = 0
 
     def import_destination(self, dest_name: str, dest_lat: float, dest_lng: float) -> None:
@@ -99,7 +90,18 @@ class NavigationEngine:
         self.traffic_segments = TrafficEngine.generate_traffic_segments(self.route_polyline)
         self.traffic_delay_min = TrafficEngine.calculate_total_delay_minutes(self.traffic_segments)
         self._current_step_idx = 0
-        print(f"[NAVIGATION] New destination route generated: {dest_name} ({len(self.route_steps)} steps, +{self.traffic_delay_min} min traffic delay)")
+        print(f"[NAVIGATION] New destination route generated: {dest_name} ({len(self.route_steps)} steps, {len(self.route_polyline)} pts, +{self.traffic_delay_min} min traffic delay)")
+
+    def clear_route(self) -> None:
+        self.destination_name = "Scanning for orders nearby..."
+        self.dest_lat = None
+        self.dest_lng = None
+        self.destination_coords = None
+        self.route_steps = []
+        self.route_polyline = []
+        self.traffic_segments = []
+        self.traffic_delay_min = 0
+        self._current_step_idx = 0
 
     def _haversine_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         R = 6371000.0
@@ -113,6 +115,8 @@ class NavigationEngine:
         return R * c
 
     def get_current_traffic_speed_factor(self) -> float:
+        if not self.traffic_segments:
+            return 1.0
         return TrafficEngine.get_current_speed_factor(self._current_step_idx, self.traffic_segments)
 
     def update_location(self, gps: GPSData) -> Maneuver:
@@ -122,9 +126,9 @@ class NavigationEngine:
 
         if not self.route_steps:
             return Maneuver(
-                instruction="Proceed to route",
-                road_name="Main Road",
-                next_instruction="Drive forward",
+                instruction="Standing By",
+                road_name="Stationary at Dispatch Base",
+                next_instruction="Select an incoming delivery offer above",
                 maneuver_type="STRAIGHT",
                 distance_to_turn_m=0.0,
                 remaining_total_dist_km=0.0,
@@ -132,9 +136,11 @@ class NavigationEngine:
                 bearing_deg=gps.heading_deg,
                 destination_name=self.destination_name,
                 destination_coords=self.destination_coords,
-                route_polyline=self.route_polyline,
-                traffic_segments=[s.to_dict() for s in self.traffic_segments],
-                traffic_delay_minutes=self.traffic_delay_min
+                route_polyline=[],
+                traffic_segments=[],
+                traffic_delay_minutes=0,
+                current_traffic_status="FLOWING",
+                current_traffic_color="#00E676"
             )
 
         step = self.route_steps[self._current_step_idx]

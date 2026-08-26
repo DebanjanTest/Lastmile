@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LastMile Guard - 5.0" Multi-App Delivery HUD (React 18 Engine)</title>
+    <title>LastMile Guard - 5.0" Multi-App Delivery HUD & 2-Phase Routing</title>
     <!-- Leaflet CSS for high-contrast vector road & traffic maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="/static/css/tripper.css">
@@ -11,13 +11,8 @@
     {% if google_maps_api_key %}
     <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry"></script>
     {% endif %}
-    <!-- Leaflet Engine -->
+    <!-- High-Performance Leaflet Engine -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- React 18 & ReactDOM 18 -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel Standalone for Seamless JSX Compilation -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="workbench-theme">
     <div class="workbench-layout">
@@ -33,13 +28,105 @@
                 </div>
             </div>
 
-            <!-- EXACT 800x480 ACTIVE SCREEN VIEWPORT (REACT MOUNT ROOT) -->
+            <!-- EXACT 800x480 ACTIVE SCREEN VIEWPORT -->
             <div class="screen-viewport" id="screenViewport">
                 <!-- FULLSCREEN ROAD & TRAFFIC MAP CANVAS -->
                 <div id="mapView" class="map-view"></div>
-                
-                <!-- REACT APP MOUNT CONTAINER -->
-                <div id="reactHudRoot"></div>
+
+                <!-- TOP-LEFT: GOOGLE MAPS NAVIGATION TURN CARD (ACTIVE ONLY IN TRANSIT) -->
+                <div class="gmaps-turn-card" id="turnCard" style="display: none;">
+                    <div class="turn-icon-box">
+                        <svg class="turn-svg" id="turnSvg" viewBox="0 0 100 100">
+                            <path id="turnPath" d="M25 80 L25 55 Q25 35 45 35 L60 35 L60 20 L85 45 L60 70 L60 55 L45 55 Q38 55 38 65 L38 80 Z" fill="#FFFFFF"/>
+                        </svg>
+                    </div>
+                    <div class="turn-text-content">
+                        <div class="turn-dist-row">
+                            <span class="turn-dist-num" id="turnDistNum">150</span>
+                            <span class="turn-dist-unit" id="turnDistUnit">m</span>
+                            <span class="traffic-condition-badge" id="trafficConditionBadge">🟢 Flowing</span>
+                        </div>
+                        <div class="turn-road-name" id="turnRoadName">Mahatma Gandhi Road</div>
+                        <div class="turn-next-preview" id="turnNextPreview">Then: Bear left onto Beliaghata Main Rd</div>
+                    </div>
+                </div>
+
+                <!-- TOP-RIGHT: MULTI-APP POP-UP NOTIFICATION STACK -->
+                <div class="order-notification-stack" id="orderNotificationStack">
+                    <!-- Pop-up notification cards load here -->
+                </div>
+
+                <!-- FLOATING SPEEDOMETER BUBBLE -->
+                <div class="gmaps-speed-bubble">
+                    <span class="speed-num" id="speedNum">0</span>
+                    <span class="speed-label">km/h</span>
+                </div>
+
+                <!-- ACTIVE 2-PHASE ROUTE BANNER (PHASE 1: STORE / PHASE 2: CUSTOMER) -->
+                <div class="active-route-banner" id="activeRouteBanner" style="display: none;">
+                    <div class="route-phase-info">
+                        <span class="route-phase-badge" id="routePhaseBadge">📍 PHASE 1: BLUE ROUTE TO STORE</span>
+                        <h4 class="route-target-title" id="routeTargetTitle">Wow! Momo Express</h4>
+                        <small class="route-target-sub" id="routeTargetSub">1.2 km travel distance from current location</small>
+                    </div>
+                    <div class="route-actions" id="routeActions">
+                        <!-- Action buttons dynamically injected -->
+                    </div>
+                </div>
+
+                <!-- ORDER DELIVERED CELEBRATION TOAST -->
+                <div class="order-delivered-toast" id="deliveredToast" style="display: none;">
+                    <span class="toast-icon">🎉</span>
+                    <div class="toast-text">
+                        <strong>Order Successfully Delivered!</strong>
+                        <small id="toastPayoutText">+₹85.00 Credited to Rider Wallet</small>
+                    </div>
+                </div>
+
+                <!-- FLOATING DASHCAM PIP -->
+                <div class="gmaps-dashcam-pip" id="dashcamPip" style="display: none;">
+                    <div class="dashcam-pip-bar">
+                        <span>WITNESS DASHCAM [LIVE]</span>
+                        <button class="pip-close" onclick="toggleDashcam()">✕</button>
+                    </div>
+                    <img id="dashcamFeed" src="/api/camera/stream" alt="Dashcam Stream">
+                </div>
+
+                <!-- BOTTOM: GOOGLE MAPS TRIP SUMMARY CARD -->
+                <div class="gmaps-bottom-card">
+                    <div class="trip-time-box">
+                        <div class="trip-time-row">
+                            <span class="trip-time-val" id="tripTimeVal">0 min</span>
+                            <span class="traffic-delay-text" id="trafficDelayText">Standing by</span>
+                        </div>
+                        <div class="trip-sub-row">
+                            <span class="trip-dist-val" id="tripDistVal">0.0 km</span>
+                            <span class="trip-dot">•</span>
+                            <span class="trip-eta-val" id="tripEtaVal">--:--</span>
+                        </div>
+                    </div>
+
+                    <div class="destination-preview-box">
+                        <span class="dest-label" id="destHeaderLabel">STATUS:</span>
+                        <span class="dest-name" id="destName">Scanning for orders nearby...</span>
+                    </div>
+
+                    <div class="trip-actions">
+                        <button class="btn-import-dest" onclick="refreshOrders()" title="Refresh Orders">🔄 Refresh</button>
+                        <button class="btn-end-route" onclick="triggerSos()" title="Emergency SOS">🚨 SOS</button>
+                    </div>
+                </div>
+
+                <!-- EMERGENCY SOS & CRASH OVERLAY -->
+                <div class="emergency-overlay" id="emergencyOverlay" style="display: none;">
+                    <div class="emergency-card">
+                        <div class="emergency-icon">🚨</div>
+                        <div class="emergency-title" id="emergencyTitle">EMERGENCY SOS ACTIVE</div>
+                        <div class="emergency-sub">Video Evidence Locked to /evidence/incidents/</div>
+                        <div class="emergency-gps" id="emergencyGps">GPS: 22.564300, 88.369300 | Speed: 0 km/h</div>
+                        <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME NAVIGATION</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -48,39 +135,39 @@
              ============================================================================== -->
         <div class="bench-control-panel">
             <div class="panel-header">
-                <span class="panel-tag">⚡ REACT 18 MULTI-APP DISPATCH TEST RIG</span>
+                <span class="panel-tag">⚡ MULTI-APP DISPATCH TEST RIG</span>
                 <span class="panel-hint">Select any order to mark the blue route to the restaurant, then to the drop-off location:</span>
             </div>
             <div class="bench-buttons-row">
-                <button class="bench-btn btn-refresh" id="btnBenchRefresh" onclick="window.hudDispatcher && window.hudDispatcher.refreshOrders()">
+                <button class="bench-btn btn-refresh" id="btnBenchRefresh" onclick="refreshOrders()">
                     <span class="btn-icon">🔄</span>
                     <span class="btn-text">1. Refresh Orders <kbd>[O]</kbd></span>
                 </button>
-                <button class="bench-btn btn-accept" id="btnBenchAccept" onclick="window.hudDispatcher && window.hudDispatcher.acceptTopOrder()">
+                <button class="bench-btn btn-accept" id="btnBenchAccept" onclick="acceptTopOrder()">
                     <span class="btn-icon">✅</span>
                     <span class="btn-text">2. Opt In / Accept <kbd>[A]</kbd></span>
                 </button>
-                <button class="bench-btn btn-store" id="btnBenchStore" onclick="window.hudDispatcher && window.hudDispatcher.reachStore()">
+                <button class="bench-btn btn-store" id="btnBenchStore" onclick="reachStore()">
                     <span class="btn-icon">🏪</span>
                     <span class="btn-text">3. Reached Store <kbd>[R]</kbd></span>
                 </button>
-                <button class="bench-btn btn-pickup" id="btnBenchPickup" onclick="window.hudDispatcher && window.hudDispatcher.confirmPickup()">
+                <button class="bench-btn btn-pickup" id="btnBenchPickup" onclick="confirmPickup()">
                     <span class="btn-icon">🍴</span>
                     <span class="btn-text">4. Picked Up (To Cust) <kbd>[K]</kbd></span>
                 </button>
-                <button class="bench-btn btn-deliver" id="btnBenchDeliver" onclick="window.hudDispatcher && window.hudDispatcher.completeDelivery()">
+                <button class="bench-btn btn-deliver" id="btnBenchDeliver" onclick="completeDelivery()">
                     <span class="btn-icon">📦</span>
                     <span class="btn-text">5. Complete Delivery <kbd>[U]</kbd></span>
                 </button>
-                <button class="bench-btn btn-sos" onclick="window.hudDispatcher && window.hudDispatcher.triggerSos()">
+                <button class="bench-btn btn-sos" onclick="triggerSos()">
                     <span class="btn-icon">🚨</span>
                     <span class="btn-text">Manual SOS <kbd>[S]</kbd></span>
                 </button>
-                <button class="bench-btn btn-crash" onclick="window.hudDispatcher && window.hudDispatcher.triggerTilt()">
+                <button class="bench-btn btn-crash" onclick="triggerTilt()">
                     <span class="btn-icon">💥</span>
                     <span class="btn-text">Tilt Crash <kbd>[T]</kbd></span>
                 </button>
-                <button class="bench-btn btn-cam" onclick="window.hudDispatcher && window.hudDispatcher.toggleDashcam()">
+                <button class="bench-btn btn-cam" onclick="toggleDashcam()">
                     <span class="btn-icon">📷</span>
                     <span class="btn-text">Dashcam <kbd>[D]</kbd></span>
                 </button>
@@ -88,7 +175,7 @@
         </div>
     </div>
 
-    <!-- REACT 18 APPLICATION SCRIPT (BABEL COMPILED) -->
-    <script type="text/babel" src="/static/js/tripper.js"></script>
+    <!-- PURE ES6 HIGH-PERFORMANCE CLIENT (ZERO IN-BROWSER BABEL COMPILER OVERHEAD) -->
+    <script src="/static/js/tripper.js"></script>
 </body>
 </html>

@@ -23,12 +23,10 @@ class LastMileEngine:
         
         maps_cfg = config.get("maps", {})
         origin_name = maps_cfg.get("default_origin", {}).get("name", "Dispatch Origin")
-        destination_name = maps_cfg.get("default_destination", {}).get("name", "Delivery Destination")
         google_api_key = maps_cfg.get("google_maps_api_key", "")
 
         self.navigation = NavigationEngine(
             origin_name=origin_name,
-            destination_name=destination_name,
             google_api_key=google_api_key
         )
         
@@ -140,7 +138,8 @@ class LastMileEngine:
 
     def complete_delivery(self) -> Dict[str, Any]:
         res = self.feed.complete_delivery()
-        # Parked / stationary while scanning for new orders
+        # Clear navigation route & park rider stably
+        self.navigation.clear_route()
         if hasattr(self.hal.gps, "set_motion_enabled"):
             self.hal.gps.set_motion_enabled(False)
         return res

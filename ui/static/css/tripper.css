@@ -130,22 +130,6 @@ body.workbench-theme {
     background: #19212C;
 }
 
-#reactHudRoot {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    width: 800px;
-    height: 480px;
-    z-index: 10;
-    pointer-events: none;
-}
-
-.react-hud-overlay {
-    position: relative;
-    width: 800px;
-    height: 480px;
-    pointer-events: none;
-}
-
 .leaflet-container {
     background-color: #19212C !important;
     width: 800px !important;
