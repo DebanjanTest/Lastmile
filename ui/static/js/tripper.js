@@ -41,15 +41,16 @@ function playAudioChime(freq = 880, duration = 0.15) {
         gain.connect(audioCtx.destination);
         osc.start();
         osc.stop(audioCtx.currentTime + duration);
-    } catch (e) {
-        // Audio policy
-    }
+    } catch (e) {}
 }
 
 function initMap(initialLat = 22.5726, initialLng = 88.3639) {
     if (isMapInitialized || typeof L === 'undefined') return;
 
     try {
+        const mapEl = document.getElementById('mapView');
+        if (!mapEl) return;
+
         mapInstance = L.map('mapView', {
             center: [initialLat, initialLng],
             zoom: 16,
@@ -84,7 +85,7 @@ function initMap(initialLat = 22.5726, initialLng = 88.3639) {
         destMarker = L.marker([22.5855, 88.4168], { icon: destIcon }).addTo(mapInstance);
         isMapInitialized = true;
     } catch (e) {
-        console.error("[MAP ERROR]", e);
+        console.warn("[MAP INIT]", e);
     }
 }
 
@@ -92,42 +93,52 @@ function initWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws/telemetry`;
     
-    ws = new WebSocket(wsUrl);
+    try {
+        ws = new WebSocket(wsUrl);
 
-    ws.onopen = () => {
-        console.log("[HUD WS] Connected to LastMile Engine.");
-    };
+        ws.onopen = () => {
+            console.log("[HUD WS] Connected to LastMile Engine.");
+        };
 
-    ws.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            updateHUD(data);
-        } catch (err) {
-            console.error("[HUD ERROR] Failed to parse telemetry:", err);
-        }
-    };
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                updateHUD(data);
+            } catch (err) {
+                console.error("[HUD ERROR] Failed to parse telemetry:", err);
+            }
+        };
 
-    ws.onclose = () => {
-        setTimeout(initWebSocket, 1500);
-    };
+        ws.onclose = () => {
+            setTimeout(initWebSocket, 2000);
+        };
+    } catch (e) {
+        console.error("[WS CONNECT ERROR]", e);
+    }
 }
 
 function updateHUD(data) {
+    if (!data) return;
+
     // 1. Hardware & Earnings Telemetry
     if (data.health) {
-        document.getElementById("tempBadge").textContent = `⚡ ${data.health.cpu_temp_c}°C`;
+        const tempEl = document.getElementById("tempBadge");
+        if (tempEl) tempEl.textContent = `⚡ ${data.health.cpu_temp_c}°C`;
         const voltEl = document.getElementById("voltBadge");
-        voltEl.textContent = `🔋 ${data.health.voltage_status === 'OK' ? '5.1V' : data.health.voltage_status}`;
+        if (voltEl) voltEl.textContent = `🔋 ${data.health.voltage_status === 'OK' ? '5.1V' : data.health.voltage_status}`;
     }
     if (data.earnings_today_inr !== undefined) {
-        document.getElementById("earningsBadge").textContent = `💰 ₹${data.earnings_today_inr.toFixed(0)}`;
+        const earnEl = document.getElementById("earningsBadge");
+        if (earnEl) earnEl.textContent = `💰 ₹${data.earnings_today_inr.toFixed(0)}`;
     }
 
     // 2. GPS Telemetry & Kinematics
     if (data.gps) {
         const gps = data.gps;
-        document.getElementById("gpsBadge").textContent = gps.is_fixed ? `🛰️ ${gps.satellites} SATS` : `🛰️ ACQUIRING...`;
-        document.getElementById("speedNum").textContent = Math.round(gps.speed_kmh);
+        const gpsEl = document.getElementById("gpsBadge");
+        if (gpsEl) gpsEl.textContent = gps.is_fixed ? `🛰️ ${gps.satellites} SATS` : `🛰️ ACQUIRING...`;
+        const spdEl = document.getElementById("speedNum");
+        if (spdEl) spdEl.textContent = Math.round(gps.speed_kmh);
 
         if (!isMapInitialized) {
             initMap(gps.latitude, gps.longitude);
@@ -135,7 +146,7 @@ function updateHUD(data) {
 
         if (mapInstance && riderMarker) {
             riderMarker.setLatLng([gps.latitude, gps.longitude]);
-            mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.3 });
+            mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.25 });
             
             const puckEl = document.getElementById("riderPuck");
             if (puckEl) {
@@ -147,44 +158,54 @@ function updateHUD(data) {
     // 3. Google Maps Navigation Maneuver & Multi-Colored Traffic Polyline
     if (data.navigation) {
         const nav = data.navigation;
-        document.getElementById("turnDistNum").textContent = nav.distance_to_turn_m;
-        document.getElementById("turnRoadName").textContent = nav.road_name;
-        document.getElementById("turnNextPreview").textContent = `Then: ${nav.next_instruction}`;
+        const distEl = document.getElementById("turnDistNum");
+        if (distEl) distEl.textContent = nav.distance_to_turn_m;
+        const roadEl = document.getElementById("turnRoadName");
+        if (roadEl) roadEl.textContent = nav.road_name;
+        const prevEl = document.getElementById("turnNextPreview");
+        if (prevEl) prevEl.textContent = `Then: ${nav.next_instruction}`;
 
         // Traffic condition badge on turn card
         const trafficBadge = document.getElementById("trafficConditionBadge");
-        if (nav.current_traffic_status === "HEAVY_JAM") {
-            trafficBadge.textContent = "🔴 Heavy Traffic Jam";
-            trafficBadge.style.backgroundColor = "#FF1744";
-        } else if (nav.current_traffic_status === "MODERATE") {
-            trafficBadge.textContent = "🟠 Moderate Traffic";
-            trafficBadge.style.backgroundColor = "#FF9100";
-        } else {
-            trafficBadge.textContent = "🟢 Normal Flow";
-            trafficBadge.style.backgroundColor = "#00E676";
+        if (trafficBadge) {
+            if (nav.current_traffic_status === "HEAVY_JAM") {
+                trafficBadge.textContent = "🔴 Heavy Traffic Jam";
+                trafficBadge.style.backgroundColor = "#FF1744";
+            } else if (nav.current_traffic_status === "MODERATE") {
+                trafficBadge.textContent = "🟠 Moderate Traffic";
+                trafficBadge.style.backgroundColor = "#FF9100";
+            } else {
+                trafficBadge.textContent = "🟢 Normal Flow";
+                trafficBadge.style.backgroundColor = "#00E676";
+            }
         }
 
         // Update SVG icon
         const pathData = SVG_ICONS[nav.maneuver_type] || SVG_ICONS.STRAIGHT;
-        document.getElementById("turnPath").setAttribute("d", pathData);
+        const turnPathEl = document.getElementById("turnPath");
+        if (turnPathEl) turnPathEl.setAttribute("d", pathData);
 
         // Update Bottom Trip Summary
-        document.getElementById("tripTimeVal").textContent = `${nav.eta_minutes} min`;
-        document.getElementById("tripDistVal").textContent = `${nav.remaining_total_dist_km} km`;
-        document.getElementById("destName").textContent = nav.destination_name;
+        const timeEl = document.getElementById("tripTimeVal");
+        if (timeEl) timeEl.textContent = `${nav.eta_minutes} min`;
+        const tDistEl = document.getElementById("tripDistVal");
+        if (tDistEl) tDistEl.textContent = `${nav.remaining_total_dist_km} km`;
 
         // Traffic delay indicator text
         const delayEl = document.getElementById("trafficDelayText");
-        if (nav.traffic_delay_minutes > 0) {
-            delayEl.textContent = `+${nav.traffic_delay_minutes} min delay`;
-            delayEl.style.color = "#FF1744";
-        } else {
-            delayEl.textContent = "Fastest route";
-            delayEl.style.color = "#00E676";
+        if (delayEl) {
+            if (nav.traffic_delay_minutes > 0) {
+                delayEl.textContent = `+${nav.traffic_delay_minutes} min delay`;
+                delayEl.style.color = "#FF1744";
+            } else {
+                delayEl.textContent = "Fastest route";
+                delayEl.style.color = "#00E676";
+            }
         }
 
         const arrival = new Date(Date.now() + nav.eta_minutes * 60000);
-        document.getElementById("tripEtaVal").textContent = arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const etaEl = document.getElementById("tripEtaVal");
+        if (etaEl) etaEl.textContent = arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         // Multi-colored traffic polyline rendering
         if (mapInstance && nav.route_polyline && nav.traffic_segments) {
@@ -201,19 +222,26 @@ function updateHUD(data) {
 
     // 5. Emergency SOS Overlay
     const emerg = document.getElementById("emergencyOverlay");
-    if (data.is_emergency) {
-        emerg.style.display = "flex";
-        document.getElementById("emergencyTitle").textContent = data.emergency_reason || "EMERGENCY SOS ACTIVE";
-        if (data.gps) {
-            document.getElementById("emergencyGps").textContent = `GPS: ${data.gps.latitude.toFixed(6)}, ${data.gps.longitude.toFixed(6)} | Speed: ${data.gps.speed_kmh} km/h`;
+    if (emerg) {
+        if (data.is_emergency) {
+            emerg.style.display = "flex";
+            const titleEl = document.getElementById("emergencyTitle");
+            if (titleEl) titleEl.textContent = data.emergency_reason || "EMERGENCY SOS ACTIVE";
+            const gpsEl = document.getElementById("emergencyGps");
+            if (gpsEl && data.gps) {
+                gpsEl.textContent = `GPS: ${data.gps.latitude.toFixed(6)}, ${data.gps.longitude.toFixed(6)} | Speed: ${data.gps.speed_kmh} km/h`;
+            }
+        } else {
+            emerg.style.display = "none";
         }
-    } else {
-        emerg.style.display = "none";
     }
 }
 
 function renderTrafficPolyline(polyline, trafficSegments) {
-    trafficPolylines.forEach(p => mapInstance.removeLayer(p));
+    if (!mapInstance) return;
+    trafficPolylines.forEach(p => {
+        try { mapInstance.removeLayer(p); } catch (e) {}
+    });
     trafficPolylines = [];
 
     if (!trafficSegments || trafficSegments.length === 0) {
@@ -243,59 +271,72 @@ function updateOrderWorkflowUI(order) {
     const stageBadge = document.getElementById("stageBadge");
     const stageTitle = document.getElementById("stageTitle");
     const stageActions = document.getElementById("stageActions");
-    const destHeader = document.getElementById("destHeaderLabel");
 
     if (!order) {
-        offerModal.style.display = "none";
-        stageBanner.style.display = "none";
-        destHeader.textContent = "TARGET DESTINATION:";
+        if (offerModal) offerModal.style.display = "none";
+        if (stageBanner) stageBanner.style.display = "none";
         return;
     }
 
     if (order.state === "OFFERED") {
-        offerModal.style.display = "flex";
-        stageBanner.style.display = "none";
-        document.getElementById("offerPlatformTag").textContent = `${order.platform.toUpperCase()} NEW ORDER`;
-        document.getElementById("offerPlatformTag").style.backgroundColor = order.platform === "zomato" ? "#E23744" : "#FC8019";
-        document.getElementById("offerPayout").textContent = `₹${order.payout_inr.toFixed(2)}`;
-        document.getElementById("offerRestName").textContent = order.restaurant_name;
-        document.getElementById("offerRestAddr").textContent = order.restaurant_address;
-        document.getElementById("offerCustName").textContent = order.customer_name;
-        document.getElementById("offerCustAddr").textContent = order.customer_address;
-        document.getElementById("offerItems").textContent = `📦 ${order.items}`;
+        if (offerModal) offerModal.style.display = "flex";
+        if (stageBanner) stageBanner.style.display = "none";
+        
+        const tagEl = document.getElementById("offerPlatformTag");
+        if (tagEl) {
+            tagEl.textContent = `${order.platform.toUpperCase()} NEW ORDER`;
+            tagEl.style.backgroundColor = order.platform === "zomato" ? "#E23744" : "#FC8019";
+        }
+        const payEl = document.getElementById("offerPayout");
+        if (payEl) payEl.textContent = `₹${order.payout_inr.toFixed(2)}`;
+        const rNameEl = document.getElementById("offerRestName");
+        if (rNameEl) rNameEl.textContent = order.restaurant_name;
+        const rAddrEl = document.getElementById("offerRestAddr");
+        if (rAddrEl) rAddrEl.textContent = order.restaurant_address;
+        const cNameEl = document.getElementById("offerCustName");
+        if (cNameEl) cNameEl.textContent = order.customer_name;
+        const cAddrEl = document.getElementById("offerCustAddr");
+        if (cAddrEl) cAddrEl.textContent = order.customer_address;
+        const itemsEl = document.getElementById("offerItems");
+        if (itemsEl) itemsEl.textContent = `📦 ${order.items}`;
     } else if (order.state === "NAV_TO_RESTAURANT") {
-        offerModal.style.display = "none";
-        stageBanner.style.display = "flex";
-        stageBadge.textContent = "🛵 STEP 1: EN ROUTE TO RESTAURANT";
-        stageBadge.style.color = "#FF9100";
-        stageTitle.textContent = `${order.restaurant_name} (Pickup #${order.order_id})`;
-        stageActions.innerHTML = `<button class="stage-action-btn" onclick="confirmPickup()" style="background:#00B0FF;">🍴 Food Picked Up [K]</button>`;
-        destHeader.textContent = "RESTAURANT PICKUP:";
+        if (offerModal) offerModal.style.display = "none";
+        if (stageBanner) stageBanner.style.display = "flex";
+        if (stageBadge) {
+            stageBadge.textContent = "🛵 STEP 1: EN ROUTE TO RESTAURANT";
+            stageBadge.style.color = "#FF9100";
+        }
+        if (stageTitle) stageTitle.textContent = `${order.restaurant_name} (Pickup #${order.order_id})`;
+        if (stageActions) {
+            stageActions.innerHTML = `<button class="order-action-btn btn-pickup-direct" onclick="confirmPickup()">🍴 Food Picked Up [K]</button>`;
+        }
     } else if (order.state === "NAV_TO_CUSTOMER") {
-        offerModal.style.display = "none";
-        stageBanner.style.display = "flex";
-        stageBadge.textContent = "📦 STEP 2: EN ROUTE TO CUSTOMER";
-        stageBadge.style.color = "#00E676";
-        stageTitle.textContent = `${order.customer_name} - ${order.customer_address}`;
-        stageActions.innerHTML = `<button class="stage-action-btn" onclick="completeDelivery()" style="background:#7C4DFF;">✅ Complete Delivery [U]</button>`;
-        destHeader.textContent = "CUSTOMER DROP:";
+        if (offerModal) offerModal.style.display = "none";
+        if (stageBanner) stageBanner.style.display = "flex";
+        if (stageBadge) {
+            stageBadge.textContent = "📦 STEP 2: EN ROUTE TO CUSTOMER";
+            stageBadge.style.color = "#00E676";
+        }
+        if (stageTitle) stageTitle.textContent = `${order.customer_name} - ${order.customer_address}`;
+        if (stageActions) {
+            stageActions.innerHTML = `<button class="order-action-btn btn-deliver-direct" onclick="completeDelivery()">✅ Complete Delivery [U]</button>`;
+        }
     } else {
-        offerModal.style.display = "none";
-        stageBanner.style.display = "none";
-        destHeader.textContent = "TARGET DESTINATION:";
+        if (offerModal) offerModal.style.display = "none";
+        if (stageBanner) stageBanner.style.display = "none";
     }
 }
 
 function sendCommand(cmdObj) {
     playAudioChime(1000, 0.08);
-    console.log("[COMMAND SENT]", cmdObj);
+    console.log("[COMMAND DISPATCH]", cmdObj);
     
     // 1. Try WebSocket
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(cmdObj));
     }
     
-    // 2. HTTP REST Fallback to guarantee instant execution
+    // 2. HTTP REST endpoint to guarantee 100% execution
     const act = cmdObj.action;
     if (act === "offer_order") {
         fetch(`/api/orders/offer?platform=${cmdObj.platform || 'swiggy'}`, { method: 'POST' }).catch(() => {});
@@ -312,7 +353,7 @@ function sendCommand(cmdObj) {
     }
 }
 
-// Order Management Commands
+// Order Management Actions
 function offerMockOrder(platform = "swiggy") {
     sendCommand({ action: "offer_order", platform: platform });
 }
@@ -348,22 +389,18 @@ function resetEmergency() {
 
 function toggleDashcam() {
     const pip = document.getElementById("dashcamPip");
-    pip.style.display = pip.style.display === "none" ? "block" : "none";
+    if (pip) pip.style.display = pip.style.display === "none" ? "block" : "none";
 }
 
-function adjustBrightness(delta) {
-    currentBrightness = Math.max(10, Math.min(100, currentBrightness + delta));
-    document.getElementById("appContainer").style.filter = `brightness(${currentBrightness}%)`;
-    sendCommand({ action: "set_brightness", level: currentBrightness });
-}
-
-// Destination Importing & Road Planning
+// Destination Modal
 function openDestinationModal() {
-    document.getElementById("destModal").style.display = "flex";
+    const el = document.getElementById("destModal");
+    if (el) el.style.display = "flex";
 }
 
 function closeDestinationModal() {
-    document.getElementById("destModal").style.display = "none";
+    const el = document.getElementById("destModal");
+    if (el) el.style.display = "none";
 }
 
 function selectPreset(name, lat, lng) {
@@ -372,10 +409,13 @@ function selectPreset(name, lat, lng) {
 }
 
 function applyCustomDestination() {
-    const name = document.getElementById("customName").value.trim() || "Custom Drop Point";
-    const lat = parseFloat(document.getElementById("customLat").value);
-    const lng = parseFloat(document.getElementById("customLng").value);
-    if (!isNaN(lat) && !isNaN(lng)) {
+    const nameEl = document.getElementById("customName");
+    const latEl = document.getElementById("customLat");
+    const lngEl = document.getElementById("customLng");
+    const name = (nameEl && nameEl.value.trim()) || "Custom Drop Point";
+    const lat = parseFloat(latEl ? latEl.value : "0");
+    const lng = parseFloat(lngEl ? lngEl.value : "0");
+    if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
         sendCommand({ action: "import_destination", name: name, lat: lat, lng: lng });
         closeDestinationModal();
     } else {

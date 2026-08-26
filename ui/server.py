@@ -93,9 +93,8 @@ def create_app(engine: LastMileEngine) -> FastAPI:
                         lng = float(cmd_data.get("lng", 88.4168))
                         engine.import_destination(name, lat, lng)
                     
-                    # Immediately broadcast updated telemetry to all clients
-                    updated_snapshot = engine.get_latest_telemetry_snapshot()
-                    await websocket.send_text(json.dumps(updated_snapshot))
+                    # Safe broadcast update
+                    await engine.broadcast_snapshot()
                 except Exception as e:
                     print(f"[WS COMMAND ERROR] {e}")
         except WebSocketDisconnect:
@@ -104,26 +103,31 @@ def create_app(engine: LastMileEngine) -> FastAPI:
     @app.post("/api/orders/offer")
     async def api_offer_order(platform: str = "swiggy"):
         order = engine.offer_mock_order(platform)
+        await engine.broadcast_snapshot()
         return {"status": "Order offered", "order": order.to_dict()}
 
     @app.post("/api/orders/accept")
     async def api_accept_order():
         order = engine.accept_current_order()
+        await engine.broadcast_snapshot()
         return {"status": "Order accepted", "order": order.to_dict() if order else None}
 
     @app.post("/api/orders/pickup")
     async def api_confirm_pickup():
         order = engine.confirm_food_pickup()
+        await engine.broadcast_snapshot()
         return {"status": "Food picked up", "order": order.to_dict() if order else None}
 
     @app.post("/api/orders/deliver")
     async def api_complete_delivery():
         order = engine.complete_current_delivery()
+        await engine.broadcast_snapshot()
         return {"status": "Delivered", "earnings": engine.orders.earnings_today_inr}
 
     @app.post("/api/navigation/destination")
     async def api_import_destination(req: DestinationImportRequest):
         engine.import_destination(req.name, req.lat, req.lng)
+        await engine.broadcast_snapshot()
         return {"status": "Destination updated", "name": req.name, "coords": [req.lat, req.lng]}
 
     @app.get("/api/camera/frame.jpg")
@@ -148,11 +152,13 @@ def create_app(engine: LastMileEngine) -> FastAPI:
     @app.post("/api/test/sos")
     async def api_trigger_sos():
         engine.on_sos_triggered()
+        await engine.broadcast_snapshot()
         return {"status": "SOS triggered"}
 
     @app.post("/api/test/tilt")
     async def api_trigger_tilt():
         engine.on_tilt_triggered()
+        await engine.broadcast_snapshot()
         return {"status": "Tilt crash triggered"}
 
     return app

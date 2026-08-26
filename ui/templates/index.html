@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LastMile Guard - Google Maps Navigation & Order Workflow HUD</title>
     <!-- Leaflet CSS for high-contrast vector road & traffic maps -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="/static/css/tripper.css">
     
     {% if google_maps_api_key %}
     <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry"></script>
     {% endif %}
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body class="gmaps-theme">
     <div class="gmaps-app-container" id="appContainer">
@@ -58,9 +58,7 @@
                 <span class="stage-badge" id="stageBadge">🛵 EN ROUTE TO RESTAURANT</span>
                 <span class="stage-title" id="stageTitle">Wow! Momo Express (Pickup #892)</span>
             </div>
-            <div class="stage-actions" id="stageActions">
-                <!-- Action button dynamically injected (Pickup / Deliver) -->
-            </div>
+            <div class="stage-actions" id="stageActions"></div>
         </div>
 
         <!-- INCOMING ORDER OFFER OVERLAY MODAL -->
@@ -75,21 +73,21 @@
                         <span class="spot-icon">🍴</span>
                         <div class="spot-details">
                             <strong id="offerRestName">Wow! Momo Express</strong>
-                            <small id="offerRestAddr">Central Avenue Food Hub (1.2 km away)</small>
+                            <small id="offerRestAddr">Central Avenue Food Plaza</small>
                         </div>
                     </div>
                     <div class="offer-spot">
                         <span class="spot-icon">🏠</span>
                         <div class="spot-details">
-                            <strong id="offerCustName">Debanjan M.</strong>
-                            <small id="offerCustAddr">Sector V, Salt Lake (2.4 km drop)</small>
+                            <strong id="offerCustName">Debanjan M. (Sector V)</strong>
+                            <small id="offerCustAddr">Salt Lake Sector V, Block EP</small>
                         </div>
                     </div>
                     <div class="offer-items" id="offerItems">📦 2x Momo Platters, 1x Cold Drink</div>
                 </div>
                 <div class="offer-actions">
-                    <button class="btn-decline-order" onclick="declineOrder()">✕ Decline</button>
-                    <button class="btn-accept-order" onclick="acceptOrder()">✅ ACCEPT ORDER [A]</button>
+                    <button class="btn-decline-order" id="btnDeclineOrder" onclick="declineOrder()">✕ Decline</button>
+                    <button class="btn-accept-order" id="btnAcceptOrder" onclick="acceptOrder()">✅ ACCEPT ORDER [A]</button>
                 </div>
             </div>
         </div>
@@ -103,7 +101,7 @@
             <img id="dashcamFeed" src="/api/camera/stream" alt="Dashcam Stream">
         </div>
 
-        <!-- BOTTOM: GOOGLE MAPS TRIP SUMMARY CARD -->
+        <!-- BOTTOM: GOOGLE MAPS TRIP SUMMARY & ORDER CONTROL BAR -->
         <div class="gmaps-bottom-card">
             <div class="trip-time-box">
                 <div class="trip-time-row">
@@ -117,9 +115,12 @@
                 </div>
             </div>
 
-            <div class="destination-preview-box">
-                <span class="dest-label" id="destHeaderLabel">TARGET DESTINATION:</span>
-                <span class="dest-name" id="destName">Salt Lake Sector V Delivery Drop</span>
+            <!-- PRIMARY ORDER WORKFLOW BUTTONS DIRECTLY ACCESSIBLE -->
+            <div class="primary-order-controls">
+                <button class="order-action-btn btn-new-order" id="btnNewOrder" onclick="offerMockOrder('swiggy')">🍔 New Order</button>
+                <button class="order-action-btn btn-accept-direct" id="btnAcceptDirect" onclick="acceptOrder()">✅ Accept</button>
+                <button class="order-action-btn btn-pickup-direct" id="btnPickupDirect" onclick="confirmPickup()">🍴 Picked Up</button>
+                <button class="order-action-btn btn-deliver-direct" id="btnDeliverDirect" onclick="completeDelivery()">📦 Delivered</button>
             </div>
 
             <div class="trip-actions">
@@ -164,18 +165,6 @@
                 <div class="emergency-gps" id="emergencyGps">GPS: 22.572645, 88.363892 | Speed: 38 km/h</div>
                 <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME NAVIGATION</button>
             </div>
-        </div>
-
-        <!-- DEVELOPER & HDMI TEST TOOLBAR -->
-        <div class="test-toolbar" id="testToolbar">
-            <span class="tb-title">TEST CONTROLS:</span>
-            <button class="tb-btn btn-swiggy" onclick="offerMockOrder('swiggy')">🍔 New Order [O]</button>
-            <button class="tb-btn btn-accept" onclick="acceptOrder()">✅ Accept [A]</button>
-            <button class="tb-btn btn-pickup" onclick="confirmPickup()">🍴 Pickup [K]</button>
-            <button class="tb-btn btn-deliver" onclick="completeDelivery()">📦 Deliver [U]</button>
-            <button class="tb-btn btn-danger" onclick="triggerSos()">🚨 SOS [S]</button>
-            <button class="tb-btn btn-warning" onclick="triggerTilt()">💥 Crash [T]</button>
-            <button class="tb-btn btn-cam" onclick="toggleDashcam()">📷 Cam [D]</button>
         </div>
     </div>
 

@@ -1,6 +1,6 @@
 /* ==============================================================================
    LastMile Guard - Google Maps Navigation & Order Workflow HUD Theme
-   Optimized for 5-Inch Displays (800x480) and HDMI Monitors
+   Responsive Full-Screen & 5-Inch Automotive Kiosk Layout
    ============================================================================== */
 
 :root {
@@ -9,8 +9,8 @@
     --gmaps-blue: #1A73E8;
     --gmaps-route-blue: #2979FF;
     --gmaps-dark-bg: #1F2430;
-    --gmaps-card-bg: rgba(32, 33, 36, 0.95);
-    --gmaps-border: rgba(255, 255, 255, 0.12);
+    --gmaps-card-bg: rgba(32, 33, 36, 0.96);
+    --gmaps-border: rgba(255, 255, 255, 0.15);
     --text-primary: #FFFFFF;
     --text-secondary: #BDC1C6;
     --accent-orange: #FC8019;
@@ -26,27 +26,27 @@
     margin: 0;
     padding: 0;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body.gmaps-theme {
     background-color: #000000;
     color: var(--text-primary);
     font-family: var(--font-stack);
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    overflow: hidden;
 }
 
-/* Base 800x480 Display Container */
+/* Responsive Full-Screen App Container */
 .gmaps-app-container {
-    width: 800px;
-    height: 480px;
-    background-color: #1a1f2c;
-    border-radius: 12px;
+    width: 100vw;
+    height: 100vh;
+    background-color: #19212C;
     position: relative;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -64,14 +64,16 @@ body.gmaps-theme {
 
 .leaflet-container {
     background-color: #19212C !important;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 /* TOP GOOGLE MAPS TURN CARD */
 .gmaps-top-container {
     position: absolute;
-    top: 10px;
-    left: 12px;
-    right: 12px;
+    top: 12px;
+    left: 14px;
+    right: 14px;
     z-index: 30;
     display: flex;
     justify-content: space-between;
@@ -89,7 +91,7 @@ body.gmaps-theme {
     padding: 10px 16px;
     gap: 14px;
     min-width: 440px;
-    max-width: 530px;
+    max-width: 540px;
 }
 
 .turn-icon-box {
@@ -167,17 +169,18 @@ body.gmaps-theme {
 /* HARDWARE & TELEMETRY PILL */
 .gmaps-telemetry-pill {
     pointer-events: auto;
-    background: rgba(15, 23, 42, 0.92);
+    background: rgba(15, 23, 42, 0.94);
     border: 1px solid var(--gmaps-border);
     backdrop-filter: blur(8px);
     border-radius: 20px;
-    padding: 6px 12px;
+    padding: 6px 14px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 11px;
-    font-weight: 700;
+    gap: 12px;
+    font-size: 12px;
+    font-weight: 800;
     color: var(--text-secondary);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
 }
 
 #earningsBadge {
@@ -188,23 +191,23 @@ body.gmaps-theme {
 /* FLOATING SPEEDOMETER BUBBLE */
 .gmaps-speed-bubble {
     position: absolute;
-    bottom: 82px;
-    left: 16px;
-    width: 68px;
-    height: 68px;
-    background: rgba(32, 33, 36, 0.94);
+    bottom: 90px;
+    left: 18px;
+    width: 72px;
+    height: 72px;
+    background: rgba(32, 33, 36, 0.95);
     border: 3px solid #FFFFFF;
     border-radius: 50%;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    z-index: 20;
+    z-index: 25;
 }
 
 .speed-num {
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 900;
     color: #FFFFFF;
     line-height: 1;
@@ -224,10 +227,10 @@ body.gmaps-theme {
     left: 14px;
     right: 14px;
     background: rgba(26, 32, 44, 0.96);
-    border: 1px solid rgba(255, 145, 0, 0.4);
+    border: 1px solid rgba(255, 145, 0, 0.5);
     border-radius: 12px;
-    padding: 8px 16px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    padding: 10px 18px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.7);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -248,20 +251,9 @@ body.gmaps-theme {
 }
 
 .stage-title {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 800;
     color: #FFF;
-}
-
-.stage-action-btn {
-    background: var(--gmaps-green);
-    color: #FFF;
-    border: none;
-    padding: 6px 14px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 800;
-    cursor: pointer;
 }
 
 /* INCOMING ORDER OFFER MODAL */
@@ -282,8 +274,9 @@ body.gmaps-theme {
     border: 2px solid var(--accent-orange);
     border-radius: 16px;
     width: 480px;
-    padding: 20px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9);
+    max-width: 90vw;
+    padding: 22px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95);
 }
 
 .offer-header {
@@ -304,7 +297,7 @@ body.gmaps-theme {
 }
 
 .offer-payout {
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 900;
     color: var(--traffic-green);
 }
@@ -312,28 +305,28 @@ body.gmaps-theme {
 .offer-body {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin: 14px 0;
+    gap: 12px;
+    margin: 16px 0;
 }
 
 .offer-spot {
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 8px 12px;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 10px 14px;
     border-radius: 8px;
 }
 
-.spot-icon { font-size: 20px; }
-.spot-details strong { display: block; font-size: 14px; color: #FFF; }
-.spot-details small { color: var(--text-secondary); font-size: 12px; }
-.offer-items { font-size: 12px; color: #90CAF9; font-weight: 600; padding: 0 4px; }
+.spot-icon { font-size: 22px; }
+.spot-details strong { display: block; font-size: 15px; color: #FFF; }
+.spot-details small { color: var(--text-secondary); font-size: 13px; }
+.offer-items { font-size: 13px; color: #90CAF9; font-weight: 600; padding: 0 4px; }
 
 .offer-actions {
     display: flex;
     gap: 12px;
-    margin-top: 14px;
+    margin-top: 16px;
 }
 
 .btn-decline-order {
@@ -341,9 +334,9 @@ body.gmaps-theme {
     background: #3C4043;
     color: #FFF;
     border: none;
-    padding: 12px;
+    padding: 14px;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 800;
     cursor: pointer;
 }
@@ -353,12 +346,16 @@ body.gmaps-theme {
     background: var(--gmaps-green);
     color: #FFF;
     border: none;
-    padding: 12px;
+    padding: 14px;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 900;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(15, 157, 88, 0.4);
+    box-shadow: 0 4px 15px rgba(15, 157, 88, 0.5);
+}
+
+.btn-accept-order:active, .btn-decline-order:active {
+    transform: scale(0.97);
 }
 
 /* DASHCAM PIP */
@@ -366,19 +363,19 @@ body.gmaps-theme {
     position: absolute;
     top: 96px;
     left: 14px;
-    width: 220px;
-    height: 130px;
+    width: 240px;
+    height: 140px;
     border: 2px solid var(--gmaps-blue);
     border-radius: 8px;
     overflow: hidden;
     background: #000;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.8);
     z-index: 25;
 }
 
 .dashcam-pip-bar {
     background: rgba(0, 0, 0, 0.85);
-    padding: 3px 8px;
+    padding: 4px 8px;
     display: flex;
     justify-content: space-between;
     font-size: 10px;
@@ -391,12 +388,12 @@ body.gmaps-theme {
     border: none;
     color: #FFF;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .gmaps-dashcam-pip img {
     width: 100%;
-    height: 110px;
+    height: 120px;
     object-fit: cover;
 }
 
@@ -406,20 +403,21 @@ body.gmaps-theme {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 70px;
+    height: 76px;
     background: var(--gmaps-card-bg);
     border-top: 1px solid var(--gmaps-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 18px;
-    z-index: 20;
+    padding: 0 20px;
+    z-index: 40;
     pointer-events: auto;
 }
 
 .trip-time-box {
     display: flex;
     flex-direction: column;
+    min-width: 140px;
 }
 
 .trip-time-row {
@@ -452,27 +450,41 @@ body.gmaps-theme {
 
 .trip-dot { color: #5F6368; }
 
-.destination-preview-box {
+/* PRIMARY ORDER WORKFLOW CONTROLS DIRECTLY IN BOTTOM BAR */
+.primary-order-controls {
     display: flex;
-    flex-direction: column;
-    max-width: 320px;
+    align-items: center;
+    gap: 10px;
 }
 
-.dest-label {
-    font-size: 10px;
-    font-weight: 800;
-    color: #8AB4F8;
-    letter-spacing: 0.5px;
+.order-action-btn {
+    border: none;
+    padding: 10px 16px;
+    border-radius: 24px;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+    color: #FFF;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    transition: transform 0.1s, box-shadow 0.1s;
 }
 
-.dest-name {
-    font-size: 14px;
-    font-weight: 700;
-    color: #FFFFFF;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.order-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.6);
 }
+
+.order-action-btn:active {
+    transform: scale(0.95);
+}
+
+.btn-new-order { background: #FC8019; }
+.btn-accept-direct { background: #00E676; color: #000; }
+.btn-pickup-direct { background: #00B0FF; color: #000; }
+.btn-deliver-direct { background: #7C4DFF; color: #FFF; }
 
 .trip-actions {
     display: flex;
@@ -484,10 +496,10 @@ body.gmaps-theme {
     background: #3C4043;
     color: #FFF;
     border: none;
-    padding: 8px 14px;
+    padding: 10px 16px;
     border-radius: 20px;
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 800;
     cursor: pointer;
 }
 
@@ -495,10 +507,10 @@ body.gmaps-theme {
     background: var(--accent-red);
     color: #FFF;
     border: none;
-    padding: 8px 16px;
+    padding: 10px 18px;
     border-radius: 20px;
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 900;
     cursor: pointer;
 }
 
@@ -642,48 +654,6 @@ body.gmaps-theme {
     border-radius: 8px;
     cursor: pointer;
 }
-
-/* DEVELOPER / HDMI TEST TOOLBAR (DOCKED ABOVE BOTTOM CARD) */
-.test-toolbar {
-    position: absolute;
-    bottom: 74px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(15, 23, 42, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    padding: 6px 14px;
-    border-radius: 30px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.9);
-    z-index: 50;
-    pointer-events: auto;
-}
-
-.tb-title { font-size: 11px; font-weight: 700; color: var(--text-secondary); }
-.tb-btn {
-    border: none;
-    padding: 6px 12px;
-    border-radius: 14px;
-    font-size: 11px;
-    font-weight: 800;
-    cursor: pointer;
-    color: #FFF;
-    transition: transform 0.1s, opacity 0.1s;
-}
-.tb-btn:active {
-    transform: scale(0.95);
-    opacity: 0.8;
-}
-.btn-danger { background: #E53935; }
-.btn-warning { background: #FB8C00; }
-.btn-swiggy { background: #FC8019; }
-.btn-accept { background: #00E676; color: #000; font-weight: 900; }
-.btn-pickup { background: #00B0FF; color: #000; font-weight: 900; }
-.btn-deliver { background: #7C4DFF; color: #FFF; font-weight: 900; }
-.btn-cam { background: #00897B; }
-.btn-bright { background: #546E7A; }
 
 @keyframes strobe-bg {
     0% { background: rgba(180, 0, 0, 0.94); }
