@@ -50,3 +50,5 @@ desktop.ini
 *.log
 /run/shm/*
 tmp/
+data/system_location_cache.json
+tests_temp_evidence/
