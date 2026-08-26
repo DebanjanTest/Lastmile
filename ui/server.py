@@ -92,6 +92,10 @@ def create_app(engine: LastMileEngine) -> FastAPI:
                         lat = float(cmd_data.get("lat", 22.5855))
                         lng = float(cmd_data.get("lng", 88.4168))
                         engine.import_destination(name, lat, lng)
+                    
+                    # Immediately broadcast updated telemetry to all clients
+                    updated_snapshot = engine.get_latest_telemetry_snapshot()
+                    await websocket.send_text(json.dumps(updated_snapshot))
                 except Exception as e:
                     print(f"[WS COMMAND ERROR] {e}")
         except WebSocketDisconnect:

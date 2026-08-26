@@ -26,6 +26,26 @@ const SVG_ICONS = {
     UTURN: "M30 80 L30 45 Q30 20 50 20 Q70 20 70 45 L70 80 L80 80 L60 95 L40 80 L52 80 L52 45 Q52 35 50 35 Q48 35 48 45 L48 80 Z"
 };
 
+function playAudioChime(freq = 880, duration = 0.15) {
+    try {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    } catch (e) {
+        // Audio policy
+    }
+}
+
 function initMap(initialLat = 22.5726, initialLng = 88.3639) {
     if (isMapInitialized || typeof L === 'undefined') return;
 
@@ -193,7 +213,6 @@ function updateHUD(data) {
 }
 
 function renderTrafficPolyline(polyline, trafficSegments) {
-    // Remove old polyline layers
     trafficPolylines.forEach(p => mapInstance.removeLayer(p));
     trafficPolylines = [];
 
@@ -203,7 +222,6 @@ function renderTrafficPolyline(polyline, trafficSegments) {
         return;
     }
 
-    // Render each traffic segment with its designated color
     trafficSegments.forEach(seg => {
         const pts = polyline.slice(seg.start_idx, seg.end_idx + 1);
         if (pts.length >= 2) {
@@ -269,8 +287,28 @@ function updateOrderWorkflowUI(order) {
 }
 
 function sendCommand(cmdObj) {
+    playAudioChime(1000, 0.08);
+    console.log("[COMMAND SENT]", cmdObj);
+    
+    // 1. Try WebSocket
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(cmdObj));
+    }
+    
+    // 2. HTTP REST Fallback to guarantee instant execution
+    const act = cmdObj.action;
+    if (act === "offer_order") {
+        fetch(`/api/orders/offer?platform=${cmdObj.platform || 'swiggy'}`, { method: 'POST' }).catch(() => {});
+    } else if (act === "accept_order") {
+        fetch('/api/orders/accept', { method: 'POST' }).catch(() => {});
+    } else if (act === "confirm_pickup") {
+        fetch('/api/orders/pickup', { method: 'POST' }).catch(() => {});
+    } else if (act === "complete_delivery") {
+        fetch('/api/orders/deliver', { method: 'POST' }).catch(() => {});
+    } else if (act === "trigger_sos") {
+        fetch('/api/test/sos', { method: 'POST' }).catch(() => {});
+    } else if (act === "trigger_tilt") {
+        fetch('/api/test/tilt', { method: 'POST' }).catch(() => {});
     }
 }
 

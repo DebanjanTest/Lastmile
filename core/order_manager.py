@@ -4,6 +4,7 @@ Handles Order Offer -> Acceptance -> Navigation to Restaurant -> Food Pickup -> 
 """
 
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Callable
 
@@ -50,7 +51,7 @@ class OrderManager:
         platform: str = "swiggy",
         restaurant_name: str = "Wow! Momo Express",
         rest_lat: float = 22.5745,
-        rest_lng: float = 22.3685,
+        rest_lng: float = 88.3685,
         rest_addr: str = "Central Avenue, Kolkata",
         customer_name: str = "Debanjan M.",
         cust_lat: float = 22.5855,
@@ -59,7 +60,6 @@ class OrderManager:
         payout_inr: float = 75.0,
         items: str = "2x Darjeeling Steam Momos, 1x Thums Up"
     ) -> DeliveryOrder:
-        import uuid
         order = DeliveryOrder(
             order_id=str(uuid.uuid4())[:6].upper(),
             platform=platform,
@@ -81,8 +81,8 @@ class OrderManager:
         return order
 
     def accept_order(self) -> Optional[DeliveryOrder]:
-        if not self.current_order or self.current_order.state != "OFFERED":
-            return None
+        if not self.current_order:
+            self.offer_order()
         
         self.current_order.state = "NAV_TO_RESTAURANT"
         print(f"[ORDER] Order #{self.current_order.order_id} ACCEPTED! Routing to restaurant: {self.current_order.restaurant_name}")
@@ -97,7 +97,8 @@ class OrderManager:
 
     def confirm_pickup(self) -> Optional[DeliveryOrder]:
         if not self.current_order:
-            return None
+            self.offer_order()
+            self.accept_order()
         
         self.current_order.state = "NAV_TO_CUSTOMER"
         print(f"[ORDER] Food picked up from restaurant! Routing to customer: {self.current_order.customer_name}")
@@ -112,7 +113,9 @@ class OrderManager:
 
     def complete_delivery(self) -> Optional[DeliveryOrder]:
         if not self.current_order:
-            return None
+            self.offer_order()
+            self.accept_order()
+            self.confirm_pickup()
         
         self.earnings_today_inr += self.current_order.payout_inr
         self.current_order.state = "DELIVERED"
