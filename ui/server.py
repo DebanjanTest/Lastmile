@@ -34,11 +34,14 @@ def create_app(engine: LastMileEngine) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def get_tripper_ui(request: Request):
-        return templates.TemplateResponse("index.html", {
-            "request": request,
-            "app_name": engine.config.get("app_name", "LastMile Guard"),
-            "version": engine.config.get("version", "1.0.0")
-        })
+        return templates.TemplateResponse(
+            request=request,
+            name="index.html",
+            context={
+                "app_name": engine.config.get("app_name", "LastMile Guard"),
+                "version": engine.config.get("version", "1.0.0")
+            }
+        )
 
     @app.websocket("/ws/telemetry")
     async def websocket_telemetry_endpoint(websocket: WebSocket):
