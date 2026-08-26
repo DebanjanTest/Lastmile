@@ -2,107 +2,145 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LastMile Guard - Tripper Navigation & Dashcam HUD</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LastMile Guard - Google Maps Navigation & Dashcam HUD</title>
+    <!-- Leaflet CSS for offline/zero-API-key vector road maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <link rel="stylesheet" href="/static/css/tripper.css">
+    
+    {% if google_maps_api_key %}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry"></script>
+    {% endif %}
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
-<body class="theme-night">
-    <div class="hud-container" id="hudContainer">
-        <!-- TOP TELEMETRY BAR -->
-        <header class="hud-header">
-            <div class="header-left">
-                <span class="hud-time" id="hudClock">12:00:00</span>
-                <span class="hud-badge" id="recBadge">● REC (RAM)</span>
-            </div>
-            <div class="header-center">
-                <span class="brand-title">LASTMILE GUARD</span>
-                <span class="mode-tag" id="modeTag">PI 5 HYBRID</span>
-            </div>
-            <div class="header-right">
-                <span class="stat-item" id="tempStat">⚡ 45.0°C</span>
-                <span class="stat-item" id="voltStat">🔋 5.1V OK</span>
-                <span class="stat-item" id="gpsStat">🛰️ GPS: FIXED</span>
-            </div>
-        </header>
+<body class="gmaps-theme">
+    <div class="gmaps-app-container" id="appContainer">
+        <!-- FULLSCREEN ROAD MAP CANVAS -->
+        <div id="mapView" class="map-view"></div>
 
-        <!-- MAIN TRIPPER STAGE -->
-        <main class="hud-main">
-            <!-- LEFT: TURN-BY-TURN VECTOR ARROW -->
-            <div class="tripper-gauge">
-                <div class="gauge-ring">
-                    <svg class="maneuver-icon" id="maneuverSvg" viewBox="0 0 100 100">
-                        <!-- Default Straight Arrow -->
-                        <path id="arrowPath" d="M50 15 L75 45 L58 45 L58 85 L42 85 L42 45 L25 45 Z" fill="#00E5FF"/>
+        <!-- TOP: GOOGLE MAPS NAVIGATION TURN CARD -->
+        <div class="gmaps-top-container">
+            <div class="gmaps-turn-card" id="turnCard">
+                <div class="turn-icon-box">
+                    <svg class="turn-svg" id="turnSvg" viewBox="0 0 100 100">
+                        <path id="turnPath" d="M25 80 L25 55 Q25 35 45 35 L60 35 L60 20 L85 45 L60 70 L60 55 L45 55 Q38 55 38 65 L38 80 Z" fill="#FFFFFF"/>
                     </svg>
                 </div>
-                <div class="distance-to-turn">
-                    <span class="dist-val" id="distToTurn">150</span>
-                    <span class="dist-unit">m</span>
+                <div class="turn-text-content">
+                    <div class="turn-dist-row">
+                        <span class="turn-dist-num" id="turnDistNum">150</span>
+                        <span class="turn-dist-unit" id="turnDistUnit">m</span>
+                    </div>
+                    <div class="turn-road-name" id="turnRoadName">Mahatma Gandhi Road</div>
+                    <div class="turn-next-preview" id="turnNextPreview">Then bear left onto Beliaghata Main Rd</div>
                 </div>
             </div>
 
-            <!-- CENTER/RIGHT: NAVIGATION DIRECTIONS & SPEED -->
-            <div class="nav-details">
-                <div class="instruction-box">
-                    <div class="action-label" id="actionLabel">TURN RIGHT</div>
-                    <div class="road-name" id="roadName">Mahatma Gandhi Road</div>
+            <!-- HARDWARE TELEMETRY BADGES (PI 5 SoC) -->
+            <div class="gmaps-telemetry-pill">
+                <span class="tele-item" id="recBadge">● REC (RAM)</span>
+                <span class="tele-item" id="tempBadge">⚡ 45.0°C</span>
+                <span class="tele-item" id="voltBadge">🔋 5.1V</span>
+                <span class="tele-item" id="gpsBadge">🛰️ 10 SATS</span>
+            </div>
+        </div>
+
+        <!-- FLOATING SPEEDOMETER BUBBLE (GOOGLE MAPS STYLE) -->
+        <div class="gmaps-speed-bubble">
+            <span class="speed-num" id="speedNum">38</span>
+            <span class="speed-label">km/h</span>
+        </div>
+
+        <!-- FLOATING DELIVERY ALERT NOTIFICATION -->
+        <div class="gmaps-delivery-card" id="deliveryCard">
+            <div class="delivery-brand-tag" id="deliveryTag">SWIGGY</div>
+            <div class="delivery-info">
+                <div class="delivery-title" id="deliveryTitle">Order Pickup #4092</div>
+                <div class="delivery-desc" id="deliveryDesc">Wow! Momo - Central Ave (1.2 km away)</div>
+            </div>
+            <button class="delivery-dismiss-btn" onclick="clearDeliveryAlert()">✕</button>
+        </div>
+
+        <!-- FLOATING DASHCAM PIP (PICTURE-IN-PICTURE) -->
+        <div class="gmaps-dashcam-pip" id="dashcamPip" style="display: none;">
+            <div class="dashcam-pip-bar">
+                <span>WITNESS DASHCAM [LIVE]</span>
+                <button class="pip-close" onclick="toggleDashcam()">✕</button>
+            </div>
+            <img id="dashcamFeed" src="/api/camera/stream" alt="Dashcam Stream">
+        </div>
+
+        <!-- BOTTOM: GOOGLE MAPS TRIP SUMMARY CARD -->
+        <div class="gmaps-bottom-card">
+            <div class="trip-time-box">
+                <span class="trip-time-val" id="tripTimeVal">4 min</span>
+                <div class="trip-sub-row">
+                    <span class="trip-dist-val" id="tripDistVal">2.8 km</span>
+                    <span class="trip-dot">•</span>
+                    <span class="trip-eta-val" id="tripEtaVal">12:54 PM</span>
                 </div>
+            </div>
 
-                <div class="speed-cluster">
-                    <div class="speed-value" id="speedVal">38.5</div>
-                    <div class="speed-unit">KM / H</div>
-                    <div class="bearing-badge" id="bearingVal">NE (45°)</div>
+            <div class="destination-preview-box">
+                <span class="dest-label">DESTINATION:</span>
+                <span class="dest-name" id="destName">Salt Lake Sector V Delivery Drop</span>
+            </div>
+
+            <div class="trip-actions">
+                <button class="btn-import-dest" onclick="openDestinationModal()" title="Change Destination">📍 Plan Route</button>
+                <button class="btn-end-route" onclick="triggerSos()" title="Emergency SOS">🚨 SOS</button>
+            </div>
+        </div>
+
+        <!-- DESTINATION IMPORT MODAL -->
+        <div class="destination-modal" id="destModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📍 Import Road Plan & Destination</h3>
+                    <button class="modal-close" onclick="closeDestinationModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-desc">Select a preset delivery corridor or enter custom GPS coordinates:</p>
+                    <div class="preset-destinations">
+                        <button class="preset-btn" onclick="selectPreset('Salt Lake Sector V', 22.585500, 88.416800)">🏢 Sector V Tech Hub</button>
+                        <button class="preset-btn" onclick="selectPreset('Park Street Food Hub', 22.551000, 88.353000)">🍕 Park Street Restaurant Hub</button>
+                        <button class="preset-btn" onclick="selectPreset('New Town Axis Mall', 22.589000, 88.465000)">🛍️ New Town Delivery Center</button>
+                        <button class="preset-btn" onclick="selectPreset('Howrah Railway Station', 22.583000, 88.342000)">🚂 Howrah Express Cargo</button>
+                    </div>
+                    <div class="custom-dest-row">
+                        <input type="text" id="customName" placeholder="Destination Name (e.g. Zomato Customer Drop)">
+                        <div class="coord-inputs">
+                            <input type="number" step="0.0001" id="customLat" placeholder="Latitude (e.g. 22.5855)">
+                            <input type="number" step="0.0001" id="customLng" placeholder="Longitude (e.g. 88.4168)">
+                        </div>
+                        <button class="btn-apply-dest" onclick="applyCustomDestination()">Update Route & Road Plan</button>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- DASHCAM PIP (PICTURE IN PICTURE) -->
-            <div class="dashcam-pip" id="dashcamPip" style="display: none;">
-                <div class="pip-header">WITNESS DASHCAM [LIVE]</div>
-                <img id="dashcamFeed" src="/api/camera/stream" alt="Dashcam Stream">
-            </div>
-        </main>
-
-        <!-- BOTTOM STATUS & ETA BAR -->
-        <footer class="hud-footer">
-            <div class="footer-left">
-                <span class="footer-label">REMAINING</span>
-                <span class="footer-val" id="remainingDist">2.8 km</span>
-            </div>
-            <div class="footer-center" id="deliveryBannerContainer">
-                <div class="delivery-banner" id="deliveryBanner">
-                    <span class="delivery-pill" id="deliveryPill">SWIGGY</span>
-                    <span class="delivery-text" id="deliveryText">Ready for delivery alerts...</span>
-                </div>
-            </div>
-            <div class="footer-right">
-                <span class="footer-label">ESTIMATED ARRIVAL</span>
-                <span class="footer-val" id="etaVal">12:54 PM (4 min)</span>
-            </div>
-        </footer>
-
-        <!-- EMERGENCY CRASH / SOS OVERLAY -->
+        <!-- EMERGENCY SOS & CRASH OVERLAY -->
         <div class="emergency-overlay" id="emergencyOverlay" style="display: none;">
             <div class="emergency-card">
                 <div class="emergency-icon">🚨</div>
                 <div class="emergency-title" id="emergencyTitle">EMERGENCY SOS ACTIVE</div>
                 <div class="emergency-sub" id="emergencySub">Video Evidence Locked to /evidence/incidents/</div>
                 <div class="emergency-gps" id="emergencyGps">GPS: 22.572645, 88.363892 | Speed: 38 km/h</div>
-                <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME</button>
+                <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME NAVIGATION</button>
             </div>
         </div>
 
         <!-- DEVELOPER & HDMI TEST TOOLBAR -->
         <div class="test-toolbar" id="testToolbar">
-            <span class="tb-title">TEST CONTROLS:</span>
+            <span class="tb-title">QUICK TEST:</span>
             <button class="tb-btn btn-danger" onclick="triggerSos()">🚨 SOS [S]</button>
-            <button class="tb-btn btn-warning" onclick="triggerTilt()">💥 Crash/Tilt [T]</button>
+            <button class="tb-btn btn-warning" onclick="triggerTilt()">💥 Crash [T]</button>
             <button class="tb-btn btn-swiggy" onclick="injectOrder('swiggy')">🍔 Swiggy [O]</button>
             <button class="tb-btn btn-zomato" onclick="injectOrder('zomato')">🍕 Zomato [Z]</button>
             <button class="tb-btn btn-call" onclick="injectOrder('call')">📞 Call [C]</button>
-            <button class="tb-btn btn-cam" onclick="toggleDashcam()">📷 Dashcam [D]</button>
+            <button class="tb-btn btn-cam" onclick="toggleDashcam()">📷 Cam [D]</button>
             <button class="tb-btn btn-bright" onclick="adjustBrightness(10)">💡 +10%</button>
             <button class="tb-btn btn-bright" onclick="adjustBrightness(-10)">💡 -10%</button>
-            <span class="tb-note">Hotkeys active on HDMI Keyboard</span>
         </div>
     </div>
 

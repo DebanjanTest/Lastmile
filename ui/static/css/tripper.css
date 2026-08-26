@@ -1,16 +1,21 @@
-/* LastMile Guard - High-Contrast Tripper Navigation & HUD Stylesheet */
+/* ==============================================================================
+   LastMile Guard - Google Maps Automotive Navigation HUD Theme
+   Optimized for 5-Inch Displays (800x480) and HDMI Monitors
+   ============================================================================== */
 
 :root {
-    --bg-color: #07090E;
-    --card-bg: rgba(18, 24, 38, 0.9);
-    --border-color: rgba(0, 229, 255, 0.25);
-    --accent-cyan: #00E5FF;
-    --accent-orange: #FF9100;
-    --accent-green: #00E676;
-    --accent-red: #FF1744;
-    --text-main: #FFFFFF;
-    --text-muted: #90A4AE;
-    --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --gmaps-green: #0F9D58;
+    --gmaps-dark-green: #0b8043;
+    --gmaps-blue: #1A73E8;
+    --gmaps-route-blue: #2979FF;
+    --gmaps-dark-bg: #1F2430;
+    --gmaps-card-bg: rgba(32, 33, 36, 0.95);
+    --gmaps-border: rgba(255, 255, 255, 0.12);
+    --text-primary: #FFFFFF;
+    --text-secondary: #BDC1C6;
+    --accent-orange: #FC8019;
+    --accent-red: #EA4335;
+    --font-stack: -apple-system, BlinkMacSystemFont, "Google Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
@@ -20,9 +25,9 @@
     user-select: none;
 }
 
-body {
+body.gmaps-theme {
     background-color: #000000;
-    color: var(--text-main);
+    color: var(--text-primary);
     font-family: var(--font-stack);
     display: flex;
     justify-content: center;
@@ -31,292 +36,474 @@ body {
     overflow: hidden;
 }
 
-/* 800x480 Base Aspect Ratio Box - Centered & Scalable */
-.hud-container {
+/* Base 800x480 Display Container */
+.gmaps-app-container {
     width: 800px;
     height: 480px;
-    background: radial-gradient(circle at center, #0E1626 0%, #060911 100%);
-    border: 2px solid var(--border-color);
+    background-color: #1a1f2c;
     border-radius: 12px;
+    position: relative;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    position: relative;
-    box-shadow: 0 0 40px rgba(0, 229, 255, 0.15);
+}
+
+/* FULLSCREEN MAP BACKGROUND */
+.map-view {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    background: #19212C;
+}
+
+/* LEAFLET DARK MAP TILE STYLING */
+.leaflet-container {
+    background-color: #19212C !important;
+}
+
+/* TOP GOOGLE MAPS TURN CARD */
+.gmaps-top-container {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    right: 12px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+}
+
+.gmaps-turn-card {
+    pointer-events: auto;
+    background: var(--gmaps-green);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    gap: 14px;
+    min-width: 420px;
+    max-width: 520px;
+}
+
+.turn-icon-box {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.turn-svg {
+    width: 44px;
+    height: 44px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.turn-text-content {
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
 }
 
-/* TOP STATUS BAR */
-.hud-header {
-    height: 48px;
-    background: rgba(10, 16, 28, 0.85);
-    border-bottom: 1px solid var(--border-color);
+.turn-dist-row {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 16px;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
+    align-items: baseline;
+    gap: 2px;
+    line-height: 1;
 }
 
-.header-left, .header-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.hud-time {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--accent-cyan);
-}
-
-.hud-badge {
-    background: rgba(255, 23, 68, 0.2);
-    color: var(--accent-red);
-    border: 1px solid var(--accent-red);
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    animation: pulse-red 2s infinite;
-}
-
-.brand-title {
-    font-weight: 800;
-    letter-spacing: 1.5px;
-    color: #CFD8DC;
-}
-
-.mode-tag {
-    background: rgba(0, 229, 255, 0.15);
-    color: var(--accent-cyan);
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 3px;
-    margin-left: 6px;
-}
-
-.stat-item {
-    color: var(--text-muted);
-}
-
-/* MAIN STAGE */
-.hud-main {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    padding: 10px 24px;
-    position: relative;
-    gap: 24px;
-}
-
-/* LEFT: TRIPPER ROTATING GAUGE */
-.tripper-gauge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 220px;
-}
-
-.gauge-ring {
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    border: 3px solid rgba(0, 229, 255, 0.3);
-    background: radial-gradient(circle, rgba(0, 229, 255, 0.08) 0%, rgba(0, 0, 0, 0.4) 80%);
-    box-shadow: inset 0 0 20px rgba(0, 229, 255, 0.2), 0 0 15px rgba(0, 229, 255, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-}
-
-.maneuver-icon {
-    width: 100px;
-    height: 100px;
-    filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.8));
-    transition: transform 0.3s ease;
-}
-
-.distance-to-turn {
-    margin-top: 10px;
-    font-weight: 800;
+.turn-dist-num {
+    font-size: 28px;
+    font-weight: 900;
     color: #FFFFFF;
+    letter-spacing: -0.5px;
 }
 
-.dist-val {
-    font-size: 34px;
-    color: var(--accent-cyan);
-    letter-spacing: -1px;
-}
-
-.dist-unit {
-    font-size: 18px;
-    color: var(--text-muted);
+.turn-dist-unit {
+    font-size: 16px;
+    font-weight: 700;
+    color: #E8F0FE;
     margin-left: 2px;
 }
 
-/* RIGHT: NAVIGATION INSTRUCTIONS & SPEED */
-.nav-details {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    height: 100%;
-}
-
-.instruction-box {
-    background: var(--card-bg);
-    border-left: 4px solid var(--accent-cyan);
-    padding: 12px 18px;
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-}
-
-.action-label {
-    font-size: 16px;
+.turn-road-name {
+    font-size: 19px;
     font-weight: 800;
-    color: var(--accent-cyan);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-}
-
-.road-name {
-    font-size: 22px;
-    font-weight: 700;
-    margin-top: 4px;
+    color: #FFFFFF;
+    margin-top: 3px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.speed-cluster {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    margin-top: 8px;
+.turn-next-preview {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.speed-value {
-    font-size: 58px;
+/* HARDWARE TELEMETRY BADGES */
+.gmaps-telemetry-pill {
+    pointer-events: auto;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid var(--gmaps-border);
+    backdrop-filter: blur(8px);
+    border-radius: 20px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+#recBadge {
+    color: var(--accent-red);
+    animation: pulse-red 2s infinite;
+}
+
+/* FLOATING SPEEDOMETER BUBBLE */
+.gmaps-speed-bubble {
+    position: absolute;
+    bottom: 82px;
+    left: 16px;
+    width: 68px;
+    height: 68px;
+    background: rgba(32, 33, 36, 0.94);
+    border: 3px solid #FFFFFF;
+    border-radius: 50%;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.speed-num {
+    font-size: 26px;
     font-weight: 900;
     color: #FFFFFF;
     line-height: 1;
-    letter-spacing: -2px;
 }
 
-.speed-unit {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--accent-orange);
+.speed-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    text-transform: uppercase;
 }
 
-.bearing-badge {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 13px;
-    color: var(--text-muted);
+/* FLOATING DELIVERY ALERT NOTIFICATION */
+.gmaps-delivery-card {
+    position: absolute;
+    top: 96px;
+    right: 14px;
+    background: var(--gmaps-card-bg);
+    border-left: 5px solid var(--accent-orange);
+    border-radius: 10px;
+    padding: 10px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 20;
+    max-width: 380px;
+    border-top: 1px solid var(--gmaps-border);
+    border-right: 1px solid var(--gmaps-border);
+    border-bottom: 1px solid var(--gmaps-border);
+}
+
+.delivery-brand-tag {
+    background: var(--accent-orange);
+    color: #FFF;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.delivery-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.delivery-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #FFF;
+}
+
+.delivery-desc {
+    font-size: 12px;
     font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.delivery-dismiss-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
     margin-left: auto;
 }
 
 /* DASHCAM PIP */
-.dashcam-pip {
+.gmaps-dashcam-pip {
     position: absolute;
-    right: 24px;
-    top: 15px;
-    width: 240px;
-    height: 140px;
-    border: 2px solid var(--accent-cyan);
+    top: 96px;
+    left: 14px;
+    width: 220px;
+    height: 130px;
+    border: 2px solid var(--gmaps-blue);
     border-radius: 8px;
     overflow: hidden;
     background: #000;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
-    z-index: 50;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
+    z-index: 20;
 }
 
-.pip-header {
-    background: rgba(0, 0, 0, 0.8);
-    font-size: 9px;
-    padding: 3px 6px;
-    color: var(--accent-green);
+.dashcam-pip-bar {
+    background: rgba(0, 0, 0, 0.85);
+    padding: 3px 8px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
     font-weight: 700;
+    color: #00E676;
 }
 
-.dashcam-pip img {
+.pip-close {
+    background: transparent;
+    border: none;
+    color: #FFF;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.gmaps-dashcam-pip img {
     width: 100%;
-    height: 120px;
+    height: 110px;
     object-fit: cover;
 }
 
-/* BOTTOM FOOTER & ALERTS */
-.hud-footer {
-    height: 64px;
-    background: rgba(10, 16, 28, 0.95);
-    border-top: 1px solid var(--border-color);
+/* BOTTOM GOOGLE MAPS TRIP BAR */
+.gmaps-bottom-card {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 70px;
+    background: var(--gmaps-card-bg);
+    border-top: 1px solid var(--gmaps-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 18px;
+    z-index: 10;
 }
 
-.footer-left, .footer-right {
+.trip-time-box {
     display: flex;
     flex-direction: column;
 }
 
-.footer-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--text-muted);
-    letter-spacing: 0.8px;
+.trip-time-val {
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--gmaps-green);
+    line-height: 1.1;
 }
 
-.footer-val {
-    font-size: 17px;
-    font-weight: 800;
-    color: #ECEFF1;
-}
-
-.delivery-banner {
+.trip-sub-row {
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.08);
-    padding: 6px 14px;
-    border-radius: 20px;
-    gap: 10px;
-    max-width: 380px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.delivery-pill {
-    background: #FC8019;
-    color: #FFF;
-    font-size: 11px;
-    font-weight: 800;
-    padding: 2px 8px;
-    border-radius: 12px;
-}
-
-.delivery-text {
+    gap: 6px;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.trip-dot { color: #5F6368; }
+
+.destination-preview-box {
+    display: flex;
+    flex-direction: column;
+    max-width: 320px;
+}
+
+.dest-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: #8AB4F8;
+    letter-spacing: 0.5px;
+}
+
+.dest-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #FFFFFF;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.trip-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-import-dest {
+    background: #3C4043;
+    color: #FFF;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.btn-end-route {
+    background: var(--accent-red);
+    color: #FFF;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+/* DESTINATION MODAL */
+.destination-modal {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: #202124;
+    border: 1px solid var(--gmaps-border);
+    border-radius: 16px;
+    width: 520px;
+    padding: 20px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.8);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--gmaps-border);
+    padding-bottom: 10px;
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    color: #FFF;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.modal-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 12px 0 10px;
+}
+
+.preset-destinations {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.preset-btn {
+    background: #303134;
+    color: #E8EAED;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.preset-btn:hover {
+    background: #3c4043;
+    border-color: var(--gmaps-blue);
+}
+
+.custom-dest-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.custom-dest-row input {
+    background: #303134;
+    border: 1px solid var(--gmaps-border);
+    color: #FFF;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.coord-inputs {
+    display: flex;
+    gap: 8px;
+}
+
+.coord-inputs input {
+    flex: 1;
+}
+
+.btn-apply-dest {
+    background: var(--gmaps-green);
+    color: #FFF;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    margin-top: 4px;
 }
 
 /* EMERGENCY OVERLAY */
 .emergency-overlay {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(180, 0, 0, 0.92);
+    background: rgba(180, 0, 0, 0.94);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 100;
+    z-index: 150;
     animation: strobe-bg 0.8s infinite alternate;
 }
 
@@ -345,7 +532,7 @@ body {
     cursor: pointer;
 }
 
-/* TEST TOOLBAR */
+/* DEVELOPER / HDMI TEST TOOLBAR */
 .test-toolbar {
     position: fixed;
     bottom: 8px;
@@ -362,7 +549,7 @@ body {
     z-index: 200;
 }
 
-.tb-title { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.tb-title { font-size: 11px; font-weight: 700; color: var(--text-secondary); }
 .tb-btn {
     border: none;
     padding: 5px 10px;
@@ -379,15 +566,13 @@ body {
 .btn-call { background: #43A047; }
 .btn-cam { background: #00897B; }
 .btn-bright { background: #546E7A; }
-.tb-note { font-size: 10px; color: #78909C; margin-left: 6px; }
 
-/* ANIMATIONS */
 @keyframes pulse-red {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    50% { opacity: 0.3; }
 }
 
 @keyframes strobe-bg {
-    0% { background: rgba(180, 0, 0, 0.92); }
-    100% { background: rgba(80, 0, 0, 0.96); }
+    0% { background: rgba(180, 0, 0, 0.94); }
+    100% { background: rgba(80, 0, 0, 0.98); }
 }

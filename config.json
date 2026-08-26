@@ -1,9 +1,23 @@
 {
   "app_name": "LastMile Guard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "server": {
     "host": "0.0.0.0",
     "port": 8000
+  },
+  "maps": {
+    "provider": "auto",
+    "google_maps_api_key": "",
+    "default_origin": {
+      "lat": 22.572645,
+      "lng": 88.363892,
+      "name": "Kolkata Central Dispatch Hub"
+    },
+    "default_destination": {
+      "lat": 22.585500,
+      "lng": 88.416800,
+      "name": "Salt Lake Sector V Delivery Drop"
+    }
   },
   "simulation": {
     "force_simulation": false,
@@ -28,7 +42,6 @@
     "use_ram_buffer": true
   },
   "navigation": {
-    "default_city": "Kolkata Delivery Corridor",
     "speed_kmh": 38.5,
     "update_interval_ms": 500
   },

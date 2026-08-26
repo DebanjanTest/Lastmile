@@ -5,7 +5,7 @@ Coordinates HAL, Navigation, Dashcam, Safety Alerts, and UI Telemetry Streams.
 
 import asyncio
 import json
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional, Set, List
 from datetime import datetime
 
 from hal.factory import create_hal, HALContainer
@@ -18,7 +18,12 @@ class LastMileEngine:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.hal: HALContainer = create_hal(config)
-        self.navigation = NavigationEngine()
+        
+        maps_cfg = config.get("maps", {})
+        origin_name = maps_cfg.get("default_origin", {}).get("name", "Kolkata Central Hub")
+        destination_name = maps_cfg.get("default_destination", {}).get("name", "Sector V Delivery Drop")
+
+        self.navigation = NavigationEngine(origin_name=origin_name, destination_name=destination_name)
         self.dashcam = DashcamManager(self.hal.camera)
         self.sentinel = SystemHealthSentinel(
             self.hal.health,
@@ -83,6 +88,9 @@ class LastMileEngine:
     def clear_active_alert(self) -> None:
         self.active_alert = None
 
+    def import_destination(self, name: str, lat: float, lng: float, steps: Optional[List[Dict[str, Any]]] = None) -> None:
+        self.navigation.import_destination(name, lat, lng, steps)
+
     def get_latest_telemetry_snapshot(self) -> Dict[str, Any]:
         gps_fix = self.hal.gps.get_latest_fix()
         maneuver = self.navigation.update_location(gps_fix)
@@ -92,6 +100,10 @@ class LastMileEngine:
         return {
             "timestamp": datetime.now().isoformat(),
             "is_simulated": self.hal.is_simulated,
+            "maps_config": {
+                "google_maps_api_key": self.config.get("maps", {}).get("google_maps_api_key", ""),
+                "provider": self.config.get("maps", {}).get("provider", "auto")
+            },
             "gps": gps_fix.to_dict(),
             "navigation": maneuver.to_dict(),
             "health": health,
@@ -123,4 +135,4 @@ class LastMileEngine:
                     self.connected_clients.discard(stale)
             except Exception as e:
                 print(f"[ENGINE ERROR] Telemetry loop: {e}")
-            await asyncio.sleep(0.2)  # 5 updates per second (super smooth & lightweight)
+            await asyncio.sleep(0.2)  # 5 updates per second

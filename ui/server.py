@@ -1,6 +1,6 @@
 """
 FastAPI UI Bridge & Telemetry Server
-Serves the 5-inch Tripper Webview interface and streams real-time WebSocket telemetry.
+Serves Google Maps Navigation style HUD and streams real-time WebSocket telemetry.
 """
 
 import json
@@ -11,11 +11,17 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Response, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from core.engine import LastMileEngine
 
+class DestinationImportRequest(BaseModel):
+    name: str
+    lat: float
+    lng: float
+
 def create_app(engine: LastMileEngine) -> FastAPI:
-    app = FastAPI(title="LastMile Guard Tripper UI", version="1.0.0")
+    app = FastAPI(title="LastMile Guard Google Maps Navigation HUD", version="1.1.0")
 
     base_dir = Path(__file__).parent
     static_dir = base_dir / "static"
@@ -39,7 +45,8 @@ def create_app(engine: LastMileEngine) -> FastAPI:
             name="index.html",
             context={
                 "app_name": engine.config.get("app_name", "LastMile Guard"),
-                "version": engine.config.get("version", "1.0.0")
+                "version": engine.config.get("version", "1.1.0"),
+                "google_maps_api_key": engine.config.get("maps", {}).get("google_maps_api_key", "")
             }
         )
 
@@ -48,11 +55,9 @@ def create_app(engine: LastMileEngine) -> FastAPI:
         await websocket.accept()
         engine.connected_clients.add(websocket)
         try:
-            # Send initial snapshot immediately
             snapshot = engine.get_latest_telemetry_snapshot()
             await websocket.send_text(json.dumps(snapshot))
             while True:
-                # Keep alive and receive client commands (e.g., hotkeys)
                 data_text = await websocket.receive_text()
                 try:
                     cmd_data = json.loads(data_text)
@@ -88,10 +93,20 @@ def create_app(engine: LastMileEngine) -> FastAPI:
                     elif action == "set_brightness":
                         level = int(cmd_data.get("level", 85))
                         engine.hal.sensors.set_brightness(level)
+                    elif action == "import_destination":
+                        name = cmd_data.get("name", "New Destination")
+                        lat = float(cmd_data.get("lat", 22.5855))
+                        lng = float(cmd_data.get("lng", 88.4168))
+                        engine.import_destination(name, lat, lng)
                 except Exception as e:
                     print(f"[WS COMMAND ERROR] {e}")
         except WebSocketDisconnect:
             engine.connected_clients.discard(websocket)
+
+    @app.post("/api/navigation/destination")
+    async def api_import_destination(req: DestinationImportRequest):
+        engine.import_destination(req.name, req.lat, req.lng)
+        return {"status": "Destination updated", "name": req.name, "coords": [req.lat, req.lng]}
 
     @app.get("/api/camera/frame.jpg")
     async def get_camera_frame():
