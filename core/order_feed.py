@@ -140,6 +140,8 @@ class OrderFeedManager:
         self.earnings_today_inr: float = 485.0
         self.orders_completed_count: int = 6
         self.daily_target: int = 8
+        self._last_rider_lat = 22.5643
+        self._last_rider_lng = 88.3693
 
     def _haversine_km(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         R = 6371.0
@@ -150,6 +152,8 @@ class OrderFeedManager:
         return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     def build_offer_from_preset(self, preset: Dict[str, Any], rider_lat: float, rider_lng: float) -> DeliveryOffer:
+        self._last_rider_lat = rider_lat
+        self._last_rider_lng = rider_lng
         store_lat = rider_lat + preset["store_offset"][0]
         store_lng = rider_lng + preset["store_offset"][1]
         store_dist_km = max(0.6, self._haversine_km(rider_lat, rider_lng, store_lat, store_lng))
@@ -159,8 +163,6 @@ class OrderFeedManager:
         drop_dist_km = max(1.2, self._haversine_km(store_lat, store_lng, cust_lat, cust_lng))
 
         total_dist_km = store_dist_km + drop_dist_km
-        
-        # Real Indian Delivery Rate Card: Base + (Distance * 8.5/km) + Surge
         payout = preset["payout_base"] + (total_dist_km * 8.5) + 15.0
 
         return DeliveryOffer(
@@ -262,6 +264,10 @@ class OrderFeedManager:
         completed = self.selected_order
         self.selected_order = None
         self.order_phase = "DELIVERED"
+        
+        # Immediately re-seed 4 fresh mock offers for next trip
+        self.refresh_order_pool(self._last_rider_lat, self._last_rider_lng)
+
         print(f"[DELIVERED] Order #{completed.order_id} DELIVERED! +Rs.{payout:.2f} Credited. Wallet: Rs.{self.earnings_today_inr:.2f}")
         return {
             "success": True,
@@ -273,9 +279,14 @@ class OrderFeedManager:
 
     def dismiss_offer(self, order_id: str) -> None:
         self.active_offers = [o for o in self.active_offers if o.order_id != order_id]
+        if not self.active_offers:
+            self.refresh_order_pool(self._last_rider_lat, self._last_rider_lng)
 
     def get_snapshot(self, rider_lat: float, rider_lng: float) -> Dict[str, Any]:
-        # Auto-seed mock orders if idle and empty
+        self._last_rider_lat = rider_lat
+        self._last_rider_lng = rider_lng
+
+        # Auto-seed mock orders if idle/delivered and empty
         if self.order_phase in ("IDLE", "DELIVERED") and not self.active_offers:
             self.refresh_order_pool(rider_lat, rider_lng)
 

@@ -263,20 +263,22 @@ function renderNotificationStack(offers) {
     }
 
     if (!offers || offers.length === 0) {
-        stackEl.innerHTML = `
-            <div class="notification-card" style="border-left-color:#38BDF8;background:rgba(15,23,42,0.95)">
-                <div style="font-size:11px;font-weight:800;color:#38BDF8;display:flex;align-items:center;gap:6px;">
-                    <span style="font-size:14px;">🛰️</span> Scanning for incoming delivery gigs...
+        if (stackEl.children.length === 0) {
+            stackEl.innerHTML = `
+                <div class="notification-card" style="border-left-color:#38BDF8;background:rgba(15,23,42,0.95)">
+                    <div style="font-size:11px;font-weight:800;color:#38BDF8;display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:14px;">🛰️</span> Scanning for incoming delivery gigs...
+                    </div>
                 </div>
-            </div>
-        `;
-        stackEl.dataset.offersJson = "empty";
+            `;
+            stackEl.dataset.offersJson = "empty";
+        }
         return;
     }
 
     const offersJson = JSON.stringify(offers.map(o => o.order_id));
-    if (stackEl.dataset.offersJson === offersJson) {
-        return; // Stable DOM caching: do not destroy cards if unchanged
+    if (stackEl.dataset.offersJson === offersJson && stackEl.children.length > 0) {
+        return;
     }
     stackEl.dataset.offersJson = offersJson;
 
