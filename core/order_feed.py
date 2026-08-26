@@ -1,6 +1,6 @@
 """
 Multi-App Order Dispatch & Feed Manager
-Pre-populates rich mock orders from Zomato, Swiggy, Zepto, and Amazon Fresh
+Pre-populates stable rich mock orders from Zomato, Swiggy, Zepto, and Amazon Fresh
 with exact restaurant coordinates, drop-off coordinates, items, and Google Maps 2-phase routing.
 """
 
@@ -35,10 +35,8 @@ class DeliveryOffer:
     delivery_otp: str
     prep_time_minutes: int = 4
     created_at: float = field(default_factory=time.time)
-    expiry_seconds: int = 120        # Ample time for rider selection
 
     def to_dict(self) -> Dict[str, Any]:
-        remaining = max(0, int(self.expiry_seconds - (time.time() - self.created_at)))
         return {
             "order_id": self.order_id,
             "platform": self.platform,
@@ -58,13 +56,13 @@ class DeliveryOffer:
             "payment_mode": self.payment_mode,
             "cod_amount": self.cod_amount,
             "delivery_otp": self.delivery_otp,
-            "prep_time_minutes": self.prep_time_minutes,
-            "remaining_seconds": remaining
+            "prep_time_minutes": self.prep_time_minutes
         }
 
 class OrderFeedManager:
     RICH_ORDER_PRESETS = [
         {
+            "id_tag": "ORD-ZOM-81",
             "platform": "zomato",
             "color": "#E23744",
             "store_name": "Arsalan Mughlai Restaurant",
@@ -81,6 +79,7 @@ class OrderFeedManager:
             "cod": 0.0
         },
         {
+            "id_tag": "ORD-SWG-94",
             "platform": "swiggy",
             "color": "#FC8019",
             "store_name": "Wow! Momo Express",
@@ -97,6 +96,7 @@ class OrderFeedManager:
             "cod": 360.0
         },
         {
+            "id_tag": "ORD-ZEP-12",
             "platform": "zepto",
             "color": "#7C4DFF",
             "store_name": "Zepto 10-Min Dark Store #104",
@@ -113,22 +113,7 @@ class OrderFeedManager:
             "cod": 0.0
         },
         {
-            "platform": "swiggy",
-            "color": "#FC8019",
-            "store_name": "Mainland China Delights",
-            "store_addr": "South City Mall Restaurant Hub",
-            "store_offset": (-0.0075, 0.0060),
-            "cust_name": "Priyanka Ghosh",
-            "cust_addr": "Jadavpur Central Road, Green Enclave",
-            "cust_offset": (-0.0160, 0.0180),
-            "items": "1x Steamed Dim Sum Basket, 1x Hakka Noodles, 1x Chilli Chicken",
-            "instr": "🏢 Flat 302, 3rd Floor (Lift operational)",
-            "payout_base": 48.0,
-            "prep_mins": 5,
-            "payment": "PREPAID",
-            "cod": 0.0
-        },
-        {
+            "id_tag": "ORD-AMZ-55",
             "platform": "amazon",
             "color": "#FF9900",
             "store_name": "Amazon Fresh Fulfillment Depot",
@@ -176,11 +161,10 @@ class OrderFeedManager:
         total_dist_km = store_dist_km + drop_dist_km
         
         # Real Indian Delivery Rate Card: Base + (Distance * 8.5/km) + Surge
-        surge = random.choice([15.0, 20.0, 25.0])
-        payout = preset["payout_base"] + (total_dist_km * 8.5) + surge
+        payout = preset["payout_base"] + (total_dist_km * 8.5) + 15.0
 
         return DeliveryOffer(
-            order_id=str(uuid.uuid4())[:6].upper(),
+            order_id=preset.get("id_tag", str(uuid.uuid4())[:6].upper()),
             platform=preset["platform"],
             platform_color=preset["color"],
             store_name=preset["store_name"],
@@ -199,18 +183,15 @@ class OrderFeedManager:
             customer_instructions=preset["instr"],
             payment_mode=preset["payment"],
             cod_amount=preset["cod"],
-            delivery_otp=str(random.randint(1000, 9999)),
+            delivery_otp="4829",
             prep_time_minutes=preset["prep_mins"],
-            created_at=time.time(),
-            expiry_seconds=120
+            created_at=time.time()
         )
 
     def refresh_order_pool(self, rider_lat: float, rider_lng: float) -> List[DeliveryOffer]:
-        """Pre-populates 4 rich mock orders from Zomato, Swiggy, Zepto, and Amazon Fresh."""
-        # Pick 4 distinct presets
-        chosen_presets = random.sample(self.RICH_ORDER_PRESETS, min(4, len(self.RICH_ORDER_PRESETS)))
-        self.active_offers = [self.build_offer_from_preset(p, rider_lat, rider_lng) for p in chosen_presets]
-        print(f"[FEED] Refreshed with {len(self.active_offers)} rich mock orders around ({rider_lat:.4f}, {rider_lng:.4f})")
+        """Pre-populates stable, rich mock orders."""
+        self.active_offers = [self.build_offer_from_preset(p, rider_lat, rider_lng) for p in self.RICH_ORDER_PRESETS]
+        print(f"[FEED] Refreshed order pool with {len(self.active_offers)} stable delivery gigs.")
         return self.active_offers
 
     def select_and_accept_order(self, order_id: str) -> Optional[DeliveryOffer]:
@@ -230,7 +211,7 @@ class OrderFeedManager:
         self.selected_order = chosen
         self.active_offers = []  # Clear pending offers
         self.order_phase = "ROUTE_TO_STORE"
-        print(f"[ACCEPT] Rider selected order #{chosen.order_id} ({chosen.platform.upper()})! Phase 1: Marking Google Maps Blue Route to Shop: {chosen.store_name}")
+        print(f"[ACCEPT] Rider opted into {chosen.order_id} ({chosen.platform.upper()})! Phase 1: Marking Blue Route to Shop: {chosen.store_name}")
         
         # Route to Shop First (Phase 1)
         self.on_route_change(
@@ -253,7 +234,7 @@ class OrderFeedManager:
             return None
         
         self.order_phase = "ROUTE_TO_CUSTOMER"
-        print(f"[PICKUP] Package collected from {self.selected_order.store_name}! Phase 2: Marking Google Maps Blue Route to Drop-off: {self.selected_order.customer_name}")
+        print(f"[PICKUP] Package collected from {self.selected_order.store_name}! Phase 2: Marking Blue Route to Drop-off: {self.selected_order.customer_name}")
         
         # Route to Customer Drop-Off (Phase 2)
         self.on_route_change(
@@ -294,10 +275,6 @@ class OrderFeedManager:
         self.active_offers = [o for o in self.active_offers if o.order_id != order_id]
 
     def get_snapshot(self, rider_lat: float, rider_lng: float) -> Dict[str, Any]:
-        # Purge expired offers if any
-        now = time.time()
-        self.active_offers = [o for o in self.active_offers if (now - o.created_at) < o.expiry_seconds]
-        
         # Auto-seed mock orders if idle and empty
         if self.order_phase in ("IDLE", "DELIVERED") and not self.active_offers:
             self.refresh_order_pool(rider_lat, rider_lng)
