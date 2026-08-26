@@ -1,6 +1,6 @@
 """
 LastMile Guard Core Engine
-Coordinates HAL, Navigation, Traffic, Dashcam, Zomato/Swiggy Delivery Partner Engine, and Telemetry Streams.
+Coordinates HAL, Navigation, Traffic, Dashcam, and the Multi-App Order Feed & 2-Phase Routing System.
 """
 
 import asyncio
@@ -13,8 +13,7 @@ from core.navigation import NavigationEngine, Maneuver
 from core.dashcam import DashcamManager
 from core.delivery_parser import DeliveryParser, DeliveryAlert
 from core.system_health import SystemHealthSentinel
-from core.delivery_engine import DeliveryPartnerEngine
-from core.delivery_models import PartnerOrder
+from core.order_feed import OrderFeedManager, DeliveryOffer
 
 class LastMileEngine:
     def __init__(self, config: Dict[str, Any]):
@@ -32,8 +31,11 @@ class LastMileEngine:
             google_api_key=google_api_key
         )
         
-        # Zomato & Swiggy Delivery Partner Engine
-        self.delivery = DeliveryPartnerEngine(on_route_change=self.import_destination)
+        # Multi-App Order Feed & 2-Phase Routing Manager
+        self.feed = OrderFeedManager(on_route_change=self.import_destination)
+
+        # Seed initial pool of notifications
+        self.feed.refresh_order_pool(self.navigation.current_lat, self.navigation.current_lng)
 
         # Sync kinematics waypoints
         if hasattr(self.hal.gps, "set_route_waypoints") and self.navigation.route_polyline:
@@ -103,38 +105,34 @@ class LastMileEngine:
         if hasattr(self.hal.gps, "set_route_waypoints") and self.navigation.route_polyline:
             self.hal.gps.set_route_waypoints(self.navigation.route_polyline)
 
-    # Zomato / Swiggy Delivery Actions
-    def toggle_shift_duty(self) -> str:
-        return self.delivery.toggle_shift_duty()
+    # Order Feed Actions
+    def refresh_orders(self) -> List[DeliveryOffer]:
+        return self.feed.refresh_order_pool(self.navigation.current_lat, self.navigation.current_lng)
 
-    def offer_mock_order(self, platform: str = "swiggy") -> PartnerOrder:
-        loc = (self.navigation.current_lat, self.navigation.current_lng)
-        return self.delivery.offer_order(platform=platform, rider_lat=loc[0], rider_lng=loc[1])
+    def select_and_accept_order(self, order_id: str) -> Optional[DeliveryOffer]:
+        return self.feed.select_and_accept_order(order_id)
 
-    def accept_current_order(self) -> Optional[PartnerOrder]:
-        return self.delivery.accept_order()
+    def reach_store(self) -> Optional[DeliveryOffer]:
+        return self.feed.advance_to_at_store()
 
-    def reach_restaurant(self) -> Optional[PartnerOrder]:
-        return self.delivery.reach_restaurant()
+    def pickup_order_and_route_to_customer(self) -> Optional[DeliveryOffer]:
+        return self.feed.confirm_pickup_and_route_to_customer()
 
-    def confirm_food_pickup(self) -> Optional[PartnerOrder]:
-        return self.delivery.confirm_pickup()
+    def reach_customer(self) -> Optional[DeliveryOffer]:
+        return self.feed.advance_to_at_customer()
 
-    def reach_customer(self) -> Optional[PartnerOrder]:
-        return self.delivery.reach_customer()
+    def complete_delivery(self) -> Dict[str, Any]:
+        return self.feed.complete_delivery()
 
-    def complete_current_delivery(self, otp: Optional[str] = None) -> Dict[str, Any]:
-        return self.delivery.verify_otp_and_complete_delivery(entered_otp=otp)
-
-    def reject_current_order(self) -> None:
-        self.delivery.reject_order()
+    def dismiss_offer(self, order_id: str) -> None:
+        self.feed.dismiss_offer(order_id)
 
     def get_latest_telemetry_snapshot(self) -> Dict[str, Any]:
         gps_fix = self.hal.gps.get_latest_fix()
         maneuver = self.navigation.update_location(gps_fix)
         health = self.sentinel.check_health()
         brightness = self.hal.sensors.get_brightness()
-        partner_snap = self.delivery.get_snapshot()
+        feed_snap = self.feed.get_snapshot(self.navigation.current_lat, self.navigation.current_lng)
 
         if hasattr(self.hal.gps, "set_traffic_factor"):
             factor = self.navigation.get_current_traffic_speed_factor()
@@ -154,10 +152,13 @@ class LastMileEngine:
             "is_emergency": self.is_emergency,
             "emergency_reason": self.emergency_reason,
             "active_alert": self.active_alert.to_dict() if self.active_alert else None,
-            "partner": partner_snap,
-            "order": partner_snap["current_order"],
-            "stats": partner_snap["stats"],
-            "earnings_today_inr": partner_snap["stats"]["earnings_today_inr"],
+            "feed": feed_snap,
+            "order_phase": feed_snap["order_phase"],
+            "active_offers": feed_snap["active_offers"],
+            "selected_order": feed_snap["selected_order"],
+            "earnings_today_inr": feed_snap["earnings_today_inr"],
+            "orders_completed_count": feed_snap["orders_completed_count"],
+            "daily_target": feed_snap["daily_target"],
             "dashcam": {
                 "is_recording": self.dashcam.is_recording,
                 "last_locked_file": self.dashcam.last_locked_file

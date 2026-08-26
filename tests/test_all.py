@@ -1,6 +1,6 @@
 """
 LastMile Guard - Test Suite
-Verifies HAL, Kinematics, Traffic Engine, and Zomato/Swiggy Delivery Partner Engine.
+Verifies HAL, Kinematics, Traffic Engine, Multi-App Order Feed & 2-Phase Routing.
 """
 
 import unittest
@@ -15,8 +15,7 @@ from hal.geolocation import get_system_location
 from hal.kinematic_simulator import KinematicVehicleSimulator
 from core.navigation import NavigationEngine
 from core.traffic import TrafficEngine
-from core.delivery_models import PartnerOrder, OrderItem, EarningBreakdown, RiderDailyStats
-from core.delivery_engine import DeliveryPartnerEngine
+from core.order_feed import OrderFeedManager, DeliveryOffer
 from core.delivery_parser import DeliveryParser
 from core.dashcam import DashcamManager
 from core.system_health import SystemHealthSentinel
@@ -58,60 +57,44 @@ class TestLastMileGuard(unittest.TestCase):
         self.assertGreater(len(segments), 0)
         self.assertIn(segments[0].status, ["FLOWING", "MODERATE", "HEAVY_JAM"])
 
-    def test_delivery_partner_full_lifecycle(self):
+    def test_order_feed_and_2phase_routing(self):
         routes_history = []
         def mock_route_change(name, lat, lng):
             routes_history.append((name, lat, lng))
 
-        engine = DeliveryPartnerEngine(on_route_change=mock_route_change)
+        feed = OrderFeedManager(on_route_change=mock_route_change)
+        rider_lat, rider_lng = 22.5643, 88.3693
         
-        # 1. Shift duty
-        self.assertEqual(engine.shift_state, "ONLINE_SEARCHING")
-        engine.toggle_shift_duty()
-        self.assertEqual(engine.shift_state, "OFF_DUTY")
-        engine.toggle_shift_duty()
-        self.assertEqual(engine.shift_state, "ONLINE_SEARCHING")
+        # 1. Refresh & generate competing offers
+        offers = feed.refresh_order_pool(rider_lat, rider_lng)
+        self.assertEqual(len(offers), 3)
+        self.assertGreater(offers[0].payout_inr, 40.0)
+        self.assertGreater(offers[0].total_dist_km, 1.0)
 
-        # 2. Offer Zomato gig
-        order = engine.offer_order(platform="zomato")
-        self.assertEqual(order.state, "OFFERED")
-        self.assertEqual(order.platform, "zomato")
-        self.assertGreater(order.earnings.total_payout, 50.0)
-        self.assertGreater(len(order.items), 0)
-        self.assertEqual(len(order.delivery_otp), 4)
-
-        # 3. Accept gig -> Routes to store
-        accepted = engine.accept_order()
-        self.assertEqual(accepted.state, "EN_ROUTE_PICKUP")
+        # 2. Select & Opt In -> Phase 1: Route to Store
+        chosen_id = offers[0].order_id
+        accepted = feed.select_and_accept_order(chosen_id)
+        self.assertEqual(feed.order_phase, "ROUTE_TO_STORE")
+        self.assertEqual(accepted.order_id, chosen_id)
         self.assertEqual(len(routes_history), 1)
         self.assertIn("Pickup", routes_history[0][0])
 
-        # 4. Reach store & verify items
-        at_store = engine.reach_restaurant()
-        self.assertEqual(at_store.state, "AT_RESTAURANT")
-        engine.verify_order_items()
-        self.assertTrue(all(i.is_verified for i in engine.current_order.items))
+        # 3. Arrive at store
+        at_store = feed.advance_to_at_store()
+        self.assertEqual(feed.order_phase, "AT_STORE")
 
-        # 5. Confirm pickup -> Routes to customer
-        picked = engine.confirm_pickup()
-        self.assertEqual(picked.state, "EN_ROUTE_CUSTOMER")
+        # 4. Pick up food -> Phase 2: Route to Customer
+        picked = feed.confirm_pickup_and_route_to_customer()
+        self.assertEqual(feed.order_phase, "ROUTE_TO_CUSTOMER")
         self.assertEqual(len(routes_history), 2)
         self.assertIn("Drop", routes_history[1][0])
 
-        # 6. Reach customer & verify 4-digit OTP
-        at_cust = engine.reach_customer()
-        self.assertEqual(at_cust.state, "AT_CUSTOMER")
-        
-        # Test wrong OTP
-        bad_res = engine.verify_otp_and_complete_delivery(entered_otp="0000")
-        self.assertFalse(bad_res["success"])
-
-        # Test correct OTP
-        good_res = engine.verify_otp_and_complete_delivery(entered_otp=order.delivery_otp)
-        self.assertTrue(good_res["success"])
-        self.assertGreater(engine.stats.earnings_today_inr, 485.0)
-        self.assertEqual(engine.stats.orders_completed_today, 7)
-        self.assertEqual(engine.shift_state, "ONLINE_SEARCHING")
+        # 5. Arrive at customer & complete delivery
+        feed.advance_to_at_customer()
+        res = feed.complete_delivery()
+        self.assertTrue(res["success"])
+        self.assertEqual(feed.order_phase, "DELIVERED")
+        self.assertGreater(feed.earnings_today_inr, 485.0)
 
     def test_delivery_parser(self):
         zomato = DeliveryParser.parse_notification(

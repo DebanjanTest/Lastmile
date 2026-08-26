@@ -1,6 +1,6 @@
 /* ==============================================================================
-   LastMile Guard - Zomato & Swiggy Delivery Partner 5.0" Automotive HUD
-   Resolution: Exactly 800px × 480px (Standard Automotive 5-inch IPS Display)
+   LastMile Guard - 5.0" Multi-App Delivery Notification HUD & 2-Phase Routing
+   Exact Resolution: 800px × 480px (Standard Automotive 5-inch Display)
    ============================================================================== */
 
 :root {
@@ -9,11 +9,13 @@
     --gmaps-blue: #1A73E8;
     --gmaps-dark-bg: #1F2430;
     --gmaps-card-bg: rgba(28, 30, 36, 0.96);
-    --gmaps-border: rgba(255, 255, 255, 0.14);
+    --gmaps-border: rgba(255, 255, 255, 0.15);
     --text-primary: #FFFFFF;
     --text-secondary: #94A3B8;
     --zomato-red: #E23744;
     --swiggy-orange: #FC8019;
+    --zepto-purple: #7C4DFF;
+    --amazon-gold: #FF9900;
     --traffic-green: #00E676;
     --traffic-orange: #FF9100;
     --traffic-red: #FF1744;
@@ -134,79 +136,11 @@ body.workbench-theme {
     height: 480px !important;
 }
 
-/* HUD TOP STATUS BAR */
-.hud-top-bar {
+/* TOP-LEFT: GOOGLE MAPS NAVIGATION TURN CARD */
+.gmaps-turn-card {
     position: absolute;
     top: 10px;
     left: 12px;
-    right: 12px;
-    z-index: 30;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    pointer-events: none;
-}
-
-.duty-pill {
-    pointer-events: auto;
-    background: rgba(15, 23, 42, 0.94);
-    border: 1px solid var(--gmaps-border);
-    backdrop-filter: blur(8px);
-    border-radius: 20px;
-    padding: 5px 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-}
-
-.duty-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-.dot-online { background: #00E676; box-shadow: 0 0 8px #00E676; }
-.dot-order { background: #FC8019; box-shadow: 0 0 8px #FC8019; }
-.dot-offline { background: #94A3B8; }
-
-.surge-pill {
-    background: rgba(226, 55, 68, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 16px;
-    padding: 4px 10px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 900;
-    color: #FFF;
-    box-shadow: 0 0 15px rgba(226, 55, 68, 0.6);
-}
-
-.stats-pill {
-    pointer-events: auto;
-    background: rgba(15, 23, 42, 0.94);
-    border: 1px solid var(--gmaps-border);
-    border-radius: 20px;
-    padding: 5px 12px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 11px;
-    font-weight: 800;
-}
-#milestoneBadge { color: #38BDF8; }
-#earningsBadge { color: #00E676; font-weight: 900; }
-
-/* TOP GOOGLE MAPS TURN CARD */
-.gmaps-turn-card {
-    position: absolute;
-    top: 48px;
-    left: 12px;
-    right: 12px;
     z-index: 30;
     background: var(--gmaps-green);
     border-radius: 12px;
@@ -215,7 +149,8 @@ body.workbench-theme {
     align-items: center;
     padding: 8px 14px;
     gap: 12px;
-    max-width: 520px;
+    max-width: 440px;
+    animation: slide-right 0.25s ease-out;
 }
 
 .turn-icon-box {
@@ -234,6 +169,202 @@ body.workbench-theme {
 .traffic-condition-badge { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.25); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 10px; color: #FFF; }
 .turn-road-name { font-size: 16px; font-weight: 800; color: #FFF; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .turn-next-preview { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.85); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ==============================================================================
+   TOP-RIGHT: MULTI-APP POP-UP NOTIFICATION STACK
+   ============================================================================== */
+.order-notification-stack {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 320px;
+    max-height: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 50;
+    pointer-events: auto;
+    overflow-y: auto;
+}
+
+.notification-card {
+    background: rgba(22, 27, 34, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-left: 4px solid var(--swiggy-orange);
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: slide-in-right 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: transform 0.1s;
+}
+
+.notification-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+}
+
+.card-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-platform-badge {
+    color: #FFF;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.card-payout {
+    font-size: 16px;
+    font-weight: 900;
+    color: #00E676;
+}
+
+.card-store-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    color: #FFF;
+    line-height: 1.2;
+}
+
+.card-store-row strong {
+    color: #FFF;
+    font-size: 12px;
+}
+
+.card-dist-pill {
+    background: rgba(56, 189, 248, 0.2);
+    color: #38BDF8;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.card-drop-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #94A3B8;
+}
+
+.card-actions-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.total-dist-tag {
+    font-size: 10px;
+    font-weight: 800;
+    color: #CBD5E1;
+}
+
+.card-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-card-dismiss {
+    background: #334155;
+    color: #94A3B8;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.btn-card-accept {
+    background: #00E676;
+    color: #000;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 230, 118, 0.4);
+}
+
+/* ==============================================================================
+   ACTIVE 2-PHASE ROUTE BANNER (PHASE 1: STORE / PHASE 2: CUSTOMER)
+   ============================================================================== */
+.active-route-banner {
+    position: absolute;
+    bottom: 76px;
+    left: 14px;
+    right: 14px;
+    background: rgba(22, 27, 34, 0.96);
+    border: 1px solid rgba(252, 128, 25, 0.6);
+    border-radius: 12px;
+    padding: 10px 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 35;
+    pointer-events: auto;
+    animation: slide-up 0.25s ease-out;
+}
+
+.route-phase-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.route-phase-badge {
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--swiggy-orange);
+    letter-spacing: 0.5px;
+}
+
+.route-target-title {
+    font-size: 15px;
+    font-weight: 900;
+    color: #FFF;
+    margin-top: 1px;
+}
+
+.route-target-sub {
+    font-size: 11px;
+    color: #94A3B8;
+}
+
+.route-action-btn {
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+    color: #000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    transition: transform 0.08s;
+}
+
+.route-action-btn:active {
+    transform: scale(0.96);
+}
 
 /* FLOATING SPEEDOMETER */
 .gmaps-speed-bubble {
@@ -255,368 +386,26 @@ body.workbench-theme {
 .speed-num { font-size: 24px; font-weight: 900; color: #FFF; line-height: 1; }
 .speed-label { font-size: 8px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; }
 
-/* SEARCHING SONAR RADAR OVERLAY */
-.searching-overlay {
+/* CELEBRATION TOAST */
+.order-delivered-toast {
     position: absolute;
-    bottom: 84px;
+    top: 90px;
     left: 50%;
     transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 15;
-    pointer-events: none;
-}
-.searching-badge {
-    background: rgba(15, 23, 42, 0.92);
-    border: 1px solid rgba(56, 189, 248, 0.4);
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 11px;
-    font-weight: 800;
-    color: #38BDF8;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.search-pulse {
-    width: 8px; height: 8px; border-radius: 50%; background: #38BDF8; animation: pulse-ring 1.5s infinite;
-}
-@keyframes pulse-ring {
-    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
-    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(56, 189, 248, 0); }
-    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
-}
-
-/* ==============================================================================
-   1. INCOMING ORDER OFFER MODAL (ZOMATO / SWIGGY)
-   ============================================================================== */
-.order-offer-modal {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.88);
-    backdrop-filter: blur(8px);
-    z-index: 150;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.offer-card {
-    background: #1e222d;
-    border: 2px solid var(--swiggy-orange);
-    border-radius: 16px;
-    width: 480px;
-    padding: 16px 20px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95);
-}
-.offer-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--gmaps-border);
-    padding-bottom: 8px;
-}
-.platform-badge-box { display: flex; align-items: center; gap: 8px; }
-.offer-platform-tag {
-    background: var(--swiggy-orange);
-    color: #FFF;
-    font-size: 11px;
-    font-weight: 900;
-    padding: 4px 9px;
-    border-radius: 6px;
-}
-.order-timer-chip {
-    background: #334155;
-    color: #FACC15;
-    font-size: 11px;
-    font-weight: 800;
-    padding: 3px 8px;
-    border-radius: 12px;
-}
-.offer-payout-box { text-align: right; }
-.payout-label { font-size: 9px; font-weight: 800; color: #94A3B8; display: block; }
-.offer-payout { font-size: 26px; font-weight: 900; color: #00E676; line-height: 1; }
-
-.offer-body { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
-.spot-card {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 8px 12px;
-    border-radius: 8px;
-}
-.spot-icon { font-size: 20px; margin-top: 2px; }
-.spot-details { flex: 1; }
-.spot-row { display: flex; justify-content: space-between; align-items: center; }
-.spot-details strong { font-size: 13px; color: #FFF; }
-.spot-distance { font-size: 11px; font-weight: 800; color: #38BDF8; }
-.spot-details small { color: #94A3B8; font-size: 11px; display: block; margin-top: 1px; }
-.prep-pill {
-    display: inline-block;
-    background: rgba(250, 204, 21, 0.15);
-    color: #FACC15;
-    font-size: 10px;
-    font-weight: 800;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-top: 3px;
-}
-.offer-items-bar { font-size: 12px; color: #93C5FD; font-weight: 600; padding: 0 4px; }
-.payout-breakdown-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.breakdown-tag {
-    background: #334155;
-    font-size: 10px;
-    font-weight: 700;
-    color: #CBD5E1;
-    padding: 2px 6px;
-    border-radius: 4px;
-}
-.highlight-surge { background: rgba(226, 55, 68, 0.2); color: #FF6B6B; }
-.highlight-tip { background: rgba(0, 230, 118, 0.2); color: #00E676; }
-
-.offer-actions { display: flex; gap: 10px; margin-top: 10px; }
-.btn-decline-order {
-    flex: 1;
-    background: #334155;
-    color: #FFF;
-    border: none;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 800;
-    cursor: pointer;
-}
-.btn-accept-order {
-    flex: 2;
     background: #00E676;
     color: #000;
-    border: none;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 900;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0, 230, 118, 0.4);
-}
-
-/* ==============================================================================
-   2. STORE PICKUP & PACKING CHECKLIST MODAL
-   ============================================================================== */
-.store-checklist-modal {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.88);
-    backdrop-filter: blur(8px);
-    z-index: 150;
+    padding: 10px 20px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 230, 118, 0.6);
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 12px;
+    z-index: 60;
+    animation: bounce-in 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.checklist-card {
-    background: #1e222d;
-    border: 2px solid #00B0FF;
-    border-radius: 16px;
-    width: 480px;
-    padding: 16px 20px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95);
-}
-.checklist-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--gmaps-border); padding-bottom: 8px; }
-.checklist-badge { font-size: 10px; font-weight: 900; color: #00B0FF; letter-spacing: 0.5px; }
-.checklist-header h3 { font-size: 15px; font-weight: 800; color: #FFF; margin-top: 2px; }
-.match-order-id { background: #00B0FF; color: #000; font-size: 12px; font-weight: 900; padding: 4px 8px; border-radius: 6px; }
-
-.prep-status-bar {
-    background: rgba(250, 204, 21, 0.12);
-    border: 1px solid rgba(250, 204, 21, 0.3);
-    border-radius: 8px;
-    padding: 6px 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 10px 0;
-    font-size: 11px;
-    font-weight: 800;
-    color: #FACC15;
-}
-
-.items-list-box { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 160px; overflow-y: auto; }
-.chk-item-row {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 8px 12px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.chk-item-left { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #FFF; }
-.veg-tag { width: 12px; height: 12px; border: 1px solid #00E676; display: flex; align-items: center; justify-content: center; }
-.veg-tag::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #00E676; }
-.nonveg-tag { width: 12px; height: 12px; border: 1px solid #E23744; display: flex; align-items: center; justify-content: center; }
-.nonveg-tag::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #E23744; }
-
-.btn-verify-all {
-    width: 100%;
-    background: #00B0FF;
-    color: #000;
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 900;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0, 176, 255, 0.4);
-}
-
-/* ==============================================================================
-   3. CUSTOMER DOORSTEP & 4-DIGIT OTP VERIFICATION MODAL
-   ============================================================================== */
-.customer-otp-modal {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.88);
-    backdrop-filter: blur(8px);
-    z-index: 150;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.otp-card {
-    background: #1e222d;
-    border: 2px solid #7C4DFF;
-    border-radius: 16px;
-    width: 480px;
-    padding: 16px 20px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95);
-}
-.otp-header { border-bottom: 1px solid var(--gmaps-border); padding-bottom: 8px; }
-.otp-badge { font-size: 10px; font-weight: 900; color: #7C4DFF; letter-spacing: 0.5px; }
-.otp-header h3 { font-size: 15px; font-weight: 800; color: #FFF; margin-top: 2px; }
-
-.customer-instr-card {
-    background: rgba(56, 189, 248, 0.12);
-    border: 1px solid rgba(56, 189, 248, 0.3);
-    border-radius: 8px;
-    padding: 6px 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 10px 0;
-    font-size: 11px;
-    font-weight: 800;
-    color: #38BDF8;
-}
-
-.payment-mode-card {
-    background: rgba(0, 230, 118, 0.12);
-    border: 1px solid rgba(0, 230, 118, 0.3);
-    border-radius: 8px;
-    padding: 6px 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    font-size: 11px;
-    font-weight: 900;
-    color: #00E676;
-}
-
-.otp-input-section { text-align: center; margin: 10px 0; }
-.otp-input-section label { font-size: 11px; font-weight: 900; color: #94A3B8; display: block; margin-bottom: 8px; }
-.otp-digits-row { display: flex; justify-content: center; gap: 10px; }
-.otp-box {
-    width: 44px;
-    height: 48px;
-    background: #0f172a;
-    border: 2px solid #7C4DFF;
-    border-radius: 8px;
-    color: #FFF;
-    font-size: 22px;
-    font-weight: 900;
-    text-align: center;
-}
-.otp-hint { font-size: 11px; color: #FACC15; display: block; margin-top: 6px; font-weight: 700; }
-
-.btn-complete-otp {
-    width: 100%;
-    background: #7C4DFF;
-    color: #FFF;
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 900;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(124, 77, 255, 0.4);
-}
-
-/* ==============================================================================
-   4. ORDER DELIVERED CELEBRATION OVERLAY
-   ============================================================================== */
-.delivery-success-overlay {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.9);
-    backdrop-filter: blur(8px);
-    z-index: 160;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: fade-in 0.25s ease-out;
-}
-.success-card {
-    background: #111827;
-    border: 2px solid #00E676;
-    border-radius: 18px;
-    width: 420px;
-    padding: 24px;
-    text-align: center;
-    box-shadow: 0 0 50px rgba(0, 230, 118, 0.4);
-}
-.success-icon { font-size: 40px; margin-bottom: 6px; }
-.success-card h2 { font-size: 18px; font-weight: 900; color: #FFF; }
-.earned-amount { font-size: 34px; font-weight: 900; color: #00E676; margin: 8px 0 4px; }
-.payout-credited-note { font-size: 12px; color: #94A3B8; margin-bottom: 14px; }
-
-.milestone-progress-card {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 12px;
-    border-radius: 10px;
-}
-.prog-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; color: #E2E8F0; }
-.prog-bar-bg { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin: 8px 0 6px; }
-.prog-bar-fill { height: 100%; background: #00E676; border-radius: 4px; }
-#milestoneBonusNote { font-size: 11px; color: #38BDF8; font-weight: 700; }
-
-/* TRANSIT STAGE PROGRESSION STRIP */
-.transit-stage-banner {
-    position: absolute;
-    top: 48px;
-    left: 12px;
-    right: 12px;
-    background: rgba(26, 32, 44, 0.96);
-    border: 1px solid rgba(255, 145, 0, 0.6);
-    border-radius: 10px;
-    padding: 8px 14px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.7);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    z-index: 35;
-    pointer-events: auto;
-}
-.transit-stage-badge { font-size: 10px; font-weight: 900; color: var(--swiggy-orange); letter-spacing: 0.5px; }
-.transit-title { font-size: 13px; font-weight: 800; color: #FFF; display: block; }
-.transit-action-btn {
-    border: none;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 11px;
-    font-weight: 900;
-    cursor: pointer;
-    color: #000;
-}
+.toast-icon { font-size: 24px; }
+.toast-text strong { display: block; font-size: 14px; font-weight: 900; }
+.toast-text small { font-size: 12px; font-weight: 700; opacity: 0.85; }
 
 /* DASHCAM PIP */
 .gmaps-dashcam-pip {
@@ -658,36 +447,12 @@ body.workbench-theme {
 .traffic-delay-text { font-size: 10px; font-weight: 700; color: var(--traffic-green); }
 .trip-sub-row { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
 .trip-dot { color: #5F6368; }
-.destination-preview-box { display: flex; flex-direction: column; max-width: 320px; }
+.destination-preview-box { display: flex; flex-direction: column; max-width: 340px; }
 .dest-label { font-size: 9px; font-weight: 800; color: #8AB4F8; letter-spacing: 0.5px; }
 .dest-name { font-size: 13px; font-weight: 700; color: #FFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trip-actions { display: flex; align-items: center; gap: 8px; }
-.btn-import-dest { background: #3C4043; color: #FFF; border: none; padding: 8px 14px; border-radius: 16px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.btn-import-dest { background: #334155; color: #FFF; border: none; padding: 8px 14px; border-radius: 16px; font-size: 11px; font-weight: 800; cursor: pointer; }
 .btn-end-route { background: var(--accent-red); color: #FFF; border: none; padding: 8px 14px; border-radius: 16px; font-size: 11px; font-weight: 900; cursor: pointer; }
-
-/* DESTINATION MODAL */
-.destination-modal {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(6px);
-    z-index: 140;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
-}
-.modal-content { background: #202124; border: 1px solid var(--gmaps-border); border-radius: 14px; width: 480px; padding: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.8); }
-.modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--gmaps-border); padding-bottom: 8px; }
-.modal-close { background: transparent; border: none; color: #FFF; font-size: 16px; cursor: pointer; }
-.modal-desc { font-size: 12px; color: var(--text-secondary); margin: 10px 0 8px; }
-.preset-destinations { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
-.preset-btn { background: #303134; color: #E8EAED; border: 1px solid rgba(255,255,255,0.1); padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-align: left; cursor: pointer; }
-.custom-dest-row { display: flex; flex-direction: column; gap: 6px; }
-.custom-dest-row input { background: #303134; border: 1px solid var(--gmaps-border); color: #FFF; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
-.coord-inputs { display: flex; gap: 6px; }
-.coord-inputs input { flex: 1; }
-.btn-apply-dest { background: var(--gmaps-green); color: #FFF; border: none; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; }
 
 /* EMERGENCY OVERLAY */
 .emergency-overlay {
@@ -727,7 +492,7 @@ body.workbench-theme {
 
 .bench-buttons-row {
     display: grid;
-    grid-template-columns: repeat(5, 1fr) repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1.2fr) repeat(4, 0.9fr);
     gap: 6px;
 }
 .bench-btn {
@@ -764,20 +529,33 @@ body.workbench-theme {
     margin-top: 1px;
 }
 
-.btn-duty { background: linear-gradient(135deg, #334155, #1e293b); }
-.btn-zomato { background: linear-gradient(135deg, #E23744, #b71c1c); }
-.btn-swiggy { background: linear-gradient(135deg, #FC8019, #e65100); }
+.btn-refresh { background: linear-gradient(135deg, #0284c7, #0369a1); }
 .btn-accept { background: linear-gradient(135deg, #00E676, #00b248); }
 .btn-accept .btn-text { color: #000; }
-.btn-reach-store { background: linear-gradient(135deg, #F59E0B, #d97706); }
-.btn-reach-store .btn-text { color: #000; }
+.btn-store { background: linear-gradient(135deg, #F59E0B, #d97706); }
+.btn-store .btn-text { color: #000; }
 .btn-pickup { background: linear-gradient(135deg, #00B0FF, #0081cb); }
 .btn-pickup .btn-text { color: #000; }
-.btn-reach-cust { background: linear-gradient(135deg, #38BDF8, #0284c7); }
-.btn-reach-cust .btn-text { color: #000; }
 .btn-deliver { background: linear-gradient(135deg, #7C4DFF, #512da8); }
 .btn-sos { background: linear-gradient(135deg, #E53935, #991b1b); }
 .btn-crash { background: linear-gradient(135deg, #EA580C, #c2410c); }
+.btn-cam { background: linear-gradient(135deg, #0d9488, #0f766e); }
 
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide-in-right {
+    from { transform: translateX(40px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slide-up {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes slide-right {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes bounce-in {
+    0% { transform: translate(-50%, -20px); opacity: 0; }
+    70% { transform: translate(-50%, 4px); opacity: 1; }
+    100% { transform: translate(-50%, 0); opacity: 1; }
+}
 @keyframes strobe-bg { 0% { background: rgba(180, 0, 0, 0.94); } 100% { background: rgba(80, 0, 0, 0.98); } }

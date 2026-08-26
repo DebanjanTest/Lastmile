@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LastMile Guard - Zomato & Swiggy Delivery Partner Automotive HUD</title>
+    <title>LastMile Guard - Multi-App Delivery Notification HUD & 2-Phase Routing</title>
     <!-- Leaflet CSS for high-contrast vector road & traffic maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="/static/css/tripper.css">
@@ -19,11 +19,11 @@
         <div class="device-chassis">
             <div class="chassis-top-bar">
                 <div class="chassis-lens-dot" title="Front Dashcam Lens"></div>
-                <div class="chassis-title">LASTMILE GUARD • 5.0" AUTOMOTIVE IPS HUD (800×480)</div>
+                <div class="chassis-title">LASTMILE GUARD • 5.0" MULTI-APP DELIVERY HUD (800×480)</div>
                 <div class="chassis-leds">
-                    <span class="status-led led-green" title="System Normal"></span>
+                    <span class="status-led led-green" title="System Live"></span>
                     <span class="status-led led-blue" title="GPS Locked"></span>
-                    <span class="status-led led-orange" title="Dashcam Buffer Active"></span>
+                    <span class="status-led led-orange" title="RAM-Disk Buffer OK"></span>
                 </div>
             </div>
 
@@ -32,25 +32,7 @@
                 <!-- FULLSCREEN ROAD & TRAFFIC MAP CANVAS -->
                 <div id="mapView" class="map-view"></div>
 
-                <!-- TOP HEADER BAR: DUTY STATUS, SURGE & MILESTONE PILL -->
-                <div class="hud-top-bar">
-                    <div class="duty-pill" id="dutyPill" onclick="toggleDuty()">
-                        <span class="duty-dot dot-online"></span>
-                        <span class="duty-text" id="dutyText">ONLINE • SEARCHING</span>
-                    </div>
-
-                    <div class="surge-pill" id="surgePill">
-                        <span class="surge-icon">🔥</span>
-                        <span class="surge-text" id="surgeText">1.4x Surge Active</span>
-                    </div>
-
-                    <div class="stats-pill">
-                        <span class="stat-item" id="milestoneBadge">🎯 6/8 Orders</span>
-                        <span class="stat-item" id="earningsBadge">💰 ₹485</span>
-                    </div>
-                </div>
-
-                <!-- TOP: GOOGLE MAPS NAVIGATION TURN CARD (SHOWN DURING TRANSIT) -->
+                <!-- TOP-LEFT: GOOGLE MAPS NAVIGATION TURN CARD (ACTIVE DURING TRANSIT) -->
                 <div class="gmaps-turn-card" id="turnCard" style="display: none;">
                     <div class="turn-icon-box">
                         <svg class="turn-svg" id="turnSvg" viewBox="0 0 100 100">
@@ -61,11 +43,16 @@
                         <div class="turn-dist-row">
                             <span class="turn-dist-num" id="turnDistNum">150</span>
                             <span class="turn-dist-unit" id="turnDistUnit">m</span>
-                            <span class="traffic-condition-badge" id="trafficConditionBadge">🟢 Normal Flow</span>
+                            <span class="traffic-condition-badge" id="trafficConditionBadge">🟢 Flowing</span>
                         </div>
                         <div class="turn-road-name" id="turnRoadName">Mahatma Gandhi Road</div>
                         <div class="turn-next-preview" id="turnNextPreview">Then: Bear left onto Beliaghata Main Rd</div>
                     </div>
+                </div>
+
+                <!-- TOP-RIGHT: MULTI-APP POP-UP NOTIFICATION STACK -->
+                <div class="order-notification-stack" id="orderNotificationStack">
+                    <!-- Dynamic incoming notification cards pop in here -->
                 </div>
 
                 <!-- FLOATING SPEEDOMETER BUBBLE -->
@@ -74,167 +61,24 @@
                     <span class="speed-label">km/h</span>
                 </div>
 
-                <!-- SEARCHING FOR GIGS RADAR OVERLAY (WHEN ONLINE & IDLE) -->
-                <div class="searching-overlay" id="searchingOverlay">
-                    <div class="sonar-circle"></div>
-                    <div class="searching-badge">
-                        <span class="search-pulse"></span>
-                        <span>🛰️ Searching for high-payout orders nearby...</span>
+                <!-- ACTIVE 2-PHASE ROUTE BANNER (PHASE 1: STORE / PHASE 2: CUSTOMER) -->
+                <div class="active-route-banner" id="activeRouteBanner" style="display: none;">
+                    <div class="route-phase-info">
+                        <span class="route-phase-badge" id="routePhaseBadge">📍 PHASE 1: ROUTE TO STORE</span>
+                        <h4 class="route-target-title" id="routeTargetTitle">Wow! Momo Express</h4>
+                        <small class="route-target-sub" id="routeTargetSub">1.2 km travel distance from current location</small>
                     </div>
-                </div>
-
-                <!-- 1. INCOMING ORDER OFFER OVERLAY (ZOMATO / SWIGGY STYLE) -->
-                <div class="order-offer-modal" id="orderOfferModal" style="display: none;">
-                    <div class="offer-card">
-                        <div class="offer-header">
-                            <div class="platform-badge-box">
-                                <span class="offer-platform-tag" id="offerPlatformTag">SWIGGY PARTNER</span>
-                                <span class="order-timer-chip" id="orderTimerChip">⏱️ 30s</span>
-                            </div>
-                            <div class="offer-payout-box">
-                                <span class="payout-label">GUARANTEED PAY</span>
-                                <span class="offer-payout" id="offerPayout">₹89.50</span>
-                            </div>
-                        </div>
-
-                        <div class="offer-body">
-                            <!-- Store Pickup Info -->
-                            <div class="spot-card spot-store">
-                                <span class="spot-icon">🏪</span>
-                                <div class="spot-details">
-                                    <div class="spot-row">
-                                        <strong id="offerRestName">Arsalan Mughlai Restaurant</strong>
-                                        <span class="spot-distance">1.2 km</span>
-                                    </div>
-                                    <small id="offerRestAddr">Park Circus 7-Point, Kolkata</small>
-                                    <span class="prep-pill" id="offerPrepPill">⏳ Food Ready in ~4 mins</span>
-                                </div>
-                            </div>
-
-                            <!-- Customer Drop Info -->
-                            <div class="spot-card spot-cust">
-                                <span class="spot-icon">🏠</span>
-                                <div class="spot-details">
-                                    <div class="spot-row">
-                                        <strong id="offerCustName">Debanjan Mondal</strong>
-                                        <span class="spot-distance">3.2 km drop</span>
-                                    </div>
-                                    <small id="offerCustAddr">Salt Lake Sector V, Block EP</small>
-                                </div>
-                            </div>
-
-                            <!-- Items Summary -->
-                            <div class="offer-items-bar" id="offerItems">📦 2x Special Mutton Biryani, 1x Firni</div>
-
-                            <!-- Payout Breakdown Pills -->
-                            <div class="payout-breakdown-row" id="payoutBreakdown">
-                                <span class="breakdown-tag">Base: ₹35</span>
-                                <span class="breakdown-tag">Distance: ₹24.5</span>
-                                <span class="breakdown-tag highlight-surge">Surge: ₹20</span>
-                                <span class="breakdown-tag highlight-tip">Tip: ₹10</span>
-                            </div>
-                        </div>
-
-                        <div class="offer-actions">
-                            <button class="btn-decline-order" onclick="rejectOrder()">✕ REJECT (Esc)</button>
-                            <button class="btn-accept-order" onclick="acceptOrder()">✅ ACCEPT GIG [A]</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2. STORE PICKUP & ITEM PACKING CHECKLIST MODAL (AT RESTAURANT) -->
-                <div class="store-checklist-modal" id="storeChecklistModal" style="display: none;">
-                    <div class="checklist-card">
-                        <div class="checklist-header">
-                            <div>
-                                <span class="checklist-badge">🏪 AT RESTAURANT</span>
-                                <h3 id="chkRestName">Arsalan Mughlai Restaurant</h3>
-                            </div>
-                            <div class="match-order-id" id="chkOrderId">MATCH ID: #8492</div>
-                        </div>
-
-                        <div class="prep-status-bar">
-                            <span class="prep-icon">🍳</span>
-                            <span class="prep-msg" id="chkPrepMsg">Kitchen preparing order • Estimated wait: 2 mins</span>
-                        </div>
-
-                        <div class="items-list-box" id="chkItemsList">
-                            <!-- Dynamic checklist items -->
-                        </div>
-
-                        <div class="checklist-actions">
-                            <button class="btn-verify-all" onclick="confirmPickup()">🍴 VERIFY ITEMS & START DELIVERY [K]</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. CUSTOMER DOORSTEP & 4-DIGIT OTP VERIFICATION MODAL (AT CUSTOMER) -->
-                <div class="customer-otp-modal" id="customerOtpModal" style="display: none;">
-                    <div class="otp-card">
-                        <div class="otp-header">
-                            <span class="otp-badge">🏠 AT CUSTOMER DOORSTEP</span>
-                            <h3 id="otpCustName">Debanjan Mondal</h3>
-                        </div>
-
-                        <!-- Customer Instructions Banner -->
-                        <div class="customer-instr-card" id="otpCustomerInstr">
-                            <span class="instr-icon">📢</span>
-                            <span class="instr-text" id="otpInstrText">🚪 Leave at door & do not ring bell (Baby sleeping)</span>
-                        </div>
-
-                        <!-- Payment Mode Banner -->
-                        <div class="payment-mode-card" id="otpPaymentCard">
-                            <span class="pay-icon" id="otpPayIcon">🟢</span>
-                            <span class="pay-text" id="otpPayText">PREPAID ORDER • DO NOT COLLECT CASH</span>
-                        </div>
-
-                        <!-- 4-Digit Delivery OTP Input -->
-                        <div class="otp-input-section">
-                            <label>ASK CUSTOMER FOR 4-DIGIT DELIVERY OTP:</label>
-                            <div class="otp-digits-row">
-                                <input type="text" maxlength="1" class="otp-box" id="otp1" value="4">
-                                <input type="text" maxlength="1" class="otp-box" id="otp2" value="8">
-                                <input type="text" maxlength="1" class="otp-box" id="otp3" value="2">
-                                <input type="text" maxlength="1" class="otp-box" id="otp4" value="9">
-                            </div>
-                            <small class="otp-hint" id="otpHint">Customer OTP: 4829</small>
-                        </div>
-
-                        <div class="otp-actions">
-                            <button class="btn-complete-otp" onclick="verifyOtpAndDeliver()">✅ VERIFY OTP & COMPLETE DELIVERY [U]</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 4. ORDER DELIVERED CELEBRATION OVERLAY -->
-                <div class="delivery-success-overlay" id="deliverySuccessOverlay" style="display: none;">
-                    <div class="success-card">
-                        <div class="success-icon">🎉</div>
-                        <h2>DELIVERY COMPLETE!</h2>
-                        <div class="earned-amount" id="earnedAmountText">+₹89.50</div>
-                        <div class="payout-credited-note">Credited to your Zomato/Swiggy Wallet</div>
-                        
-                        <div class="milestone-progress-card">
-                            <div class="prog-row">
-                                <span>Daily Milestone Target:</span>
-                                <strong id="milestoneProgText">7/8 Completed</strong>
-                            </div>
-                            <div class="prog-bar-bg">
-                                <div class="prog-bar-fill" id="milestoneBarFill" style="width: 87%;"></div>
-                            </div>
-                            <small id="milestoneBonusNote">1 more order to unlock ₹150 Bonus!</small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- FLOATING STAGE PROGRESSION STRIP (DURING ACTIVE ORDER) -->
-                <div class="transit-stage-banner" id="transitStageBanner" style="display: none;">
-                    <div class="stage-info">
-                        <span class="transit-stage-badge" id="transitBadge">🛵 STEP 1: EN ROUTE TO RESTAURANT</span>
-                        <span class="transit-title" id="transitTitle">Arsalan Mughlai Restaurant</span>
-                    </div>
-                    <div class="transit-actions" id="transitActions">
+                    <div class="route-actions" id="routeActions">
                         <!-- Action buttons dynamically injected -->
+                    </div>
+                </div>
+
+                <!-- ORDER DELIVERED CELEBRATION TOAST -->
+                <div class="order-delivered-toast" id="deliveredToast" style="display: none;">
+                    <span class="toast-icon">🎉</span>
+                    <div class="toast-text">
+                        <strong>Order Successfully Delivered!</strong>
+                        <small id="toastPayoutText">+₹85.00 Credited to Rider Wallet</small>
                     </div>
                 </div>
 
@@ -263,39 +107,12 @@
 
                     <div class="destination-preview-box">
                         <span class="dest-label" id="destHeaderLabel">TARGET DESTINATION:</span>
-                        <span class="dest-name" id="destName">Salt Lake Sector V Delivery Hub</span>
+                        <span class="dest-name" id="destName">Scanning for orders nearby...</span>
                     </div>
 
                     <div class="trip-actions">
-                        <button class="btn-import-dest" onclick="openDestinationModal()" title="Change Destination">📍 Route</button>
+                        <button class="btn-import-dest" onclick="refreshOrders()" title="Refresh Orders">🔄 Refresh</button>
                         <button class="btn-end-route" onclick="triggerSos()" title="Emergency SOS">🚨 SOS</button>
-                    </div>
-                </div>
-
-                <!-- DESTINATION IMPORT MODAL -->
-                <div class="destination-modal" id="destModal" style="display: none;">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3>📍 Import Road Plan & Destination</h3>
-                            <button class="modal-close" onclick="closeDestinationModal()">✕</button>
-                        </div>
-                        <div class="modal-body">
-                            <p class="modal-desc">Select a delivery corridor or enter custom coordinates:</p>
-                            <div class="preset-destinations">
-                                <button class="preset-btn" onclick="selectPreset('Salt Lake Sector V', 22.585500, 88.416800)">🏢 Sector V Tech Hub</button>
-                                <button class="preset-btn" onclick="selectPreset('Park Street Food Hub', 22.551000, 88.353000)">🍕 Park Street Restaurant Hub</button>
-                                <button class="preset-btn" onclick="selectPreset('New Town Axis Mall', 22.589000, 88.465000)">🛍️ New Town Delivery Center</button>
-                                <button class="preset-btn" onclick="selectPreset('Howrah Cargo Terminal', 22.583000, 88.342000)">🚂 Howrah Cargo Terminal</button>
-                            </div>
-                            <div class="custom-dest-row">
-                                <input type="text" id="customName" placeholder="Destination Name">
-                                <div class="coord-inputs">
-                                    <input type="number" step="0.0001" id="customLat" placeholder="Latitude">
-                                    <input type="number" step="0.0001" id="customLng" placeholder="Longitude">
-                                </div>
-                                <button class="btn-apply-dest" onclick="applyCustomDestination()">Update Route & Road Plan</button>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -313,53 +130,45 @@
         </div>
 
         <!-- ==============================================================================
-             REAL-TIME TEST BENCH RIG (UNDERNEATH 5-INCH DISPLAY)
+             REAL-TIME TEST BENCH CONTROLS (UNDERNEATH 5-INCH DISPLAY)
              ============================================================================== -->
         <div class="bench-control-panel">
             <div class="panel-header">
-                <span class="panel-tag">⚡ ZOMATO & SWIGGY PARTNER TEST RIG</span>
-                <span class="panel-hint">Follow the 6 authentic delivery steps below to simulate in real time:</span>
+                <span class="panel-tag">⚡ MULTI-APP DISPATCH TEST RIG</span>
+                <span class="panel-hint">Watch top-right notifications pop in, opt into any delivery, and follow 2-phase routing:</span>
             </div>
             <div class="bench-buttons-row">
-                <button class="bench-btn btn-duty" onclick="toggleDuty()">
-                    <span class="btn-icon">🟢</span>
-                    <span class="btn-text">Duty Toggle <kbd>[G]</kbd></span>
+                <button class="bench-btn btn-refresh" id="btnBenchRefresh" onclick="refreshOrders()">
+                    <span class="btn-icon">🔄</span>
+                    <span class="btn-text">1. Refresh Orders <kbd>[O]</kbd></span>
                 </button>
-                <button class="bench-btn btn-zomato" onclick="offerMockOrder('zomato')">
-                    <span class="btn-icon">🍔</span>
-                    <span class="btn-text">1. Zomato Gig <kbd>[Z]</kbd></span>
-                </button>
-                <button class="bench-btn btn-swiggy" onclick="offerMockOrder('swiggy')">
-                    <span class="btn-icon">🍕</span>
-                    <span class="btn-text">1. Swiggy Gig <kbd>[O]</kbd></span>
-                </button>
-                <button class="bench-btn btn-accept" onclick="acceptOrder()">
+                <button class="bench-btn btn-accept" id="btnBenchAccept" onclick="acceptTopOrder()">
                     <span class="btn-icon">✅</span>
-                    <span class="btn-text">2. Accept <kbd>[A]</kbd></span>
+                    <span class="btn-text">2. Opt In / Accept <kbd>[A]</kbd></span>
                 </button>
-                <button class="bench-btn btn-reach-store" onclick="reachStore()">
+                <button class="bench-btn btn-store" id="btnBenchStore" onclick="reachStore()">
                     <span class="btn-icon">🏪</span>
-                    <span class="btn-text">3. Reach Store <kbd>[R]</kbd></span>
+                    <span class="btn-text">3. Reached Store <kbd>[R]</kbd></span>
                 </button>
-                <button class="bench-btn btn-pickup" onclick="confirmPickup()">
+                <button class="bench-btn btn-pickup" id="btnBenchPickup" onclick="confirmPickup()">
                     <span class="btn-icon">🍴</span>
-                    <span class="btn-text">4. Pick Up <kbd>[K]</kbd></span>
+                    <span class="btn-text">4. Picked Up (To Cust) <kbd>[K]</kbd></span>
                 </button>
-                <button class="bench-btn btn-reach-cust" onclick="reachCustomer()">
-                    <span class="btn-icon">🏠</span>
-                    <span class="btn-text">5. Reach Cust <kbd>[C]</kbd></span>
-                </button>
-                <button class="bench-btn btn-deliver" onclick="verifyOtpAndDeliver()">
-                    <span class="btn-icon">🔑</span>
-                    <span class="btn-text">6. OTP Deliver <kbd>[U]</kbd></span>
+                <button class="bench-btn btn-deliver" id="btnBenchDeliver" onclick="completeDelivery()">
+                    <span class="btn-icon">📦</span>
+                    <span class="btn-text">5. Complete Delivery <kbd>[U]</kbd></span>
                 </button>
                 <button class="bench-btn btn-sos" onclick="triggerSos()">
                     <span class="btn-icon">🚨</span>
-                    <span class="btn-text">SOS <kbd>[S]</kbd></span>
+                    <span class="btn-text">Manual SOS <kbd>[S]</kbd></span>
                 </button>
                 <button class="bench-btn btn-crash" onclick="triggerTilt()">
                     <span class="btn-icon">💥</span>
-                    <span class="btn-text">Crash <kbd>[T]</kbd></span>
+                    <span class="btn-text">Tilt Crash <kbd>[T]</kbd></span>
+                </button>
+                <button class="bench-btn btn-cam" onclick="toggleDashcam()">
+                    <span class="btn-icon">📷</span>
+                    <span class="btn-text">Dashcam <kbd>[D]</kbd></span>
                 </button>
             </div>
         </div>

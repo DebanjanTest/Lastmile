@@ -1,6 +1,6 @@
 """
 FastAPI UI Bridge & Telemetry Server
-Serves Google Maps Navigation HUD, authentic Zomato/Swiggy Delivery Partner Lifecycle, and Live Traffic Streams.
+Serves Google Maps Navigation HUD, Multi-App Delivery Notification Feed & 2-Phase Routing System.
 """
 
 import json
@@ -20,11 +20,14 @@ class DestinationImportRequest(BaseModel):
     lat: float
     lng: float
 
-class DeliveryCompleteRequest(BaseModel):
-    otp: Optional[str] = None
+class AcceptOrderRequest(BaseModel):
+    order_id: str
+
+class DismissOrderRequest(BaseModel):
+    order_id: str
 
 def create_app(engine: LastMileEngine) -> FastAPI:
-    app = FastAPI(title="LastMile Guard - Zomato & Swiggy Delivery Partner HUD", version="2.0.0")
+    app = FastAPI(title="LastMile Guard - Multi-App Delivery Feed HUD", version="2.1.0")
 
     base_dir = Path(__file__).parent
     static_dir = base_dir / "static"
@@ -48,7 +51,7 @@ def create_app(engine: LastMileEngine) -> FastAPI:
             name="index.html",
             context={
                 "app_name": engine.config.get("app_name", "LastMile Guard"),
-                "version": "2.0.0 (Zomato/Swiggy Partner)",
+                "version": "2.1.0",
                 "google_maps_api_key": engine.config.get("maps", {}).get("google_maps_api_key", "")
             }
         )
@@ -65,24 +68,23 @@ def create_app(engine: LastMileEngine) -> FastAPI:
                 try:
                     cmd_data = json.loads(data_text)
                     action = cmd_data.get("action")
-                    if action == "toggle_duty":
-                        engine.toggle_shift_duty()
-                    elif action == "offer_order":
-                        platform = cmd_data.get("platform", "swiggy")
-                        engine.offer_mock_order(platform)
+                    
+                    if action == "refresh_orders":
+                        engine.refresh_orders()
                     elif action == "accept_order":
-                        engine.accept_current_order()
+                        order_id = cmd_data.get("order_id", "")
+                        engine.select_and_accept_order(order_id)
                     elif action == "reach_store":
-                        engine.reach_restaurant()
-                    elif action == "confirm_pickup":
-                        engine.confirm_food_pickup()
+                        engine.reach_store()
+                    elif action == "pickup_order":
+                        engine.pickup_order_and_route_to_customer()
                     elif action == "reach_customer":
                         engine.reach_customer()
                     elif action == "complete_delivery":
-                        otp = cmd_data.get("otp")
-                        engine.complete_current_delivery(otp)
-                    elif action == "reject_order" or action == "decline_order":
-                        engine.reject_current_order()
+                        engine.complete_delivery()
+                    elif action == "dismiss_offer":
+                        order_id = cmd_data.get("order_id", "")
+                        engine.dismiss_offer(order_id)
                     elif action == "trigger_sos":
                         engine.on_sos_triggered()
                     elif action == "trigger_tilt":
@@ -105,54 +107,47 @@ def create_app(engine: LastMileEngine) -> FastAPI:
     async def api_get_telemetry():
         return engine.get_latest_telemetry_snapshot()
 
-    @app.post("/api/duty/toggle")
-    async def api_toggle_duty():
-        state = engine.toggle_shift_duty()
+    @app.post("/api/feed/refresh")
+    async def api_refresh_orders():
+        engine.refresh_orders()
         await engine.broadcast_snapshot()
-        return {"status": state, "snapshot": engine.get_latest_telemetry_snapshot()}
+        return {"status": "Refreshed", "snapshot": engine.get_latest_telemetry_snapshot()}
 
-    @app.post("/api/orders/offer")
-    async def api_offer_order(platform: str = "swiggy"):
-        engine.offer_mock_order(platform)
+    @app.post("/api/feed/accept")
+    async def api_accept_order(req: AcceptOrderRequest):
+        res = engine.select_and_accept_order(req.order_id)
         await engine.broadcast_snapshot()
-        return {"status": "Order offered", "snapshot": engine.get_latest_telemetry_snapshot()}
+        return {"status": "Accepted", "order": res.to_dict() if res else None, "snapshot": engine.get_latest_telemetry_snapshot()}
 
-    @app.post("/api/orders/accept")
-    async def api_accept_order():
-        engine.accept_current_order()
-        await engine.broadcast_snapshot()
-        return {"status": "Order accepted", "snapshot": engine.get_latest_telemetry_snapshot()}
-
-    @app.post("/api/orders/reach-store")
+    @app.post("/api/feed/reach-store")
     async def api_reach_store():
-        engine.reach_restaurant()
+        res = engine.reach_store()
         await engine.broadcast_snapshot()
-        return {"status": "Reached store", "snapshot": engine.get_latest_telemetry_snapshot()}
+        return {"status": "Reached store", "order": res.to_dict() if res else None, "snapshot": engine.get_latest_telemetry_snapshot()}
 
-    @app.post("/api/orders/pickup")
-    async def api_confirm_pickup():
-        engine.confirm_food_pickup()
+    @app.post("/api/feed/pickup")
+    async def api_pickup_order():
+        res = engine.pickup_order_and_route_to_customer()
         await engine.broadcast_snapshot()
-        return {"status": "Food picked up", "snapshot": engine.get_latest_telemetry_snapshot()}
+        return {"status": "Picked up - routed to customer", "order": res.to_dict() if res else None, "snapshot": engine.get_latest_telemetry_snapshot()}
 
-    @app.post("/api/orders/reach-customer")
+    @app.post("/api/feed/reach-customer")
     async def api_reach_customer():
-        engine.reach_customer()
+        res = engine.reach_customer()
         await engine.broadcast_snapshot()
-        return {"status": "Reached customer", "snapshot": engine.get_latest_telemetry_snapshot()}
+        return {"status": "Reached customer", "order": res.to_dict() if res else None, "snapshot": engine.get_latest_telemetry_snapshot()}
 
-    @app.post("/api/orders/deliver")
-    async def api_complete_delivery(req: Optional[DeliveryCompleteRequest] = None):
-        otp = req.otp if req else None
-        res = engine.complete_current_delivery(otp)
+    @app.post("/api/feed/deliver")
+    async def api_complete_delivery():
+        res = engine.complete_delivery()
         await engine.broadcast_snapshot()
         return {"result": res, "snapshot": engine.get_latest_telemetry_snapshot()}
 
-    @app.post("/api/orders/reject")
-    async def api_reject_order():
-        engine.reject_current_order()
+    @app.post("/api/feed/dismiss")
+    async def api_dismiss_offer(req: DismissOrderRequest):
+        engine.dismiss_offer(req.order_id)
         await engine.broadcast_snapshot()
-        return {"status": "Rejected", "snapshot": engine.get_latest_telemetry_snapshot()}
+        return {"status": "Dismissed", "snapshot": engine.get_latest_telemetry_snapshot()}
 
     @app.post("/api/navigation/destination")
     async def api_import_destination(req: DestinationImportRequest):
