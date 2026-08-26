@@ -1,5 +1,5 @@
 // ==============================================================================
-// LastMile Guard - 5-Inch Navigation HUD & Real-Time Test Rig Client
+// LastMile Guard - Zomato & Swiggy Delivery Partner 5.0" Client
 // ==============================================================================
 
 let ws = null;
@@ -8,6 +8,7 @@ let mapInstance = null;
 let riderMarker = null;
 let destMarker = null;
 let trafficPolylines = [];
+let hotspotCircles = [];
 let isMapInitialized = false;
 
 // Maneuver SVG Icons (Google Maps Navigation Style)
@@ -119,23 +120,14 @@ function initWebSocket() {
 function updateHUD(data) {
     if (!data) return;
 
-    // 1. Hardware & Earnings Telemetry
-    if (data.health) {
-        const tempEl = document.getElementById("tempBadge");
-        if (tempEl) tempEl.textContent = `⚡ ${data.health.cpu_temp_c}°C`;
-        const voltEl = document.getElementById("voltBadge");
-        if (voltEl) voltEl.textContent = `🔋 ${data.health.voltage_status === 'OK' ? '5.1V' : data.health.voltage_status}`;
-    }
-    if (data.earnings_today_inr !== undefined) {
-        const earnEl = document.getElementById("earningsBadge");
-        if (earnEl) earnEl.textContent = `💰 ₹${Math.round(data.earnings_today_inr)}`;
+    // 1. Shift Duty & Rider Statistics
+    if (data.partner) {
+        updateDutyAndPartnerState(data.partner);
     }
 
     // 2. GPS Telemetry & Kinematics
     if (data.gps) {
         const gps = data.gps;
-        const gpsEl = document.getElementById("gpsBadge");
-        if (gpsEl) gpsEl.textContent = gps.is_fixed ? `🛰️ ${gps.satellites} SATS` : `🛰️ ACQUIRING...`;
         const spdEl = document.getElementById("speedNum");
         if (spdEl) spdEl.textContent = Math.round(gps.speed_kmh);
 
@@ -157,34 +149,41 @@ function updateHUD(data) {
     // 3. Navigation Turn Card & Traffic Polyline
     if (data.navigation) {
         const nav = data.navigation;
-        const distEl = document.getElementById("turnDistNum");
-        if (distEl) distEl.textContent = nav.distance_to_turn_m;
-        const roadEl = document.getElementById("turnRoadName");
-        if (roadEl) roadEl.textContent = nav.road_name;
-        const prevEl = document.getElementById("turnNextPreview");
-        if (prevEl) prevEl.textContent = `Then: ${nav.next_instruction}`;
+        const turnCard = document.getElementById("turnCard");
+        const order = data.order;
 
-        // Traffic condition badge
-        const trafficBadge = document.getElementById("trafficConditionBadge");
-        if (trafficBadge) {
-            if (nav.current_traffic_status === "HEAVY_JAM") {
-                trafficBadge.textContent = "🔴 Heavy Traffic Jam";
-                trafficBadge.style.backgroundColor = "#FF1744";
-            } else if (nav.current_traffic_status === "MODERATE") {
-                trafficBadge.textContent = "🟠 Moderate Traffic";
-                trafficBadge.style.backgroundColor = "#FF9100";
-            } else {
-                trafficBadge.textContent = "🟢 Normal Flow";
-                trafficBadge.style.backgroundColor = "#00E676";
+        // Only show turn card during active transit (EN_ROUTE_PICKUP or EN_ROUTE_CUSTOMER)
+        if (order && (order.state === "EN_ROUTE_PICKUP" || order.state === "EN_ROUTE_CUSTOMER")) {
+            if (turnCard) turnCard.style.display = "flex";
+            const distEl = document.getElementById("turnDistNum");
+            if (distEl) distEl.textContent = nav.distance_to_turn_m;
+            const roadEl = document.getElementById("turnRoadName");
+            if (roadEl) roadEl.textContent = nav.road_name;
+            const prevEl = document.getElementById("turnNextPreview");
+            if (prevEl) prevEl.textContent = `Then: ${nav.next_instruction}`;
+
+            const trafficBadge = document.getElementById("trafficConditionBadge");
+            if (trafficBadge) {
+                if (nav.current_traffic_status === "HEAVY_JAM") {
+                    trafficBadge.textContent = "🔴 Heavy Jam";
+                    trafficBadge.style.backgroundColor = "#FF1744";
+                } else if (nav.current_traffic_status === "MODERATE") {
+                    trafficBadge.textContent = "🟠 Moderate";
+                    trafficBadge.style.backgroundColor = "#FF9100";
+                } else {
+                    trafficBadge.textContent = "🟢 Flowing";
+                    trafficBadge.style.backgroundColor = "#00E676";
+                }
             }
+
+            const pathData = SVG_ICONS[nav.maneuver_type] || SVG_ICONS.STRAIGHT;
+            const turnPathEl = document.getElementById("turnPath");
+            if (turnPathEl) turnPathEl.setAttribute("d", pathData);
+        } else {
+            if (turnCard) turnCard.style.display = "none";
         }
 
-        // Update SVG icon
-        const pathData = SVG_ICONS[nav.maneuver_type] || SVG_ICONS.STRAIGHT;
-        const turnPathEl = document.getElementById("turnPath");
-        if (turnPathEl) turnPathEl.setAttribute("d", pathData);
-
-        // Update Bottom Trip Summary
+        // Bottom Trip Summary
         const timeEl = document.getElementById("tripTimeVal");
         if (timeEl) timeEl.textContent = `${nav.eta_minutes} min`;
         const tDistEl = document.getElementById("tripDistVal");
@@ -192,7 +191,6 @@ function updateHUD(data) {
         const dNameEl = document.getElementById("destName");
         if (dNameEl) dNameEl.textContent = nav.destination_name;
 
-        // Traffic delay indicator text
         const delayEl = document.getElementById("trafficDelayText");
         if (delayEl) {
             if (nav.traffic_delay_minutes > 0) {
@@ -208,7 +206,6 @@ function updateHUD(data) {
         const etaEl = document.getElementById("tripEtaVal");
         if (etaEl) etaEl.textContent = arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-        // Multi-colored traffic polyline rendering
         if (mapInstance && nav.route_polyline && nav.traffic_segments) {
             renderTrafficPolyline(nav.route_polyline, nav.traffic_segments);
         }
@@ -218,10 +215,7 @@ function updateHUD(data) {
         }
     }
 
-    // 4. Order Lifecycle & Multi-Stop Workflow UI
-    updateOrderWorkflowUI(data.order);
-
-    // 5. Emergency SOS Overlay
+    // 4. Emergency SOS Overlay
     const emerg = document.getElementById("emergencyOverlay");
     if (emerg) {
         if (data.is_emergency) {
@@ -236,6 +230,191 @@ function updateHUD(data) {
             emerg.style.display = "none";
         }
     }
+}
+
+function updateDutyAndPartnerState(partner) {
+    const shiftState = partner.shift_state;
+    const stats = partner.stats;
+    const order = partner.current_order;
+
+    // 1. Duty status pill in header
+    const dutyPill = document.getElementById("dutyPill");
+    const dutyText = document.getElementById("dutyText");
+    const searchingOverlay = document.getElementById("searchingOverlay");
+
+    if (shiftState === "OFF_DUTY") {
+        dutyText.textContent = "OFF-DUTY • PAUSED";
+        dutyPill.querySelector(".duty-dot").className = "duty-dot dot-offline";
+        if (searchingOverlay) searchingOverlay.style.display = "none";
+    } else if (shiftState === "ONLINE_SEARCHING") {
+        dutyText.textContent = "ONLINE • SEARCHING GIGS";
+        dutyPill.querySelector(".duty-dot").className = "duty-dot dot-online";
+        if (searchingOverlay) searchingOverlay.style.display = "flex";
+    } else if (shiftState === "ON_ORDER") {
+        dutyText.textContent = `ON ORDER • #${order ? order.order_id : ''}`;
+        dutyPill.querySelector(".duty-dot").className = "duty-dot dot-order";
+        if (searchingOverlay) searchingOverlay.style.display = "none";
+    }
+
+    // 2. Stats pill in header
+    if (stats) {
+        const earnEl = document.getElementById("earningsBadge");
+        if (earnEl) earnEl.textContent = `💰 ₹${Math.round(stats.earnings_today_inr)}`;
+        const msEl = document.getElementById("milestoneBadge");
+        if (msEl) msEl.textContent = `🎯 ${stats.orders_completed_today}/${stats.daily_target_orders} Orders`;
+    }
+
+    // 3. Hotspot surge visualization
+    if (partner.hotspots && mapInstance && hotspotCircles.length === 0) {
+        partner.hotspots.forEach(h => {
+            const circle = L.circle([h.lat, h.lng], {
+                color: h.color,
+                fillColor: h.color,
+                fillOpacity: 0.15,
+                radius: 1200
+            }).addTo(mapInstance);
+            hotspotCircles.push(circle);
+        });
+    }
+
+    // 4. Modal Screen Switcher according to authentic delivery state
+    renderDeliveryPartnerModals(order);
+}
+
+function renderDeliveryPartnerModals(order) {
+    const offerModal = document.getElementById("orderOfferModal");
+    const storeChecklist = document.getElementById("storeChecklistModal");
+    const customerOtp = document.getElementById("customerOtpModal");
+    const transitStrip = document.getElementById("transitStageBanner");
+    const destHeader = document.getElementById("destHeaderLabel");
+
+    // Hide all initially
+    if (offerModal) offerModal.style.display = "none";
+    if (storeChecklist) storeChecklist.style.display = "none";
+    if (customerOtp) customerOtp.style.display = "none";
+    if (transitStrip) transitStrip.style.display = "none";
+
+    if (!order) {
+        if (destHeader) destHeader.textContent = "TARGET DESTINATION:";
+        return;
+    }
+
+    const state = order.state;
+
+    // STAGE 1: Incoming Order Offer
+    if (state === "OFFERED") {
+        if (offerModal) offerModal.style.display = "flex";
+        playAudioChime(950, 0.18);
+
+        const platformTag = document.getElementById("offerPlatformTag");
+        if (platformTag) {
+            platformTag.textContent = `${order.platform.toUpperCase()} PARTNER`;
+            platformTag.style.backgroundColor = order.platform === "zomato" ? "#E23744" : "#FC8019";
+        }
+        document.getElementById("offerPayout").textContent = `₹${order.earnings.total_payout.toFixed(2)}`;
+        document.getElementById("offerRestName").textContent = order.restaurant_name;
+        document.getElementById("offerRestAddr").textContent = order.restaurant_address;
+        document.getElementById("offerPrepPill").textContent = `⏳ Food Ready in ~${order.prep_time_minutes} mins`;
+        document.getElementById("offerCustName").textContent = order.customer_name;
+        document.getElementById("offerCustAddr").textContent = order.customer_address;
+        
+        const itemsStr = order.items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+        document.getElementById("offerItems").textContent = `📦 ${itemsStr}`;
+        document.getElementById("orderTimerChip").textContent = `⏱️ ${order.offer_remaining_seconds || 30}s`;
+
+        // Breakdown pills
+        const b = order.earnings;
+        document.getElementById("payoutBreakdown").innerHTML = `
+            <span class="breakdown-tag">Base: ₹${b.base_pay}</span>
+            <span class="breakdown-tag">Distance: ₹${b.distance_pay}</span>
+            <span class="breakdown-tag highlight-surge">Surge: ₹${b.surge_pay}</span>
+            <span class="breakdown-tag highlight-tip">Tip: ₹${b.tips}</span>
+        `;
+    }
+
+    // STAGE 2: En Route to Restaurant
+    else if (state === "EN_ROUTE_PICKUP") {
+        if (transitStrip) transitStrip.style.display = "flex";
+        document.getElementById("transitBadge").textContent = "🛵 STEP 1: EN ROUTE TO RESTAURANT";
+        document.getElementById("transitBadge").style.color = "#FC8019";
+        document.getElementById("transitTitle").textContent = order.restaurant_name;
+        document.getElementById("transitActions").innerHTML = `
+            <button class="transit-action-btn" onclick="reachStore()" style="background:#F59E0B;">📍 REACHED STORE [R]</button>
+        `;
+        if (destHeader) destHeader.textContent = "STORE PICKUP:";
+    }
+
+    // STAGE 3: At Restaurant (Checklist & Prep)
+    else if (state === "AT_RESTAURANT") {
+        if (storeChecklist) storeChecklist.style.display = "flex";
+        document.getElementById("chkRestName").textContent = order.restaurant_name;
+        document.getElementById("chkOrderId").textContent = `MATCH ID: #${order.order_id}`;
+        
+        const listEl = document.getElementById("chkItemsList");
+        listEl.innerHTML = order.items.map((item, idx) => `
+            <div class="chk-item-row">
+                <div class="chk-item-left">
+                    <span class="${item.is_veg ? 'veg-tag' : 'nonveg-tag'}"></span>
+                    <span>${item.quantity}x ${item.name}</span>
+                </div>
+                <input type="checkbox" checked style="width:18px;height:18px;accent-color:#00B0FF;">
+            </div>
+        `).join("");
+    }
+
+    // STAGE 4: En Route to Customer Doorstep
+    else if (state === "EN_ROUTE_CUSTOMER") {
+        if (transitStrip) transitStrip.style.display = "flex";
+        document.getElementById("transitBadge").textContent = "📦 STEP 2: EN ROUTE TO CUSTOMER";
+        document.getElementById("transitBadge").style.color = "#00E676";
+        document.getElementById("transitTitle").textContent = `${order.customer_name} • ${order.customer_address}`;
+        document.getElementById("transitActions").innerHTML = `
+            <button class="transit-action-btn" onclick="reachCustomer()" style="background:#38BDF8;">📍 REACHED CUSTOMER [C]</button>
+        `;
+        if (destHeader) destHeader.textContent = "CUSTOMER DROP:";
+    }
+
+    // STAGE 5: At Customer Doorstep (OTP Verification)
+    else if (state === "AT_CUSTOMER") {
+        if (customerOtp) customerOtp.style.display = "flex";
+        document.getElementById("otpCustName").textContent = order.customer_name;
+        document.getElementById("otpInstrText").textContent = order.customer_instructions;
+        
+        const payCard = document.getElementById("otpPaymentCard");
+        if (order.payment_mode === "COD") {
+            payCard.innerHTML = `<span class="pay-icon">💵</span><span>CASH ON DELIVERY • COLLECT ₹${order.cod_amount.toFixed(2)} CASH / UPI</span>`;
+            payCard.style.backgroundColor = "rgba(226, 55, 68, 0.15)";
+            payCard.style.borderColor = "rgba(226, 55, 68, 0.4)";
+            payCard.style.color = "#FF6B6B";
+        } else {
+            payCard.innerHTML = `<span class="pay-icon">🟢</span><span>PREPAID ORDER • DO NOT COLLECT CASH</span>`;
+            payCard.style.backgroundColor = "rgba(0, 230, 118, 0.12)";
+            payCard.style.borderColor = "rgba(0, 230, 118, 0.3)";
+            payCard.style.color = "#00E676";
+        }
+
+        // Fill OTP hints
+        const otpStr = order.delivery_otp || "4829";
+        document.getElementById("otp1").value = otpStr[0] || "4";
+        document.getElementById("otp2").value = otpStr[1] || "8";
+        document.getElementById("otp3").value = otpStr[2] || "2";
+        document.getElementById("otp4").value = otpStr[3] || "9";
+        document.getElementById("otpHint").textContent = `Customer Phone: ${order.customer_phone} • OTP: ${otpStr}`;
+    }
+}
+
+function showDeliveryCelebration(payout, milestoneProg) {
+    const overlay = document.getElementById("deliverySuccessOverlay");
+    if (!overlay) return;
+    document.getElementById("earnedAmountText").textContent = `+₹${payout.toFixed(2)}`;
+    document.getElementById("milestoneProgText").textContent = `${milestoneProg.orders_completed_today}/${milestoneProg.daily_target_orders} Completed`;
+    document.getElementById("milestoneBarFill").style.width = `${milestoneProg.target_progress_pct}%`;
+    
+    overlay.style.display = "flex";
+    playAudioChime(1200, 0.3);
+    setTimeout(() => {
+        overlay.style.display = "none";
+    }, 3500);
 }
 
 function renderTrafficPolyline(polyline, trafficSegments) {
@@ -266,89 +445,10 @@ function renderTrafficPolyline(polyline, trafficSegments) {
     });
 }
 
-function updateOrderWorkflowUI(order) {
-    const offerModal = document.getElementById("orderOfferModal");
-    const stageBanner = document.getElementById("orderStageBanner");
-    const stageBadge = document.getElementById("stageBadge");
-    const stageTitle = document.getElementById("stageTitle");
-    const stageActions = document.getElementById("stageActions");
-    const destHeader = document.getElementById("destHeaderLabel");
-
-    if (!order) {
-        if (offerModal) offerModal.style.display = "none";
-        if (stageBanner) stageBanner.style.display = "none";
-        if (destHeader) destHeader.textContent = "TARGET DESTINATION:";
-        return;
-    }
-
-    if (order.state === "OFFERED") {
-        if (offerModal) offerModal.style.display = "flex";
-        if (stageBanner) stageBanner.style.display = "none";
-        
-        const tagEl = document.getElementById("offerPlatformTag");
-        if (tagEl) {
-            tagEl.textContent = `${order.platform.toUpperCase()} NEW ORDER`;
-            tagEl.style.backgroundColor = order.platform === "zomato" ? "#E23744" : "#FC8019";
-        }
-        const payEl = document.getElementById("offerPayout");
-        if (payEl) payEl.textContent = `₹${order.payout_inr.toFixed(2)}`;
-        const rNameEl = document.getElementById("offerRestName");
-        if (rNameEl) rNameEl.textContent = order.restaurant_name;
-        const rAddrEl = document.getElementById("offerRestAddr");
-        if (rAddrEl) rAddrEl.textContent = order.restaurant_address;
-        const cNameEl = document.getElementById("offerCustName");
-        if (cNameEl) cNameEl.textContent = order.customer_name;
-        const cAddrEl = document.getElementById("offerCustAddr");
-        if (cAddrEl) cAddrEl.textContent = order.customer_address;
-        const itemsEl = document.getElementById("offerItems");
-        if (itemsEl) itemsEl.textContent = `📦 ${order.items}`;
-    } else if (order.state === "NAV_TO_RESTAURANT") {
-        if (offerModal) offerModal.style.display = "none";
-        if (stageBanner) stageBanner.style.display = "flex";
-        if (stageBadge) {
-            stageBadge.textContent = "🛵 STEP 1: EN ROUTE TO RESTAURANT";
-            stageBadge.style.color = "#FF9100";
-        }
-        if (stageTitle) stageTitle.textContent = `${order.restaurant_name} (Pickup #${order.order_id})`;
-        if (stageActions) {
-            stageActions.innerHTML = `<button class="stage-action-btn" onclick="confirmPickup()" style="background:#00B0FF;">🍴 Food Picked Up [K]</button>`;
-        }
-        if (destHeader) destHeader.textContent = "RESTAURANT PICKUP:";
-    } else if (order.state === "NAV_TO_CUSTOMER") {
-        if (offerModal) offerModal.style.display = "none";
-        if (stageBanner) stageBanner.style.display = "flex";
-        if (stageBadge) {
-            stageBadge.textContent = "📦 STEP 2: EN ROUTE TO CUSTOMER";
-            stageBadge.style.color = "#00E676";
-        }
-        if (stageTitle) stageTitle.textContent = `${order.customer_name} - ${order.customer_address}`;
-        if (stageActions) {
-            stageActions.innerHTML = `<button class="stage-action-btn" onclick="completeDelivery()" style="background:#7C4DFF;">✅ Complete Delivery [U]</button>`;
-        }
-        if (destHeader) destHeader.textContent = "CUSTOMER DROP:";
-    } else {
-        if (offerModal) offerModal.style.display = "none";
-        if (stageBanner) stageBanner.style.display = "none";
-        if (destHeader) destHeader.textContent = "TARGET DESTINATION:";
-    }
-}
-
-function showDeliveredCelebration(payoutText = "+₹85.00 Credited to Rider Wallet") {
-    const toast = document.getElementById("deliveredToast");
-    if (!toast) return;
-    const txt = document.getElementById("toastPayoutText");
-    if (txt) txt.textContent = payoutText;
-    toast.style.display = "flex";
-    playAudioChime(1200, 0.25);
-    setTimeout(() => {
-        toast.style.display = "none";
-    }, 4000);
-}
-
 // Dispatches command via WebSocket and HTTP REST with immediate state update
 async function sendCommand(cmdObj) {
-    playAudioChime(800, 0.08);
-    console.log("[TEST RIG ACTION]", cmdObj);
+    playAudioChime(850, 0.08);
+    console.log("[PARTNER ACTION]", cmdObj);
     
     // 1. Try WebSocket
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -359,22 +459,34 @@ async function sendCommand(cmdObj) {
     try {
         const act = cmdObj.action;
         let url = null;
-        if (act === "offer_order") url = `/api/orders/offer?platform=${cmdObj.platform || 'swiggy'}`;
+        let body = null;
+
+        if (act === "toggle_duty") url = '/api/duty/toggle';
+        else if (act === "offer_order") url = `/api/orders/offer?platform=${cmdObj.platform || 'swiggy'}`;
         else if (act === "accept_order") url = '/api/orders/accept';
+        else if (act === "reach_store") url = '/api/orders/reach-store';
         else if (act === "confirm_pickup") url = '/api/orders/pickup';
-        else if (act === "complete_delivery") url = '/api/orders/deliver';
-        else if (act === "decline_order") url = '/api/orders/decline';
+        else if (act === "reach_customer") url = '/api/orders/reach-customer';
+        else if (act === "complete_delivery") {
+            url = '/api/orders/deliver';
+            body = JSON.stringify({ otp: cmdObj.otp || "4829" });
+        }
+        else if (act === "reject_order" || act === "decline_order") url = '/api/orders/reject';
         else if (act === "trigger_sos") url = '/api/test/sos';
         else if (act === "trigger_tilt") url = '/api/test/tilt';
 
         if (url) {
-            const res = await fetch(url, { method: 'POST' });
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: body ? { 'Content-Type': 'application/json' } : {},
+                body: body
+            });
             const jsonRes = await res.json();
             if (jsonRes && jsonRes.snapshot) {
                 updateHUD(jsonRes.snapshot);
             }
-            if (act === "complete_delivery") {
-                showDeliveredCelebration();
+            if (act === "complete_delivery" && jsonRes && jsonRes.result && jsonRes.result.success) {
+                showDeliveryCelebration(jsonRes.result.payout, jsonRes.result.stats);
             }
         }
     } catch (err) {
@@ -383,38 +495,24 @@ async function sendCommand(cmdObj) {
 }
 
 // Public action bindings
-function offerMockOrder(platform = "swiggy") {
-    sendCommand({ action: "offer_order", platform: platform });
+function toggleDuty() { sendCommand({ action: "toggle_duty" }); }
+function offerMockOrder(platform = "swiggy") { sendCommand({ action: "offer_order", platform: platform }); }
+function acceptOrder() { sendCommand({ action: "accept_order" }); }
+function reachStore() { sendCommand({ action: "reach_store" }); }
+function confirmPickup() { sendCommand({ action: "confirm_pickup" }); }
+function reachCustomer() { sendCommand({ action: "reach_customer" }); }
+function verifyOtpAndDeliver() {
+    const o1 = document.getElementById("otp1")?.value || "4";
+    const o2 = document.getElementById("otp2")?.value || "8";
+    const o3 = document.getElementById("otp3")?.value || "2";
+    const o4 = document.getElementById("otp4")?.value || "9";
+    const entered = `${o1}${o2}${o3}${o4}`;
+    sendCommand({ action: "complete_delivery", otp: entered });
 }
-
-function acceptOrder() {
-    sendCommand({ action: "accept_order" });
-}
-
-function declineOrder() {
-    sendCommand({ action: "decline_order" });
-}
-
-function confirmPickup() {
-    sendCommand({ action: "confirm_pickup" });
-}
-
-function completeDelivery() {
-    sendCommand({ action: "complete_delivery" });
-}
-
-function triggerSos() {
-    sendCommand({ action: "trigger_sos" });
-}
-
-function triggerTilt() {
-    sendCommand({ action: "trigger_tilt" });
-}
-
-function resetEmergency() {
-    sendCommand({ action: "reset_emergency" });
-}
-
+function rejectOrder() { sendCommand({ action: "reject_order" }); }
+function triggerSos() { sendCommand({ action: "trigger_sos" }); }
+function triggerTilt() { sendCommand({ action: "trigger_tilt" }); }
+function resetEmergency() { sendCommand({ action: "reset_emergency" }); }
 function toggleDashcam() {
     const pip = document.getElementById("dashcamPip");
     if (pip) pip.style.display = pip.style.display === "none" ? "block" : "none";
@@ -424,17 +522,14 @@ function openDestinationModal() {
     const el = document.getElementById("destModal");
     if (el) el.style.display = "flex";
 }
-
 function closeDestinationModal() {
     const el = document.getElementById("destModal");
     if (el) el.style.display = "none";
 }
-
 function selectPreset(name, lat, lng) {
     sendCommand({ action: "import_destination", name: name, lat: lat, lng: lng });
     closeDestinationModal();
 }
-
 function applyCustomDestination() {
     const nameEl = document.getElementById("customName");
     const latEl = document.getElementById("customLat");
@@ -453,10 +548,14 @@ function applyCustomDestination() {
 // Global Keyboard Shortcuts
 document.addEventListener("keydown", (e) => {
     const key = e.key.toUpperCase();
-    if (key === "O") offerMockOrder("swiggy");
+    if (key === "G") toggleDuty();
+    else if (key === "Z") offerMockOrder("zomato");
+    else if (key === "O") offerMockOrder("swiggy");
     else if (key === "A") acceptOrder();
+    else if (key === "R") reachStore();
     else if (key === "K") confirmPickup();
-    else if (key === "U") completeDelivery();
+    else if (key === "C") reachCustomer();
+    else if (key === "U") verifyOtpAndDeliver();
     else if (key === "S") triggerSos();
     else if (key === "T") triggerTilt();
     else if (key === "D") toggleDashcam();
@@ -464,7 +563,7 @@ document.addEventListener("keydown", (e) => {
     else if (key === "ESCAPE") {
         resetEmergency();
         closeDestinationModal();
-        declineOrder();
+        rejectOrder();
     }
 });
 

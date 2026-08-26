@@ -1,6 +1,6 @@
 """
 LastMile Guard Core Engine
-Coordinates HAL, Navigation, Traffic, Dashcam, Order Lifecycle, and UI Telemetry Streams.
+Coordinates HAL, Navigation, Traffic, Dashcam, Zomato/Swiggy Delivery Partner Engine, and Telemetry Streams.
 """
 
 import asyncio
@@ -13,7 +13,8 @@ from core.navigation import NavigationEngine, Maneuver
 from core.dashcam import DashcamManager
 from core.delivery_parser import DeliveryParser, DeliveryAlert
 from core.system_health import SystemHealthSentinel
-from core.order_manager import OrderManager, DeliveryOrder
+from core.delivery_engine import DeliveryPartnerEngine
+from core.delivery_models import PartnerOrder
 
 class LastMileEngine:
     def __init__(self, config: Dict[str, Any]):
@@ -31,8 +32,8 @@ class LastMileEngine:
             google_api_key=google_api_key
         )
         
-        # Order Lifecycle Manager
-        self.orders = OrderManager(on_route_change=self.import_destination)
+        # Zomato & Swiggy Delivery Partner Engine
+        self.delivery = DeliveryPartnerEngine(on_route_change=self.import_destination)
 
         # Sync kinematics waypoints
         if hasattr(self.hal.gps, "set_route_waypoints") and self.navigation.route_polyline:
@@ -102,46 +103,38 @@ class LastMileEngine:
         if hasattr(self.hal.gps, "set_route_waypoints") and self.navigation.route_polyline:
             self.hal.gps.set_route_waypoints(self.navigation.route_polyline)
 
-    # Order Lifecycle Callbacks
-    def offer_mock_order(self, platform: str = "swiggy") -> DeliveryOrder:
+    # Zomato / Swiggy Delivery Actions
+    def toggle_shift_duty(self) -> str:
+        return self.delivery.toggle_shift_duty()
+
+    def offer_mock_order(self, platform: str = "swiggy") -> PartnerOrder:
         loc = (self.navigation.current_lat, self.navigation.current_lng)
-        rest_lat = loc[0] + 0.0070
-        rest_lng = loc[1] + 0.0065
-        cust_lat = loc[0] + 0.0160
-        cust_lng = loc[1] + 0.0180
-        
-        rest_name = "Wow! Momo Express" if platform == "swiggy" else "Mainland China Delights"
-        cust_name = "Debanjan M. (Sector V)"
-        
-        order = self.orders.offer_order(
-            platform=platform,
-            restaurant_name=rest_name,
-            rest_lat=rest_lat,
-            rest_lng=rest_lng,
-            rest_addr="Central Ave Food Plaza",
-            customer_name=cust_name,
-            cust_lat=cust_lat,
-            cust_lng=cust_lng,
-            cust_addr="Salt Lake Sector V, Block EP",
-            payout_inr=85.0,
-            items="2x Momo Platters, 1x Cold Drink"
-        )
-        return order
+        return self.delivery.offer_order(platform=platform, rider_lat=loc[0], rider_lng=loc[1])
 
-    def accept_current_order(self) -> Optional[DeliveryOrder]:
-        return self.orders.accept_order()
+    def accept_current_order(self) -> Optional[PartnerOrder]:
+        return self.delivery.accept_order()
 
-    def confirm_food_pickup(self) -> Optional[DeliveryOrder]:
-        return self.orders.confirm_pickup()
+    def reach_restaurant(self) -> Optional[PartnerOrder]:
+        return self.delivery.reach_restaurant()
 
-    def complete_current_delivery(self) -> Optional[DeliveryOrder]:
-        return self.orders.complete_delivery()
+    def confirm_food_pickup(self) -> Optional[PartnerOrder]:
+        return self.delivery.confirm_pickup()
+
+    def reach_customer(self) -> Optional[PartnerOrder]:
+        return self.delivery.reach_customer()
+
+    def complete_current_delivery(self, otp: Optional[str] = None) -> Dict[str, Any]:
+        return self.delivery.verify_otp_and_complete_delivery(entered_otp=otp)
+
+    def reject_current_order(self) -> None:
+        self.delivery.reject_order()
 
     def get_latest_telemetry_snapshot(self) -> Dict[str, Any]:
         gps_fix = self.hal.gps.get_latest_fix()
         maneuver = self.navigation.update_location(gps_fix)
         health = self.sentinel.check_health()
         brightness = self.hal.sensors.get_brightness()
+        partner_snap = self.delivery.get_snapshot()
 
         if hasattr(self.hal.gps, "set_traffic_factor"):
             factor = self.navigation.get_current_traffic_speed_factor()
@@ -161,8 +154,10 @@ class LastMileEngine:
             "is_emergency": self.is_emergency,
             "emergency_reason": self.emergency_reason,
             "active_alert": self.active_alert.to_dict() if self.active_alert else None,
-            "order": self.orders.current_order.to_dict() if self.orders.current_order else None,
-            "earnings_today_inr": self.orders.earnings_today_inr,
+            "partner": partner_snap,
+            "order": partner_snap["current_order"],
+            "stats": partner_snap["stats"],
+            "earnings_today_inr": partner_snap["stats"]["earnings_today_inr"],
             "dashcam": {
                 "is_recording": self.dashcam.is_recording,
                 "last_locked_file": self.dashcam.last_locked_file
@@ -170,7 +165,6 @@ class LastMileEngine:
         }
 
     async def broadcast_snapshot(self) -> None:
-        """Thread-safe snapshot broadcast to all connected WebSockets."""
         async with self._lock:
             if not self.connected_clients:
                 return
