@@ -1,7 +1,7 @@
 """
 Multi-App Order Dispatch & Feed Manager
 Pre-populates stable rich mock orders from Zomato, Swiggy, Zepto, and Amazon Fresh
-with exact restaurant coordinates, drop-off coordinates, items, and Google Maps 2-phase routing.
+with exact restaurant coordinates, drop-off coordinates, items, payment QR codes, and income tracker.
 """
 
 import time
@@ -31,12 +31,14 @@ class DeliveryOffer:
     items_summary: str
     customer_instructions: str
     payment_mode: str                # "PREPAID", "COD"
-    cod_amount: float
+    order_amount_inr: float          # Customer bill amount
+    cod_amount: float                # Amount to collect if COD
     delivery_otp: str
     prep_time_minutes: int = 4
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> Dict[str, Any]:
+        is_pending = (self.payment_mode == "COD" and self.cod_amount > 0)
         return {
             "order_id": self.order_id,
             "platform": self.platform,
@@ -54,7 +56,11 @@ class DeliveryOffer:
             "items_summary": self.items_summary,
             "customer_instructions": self.customer_instructions,
             "payment_mode": self.payment_mode,
-            "cod_amount": self.cod_amount,
+            "order_amount_inr": round(self.order_amount_inr, 2),
+            "cod_amount": round(self.cod_amount, 2),
+            "is_payment_pending": is_pending,
+            "amount_to_collect": round(self.cod_amount if is_pending else 0.0, 2),
+            "upi_payment_link": f"upi://pay?pa=lastmile.merchant@icici&pn={self.platform.upper()}_Delivery&am={self.cod_amount:.2f}&cu=INR&tn=Bill_{self.order_id}" if is_pending else "",
             "delivery_otp": self.delivery_otp,
             "prep_time_minutes": self.prep_time_minutes
         }
@@ -76,6 +82,7 @@ class OrderFeedManager:
             "payout_base": 42.0,
             "prep_mins": 4,
             "payment": "PREPAID",
+            "order_amt": 580.0,
             "cod": 0.0
         },
         {
@@ -93,6 +100,7 @@ class OrderFeedManager:
             "payout_base": 38.0,
             "prep_mins": 3,
             "payment": "COD",
+            "order_amt": 360.0,
             "cod": 360.0
         },
         {
@@ -110,6 +118,7 @@ class OrderFeedManager:
             "payout_base": 32.0,
             "prep_mins": 2,
             "payment": "PREPAID",
+            "order_amt": 245.0,
             "cod": 0.0
         },
         {
@@ -126,8 +135,9 @@ class OrderFeedManager:
             "instr": "🐕 Beware of pet dog; place package on veranda table",
             "payout_base": 55.0,
             "prep_mins": 2,
-            "payment": "PREPAID",
-            "cod": 0.0
+            "payment": "COD",
+            "order_amt": 890.0,
+            "cod": 890.0
         }
     ]
 
@@ -140,6 +150,7 @@ class OrderFeedManager:
         self.earnings_today_inr: float = 485.0
         self.orders_completed_count: int = 6
         self.daily_target: int = 8
+        self.daily_target_inr: float = 800.0
         self._last_rider_lat = 22.5643
         self._last_rider_lng = 88.3693
 
@@ -184,6 +195,7 @@ class OrderFeedManager:
             items_summary=preset["items"],
             customer_instructions=preset["instr"],
             payment_mode=preset["payment"],
+            order_amount_inr=preset.get("order_amt", 350.0),
             cod_amount=preset["cod"],
             delivery_otp="4829",
             prep_time_minutes=preset["prep_mins"],
@@ -262,19 +274,39 @@ class OrderFeedManager:
         self.orders_completed_count += 1
 
         completed = self.selected_order
+        is_pending = (completed.payment_mode == "COD" and completed.cod_amount > 0)
+        collect_amt = completed.cod_amount if is_pending else 0.0
+
         self.selected_order = None
         self.order_phase = "DELIVERED"
         
         # Immediately re-seed 4 fresh mock offers for next trip
         self.refresh_order_pool(self._last_rider_lat, self._last_rider_lng)
 
-        print(f"[DELIVERED] Order #{completed.order_id} DELIVERED! +Rs.{payout:.2f} Credited. Wallet: Rs.{self.earnings_today_inr:.2f}")
+        print(f"[DELIVERED] Order #{completed.order_id} DELIVERED! +Rs.{payout:.2f} Credited. Wallet: Rs.{self.earnings_today_inr:.2f} | Customer Collect: Rs.{collect_amt:.2f}")
         return {
             "success": True,
             "order": completed.to_dict(),
-            "payout": payout,
-            "earnings_today_inr": self.earnings_today_inr,
-            "orders_completed_count": self.orders_completed_count
+            "payout": round(payout, 2),
+            "payout_breakdown": {
+                "base_pay": round(payout * 0.52, 2),
+                "distance_pay": round(completed.total_dist_km * 8.5, 2),
+                "surge_bonus": 15.0
+            },
+            "payment": {
+                "payment_mode": completed.payment_mode,
+                "order_amount_inr": round(completed.order_amount_inr, 2),
+                "is_pending": is_pending,
+                "amount_to_collect": round(collect_amt, 2),
+                "upi_payment_link": f"upi://pay?pa=lastmile.merchant@icici&pn={completed.platform.upper()}_Delivery&am={collect_amt:.2f}&cu=INR&tn=Bill_{completed.order_id}" if is_pending else ""
+            },
+            "daily_income": {
+                "earnings_today_inr": round(self.earnings_today_inr, 2),
+                "orders_completed_count": self.orders_completed_count,
+                "daily_target": self.daily_target,
+                "daily_target_inr": self.daily_target_inr,
+                "progress_pct": min(100, int((self.earnings_today_inr / self.daily_target_inr) * 100))
+            }
         }
 
     def dismiss_offer(self, order_id: str) -> None:
@@ -296,5 +328,6 @@ class OrderFeedManager:
             "selected_order": self.selected_order.to_dict() if self.selected_order else None,
             "earnings_today_inr": round(self.earnings_today_inr, 2),
             "orders_completed_count": self.orders_completed_count,
-            "daily_target": self.daily_target
+            "daily_target": self.daily_target,
+            "daily_target_inr": self.daily_target_inr
         }

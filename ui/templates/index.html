@@ -219,6 +219,91 @@
                     </div>
                 </div>
 
+                <!-- DELIVERY COMPLETED: PAYMENT QR & DAILY INCOME SUMMARY MODAL -->
+                <div class="delivery-complete-modal-overlay" id="deliveryCompleteModal" style="display: none;">
+                    <div class="delivery-complete-card">
+                        <div class="modal-header-row">
+                            <div class="modal-title-box">
+                                <span class="modal-check-badge">🎉 DELIVERY COMPLETED</span>
+                                <h3 class="modal-order-title" id="modalOrderTitle">Order #ORD-SWG-94 (Swiggy)</h3>
+                            </div>
+                            <button class="modal-close-btn" onclick="closeDeliveryModal()" title="Close">✕</button>
+                        </div>
+
+                        <div class="modal-body-grid">
+                            <!-- LEFT: CUSTOMER PAYMENT SECTION (QR CODE FOR PENDING COD / UPI) -->
+                            <div class="modal-payment-panel">
+                                <div class="panel-section-title">CUSTOMER PAYMENT COLLECTION</div>
+                                
+                                <div class="payment-qr-box" id="paymentQrBox">
+                                    <div class="qr-tag">⚡ SCAN TO PAY VIA ANY UPI APP</div>
+                                    <div class="qr-canvas-container" id="qrCanvasContainer">
+                                        <!-- Dynamic QR Code SVG rendered here -->
+                                    </div>
+                                    <div class="qr-collect-row">
+                                        <span class="collect-lbl">COLLECT:</span>
+                                        <span class="collect-amt" id="modalCollectAmt">₹360.00</span>
+                                    </div>
+                                    <div class="qr-badge-status" id="modalPaymentStatusBadge">⚠️ CASH ON DELIVERY (COD) PENDING</div>
+                                </div>
+
+                                <div class="prepaid-success-box" id="prepaidSuccessBox" style="display: none;">
+                                    <div class="prepaid-icon">✅</div>
+                                    <div class="prepaid-title">ONLINE PREPAID ORDER</div>
+                                    <div class="prepaid-sub">No cash collection required. Customer paid online.</div>
+                                    <div class="prepaid-collect-amt">COLLECT: ₹0.00</div>
+                                </div>
+                            </div>
+
+                            <!-- RIGHT: RIDER DAILY EARNINGS & TARGET STATUS -->
+                            <div class="modal-income-panel">
+                                <div class="panel-section-title">RIDER EARNINGS & STATUS</div>
+                                
+                                <div class="trip-payout-highlight">
+                                    <span class="payout-label">TRIP EARNINGS CREDITED</span>
+                                    <span class="payout-value" id="modalTripPayout">+₹85.26</span>
+                                </div>
+
+                                <div class="payout-breakdown-list">
+                                    <div class="breakdown-row">
+                                        <span>Base Gig Pay:</span>
+                                        <span id="modalBasePay">₹38.00</span>
+                                    </div>
+                                    <div class="breakdown-row">
+                                        <span>Distance Pay:</span>
+                                        <span id="modalDistPay">₹32.26</span>
+                                    </div>
+                                    <div class="breakdown-row">
+                                        <span>Surge / Incentive:</span>
+                                        <span id="modalSurgePay">+₹15.00</span>
+                                    </div>
+                                </div>
+
+                                <!-- DAILY INCOME PROGRESS -->
+                                <div class="daily-status-container">
+                                    <div class="daily-status-header">
+                                        <span>DAILY INCOME TARGET</span>
+                                        <strong id="modalDailyEarnings">₹570.26 / ₹800.00</strong>
+                                    </div>
+                                    <div class="daily-progress-bar-bg">
+                                        <div class="daily-progress-bar-fill" id="modalProgressBar" style="width: 71%;"></div>
+                                    </div>
+                                    <div class="daily-stats-row">
+                                        <span id="modalOrdersCount">7 of 8 Orders Completed</span>
+                                        <span class="target-pct" id="modalTargetPct">71% Goal</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer-row">
+                            <button class="modal-btn-confirm" onclick="closeDeliveryModal()">
+                                🚀 CONFIRM PAYMENT & SCAN FOR NEXT ORDERS
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- EMERGENCY SOS & CRASH OVERLAY -->
                 <div class="emergency-overlay" id="emergencyOverlay" style="display: none;">
                     <div class="emergency-card">

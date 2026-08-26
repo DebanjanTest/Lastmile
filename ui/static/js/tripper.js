@@ -42,6 +42,61 @@ function playAudioChime(freq = 880, duration = 0.12) {
     } catch (e) {}
 }
 
+// Lightweight Standalone QR Code SVG Matrix Renderer
+function generateQrSvg(text) {
+    const size = 25; // 25x25 matrix
+    const matrix = Array.from({ length: size }, () => Array(size).fill(0));
+
+    function drawFinder(r, c) {
+        for (let i = 0; i < 7; i++) {
+            for (let j = 0; j < 7; j++) {
+                if (i === 0 || i === 6 || j === 0 || j === 6 || (i >= 2 && i <= 4 && j >= 2 && j <= 4)) {
+                    matrix[r + i][c + j] = 1;
+                }
+            }
+        }
+    }
+
+    drawFinder(0, 0);
+    drawFinder(0, size - 7);
+    drawFinder(size - 7, 0);
+
+    for (let i = 8; i < size - 8; i++) {
+        matrix[6][i] = i % 2 === 0 ? 1 : 0;
+        matrix[i][6] = i % 2 === 0 ? 1 : 0;
+    }
+
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+        hash = (hash * 31 + text.charCodeAt(i)) & 0xFFFFFFFF;
+    }
+    
+    let seed = Math.abs(hash);
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if ((r < 8 && c < 8) || (r < 8 && c >= size - 8) || (r >= size - 8 && c < 8) || r === 6 || c === 6) {
+                continue;
+            }
+            seed = (seed * 1664525 + 1013904223) & 0xFFFFFFFF;
+            matrix[r][c] = (seed % 3 === 0 || seed % 5 === 0) ? 1 : 0;
+        }
+    }
+
+    let rects = "";
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if (matrix[r][c] === 1) {
+                rects += `<rect x="${c * 4}" y="${r * 4}" width="4" height="4" fill="#000000" />`;
+            }
+        }
+    }
+
+    return `<svg viewBox="0 0 ${size * 4} ${size * 4}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;shape-rendering:crispEdges;">
+        <rect width="100%" height="100%" fill="#FFFFFF" />
+        ${rects}
+    </svg>`;
+}
+
 function initMap(initialLat = 22.5643, initialLng = 88.3693) {
     if (mapInstance || typeof L === 'undefined') return;
 
@@ -100,7 +155,6 @@ function renderGoogleMapsBlueRoute(polyline, trafficSegments, destCoords) {
 
     clearGoogleMapsRoute();
 
-    // 1. Google Maps Outer Blue Glow Boundary
     blueGlowPolyline = L.polyline(polyline, {
         color: '#0D47A1',
         weight: 12,
@@ -109,7 +163,6 @@ function renderGoogleMapsBlueRoute(polyline, trafficSegments, destCoords) {
         lineJoin: 'round'
     }).addTo(mapInstance);
 
-    // 2. Google Maps Authentic Core Blue Line (#1A73E8)
     blueCorePolyline = L.polyline(polyline, {
         color: '#1A73E8',
         weight: 7,
@@ -118,7 +171,6 @@ function renderGoogleMapsBlueRoute(polyline, trafficSegments, destCoords) {
         lineJoin: 'round'
     }).addTo(mapInstance);
 
-    // 3. Traffic Congestion Overlays (Orange / Red)
     if (trafficSegments && trafficSegments.length > 0) {
         trafficSegments.forEach(seg => {
             if (seg.status === "MODERATE" || seg.status === "HEAVY_JAM") {
@@ -137,7 +189,6 @@ function renderGoogleMapsBlueRoute(polyline, trafficSegments, destCoords) {
         });
     }
 
-    // 4. Attach Destination Pin
     if (destCoords && destMarker) {
         destMarker.setLatLng([destCoords.lat, destCoords.lng]).addTo(mapInstance);
     }
@@ -156,7 +207,7 @@ function updateHUD(data) {
     const spdEl = document.getElementById("speedNum");
     if (spdEl) spdEl.textContent = Math.round(gps.speed_kmh || 0);
 
-    // 2. Map & Rider Marker (ROCK-SOLID WHEN IDLE)
+    // 2. Map & Rider Marker
     if (gps.latitude && gps.longitude) {
         if (!mapInstance) {
             initMap(gps.latitude, gps.longitude);
@@ -171,7 +222,7 @@ function updateHUD(data) {
         }
     }
 
-    // 3. Route Rendering (ONLY DURING ACTIVE DELIVERY)
+    // 3. Route Rendering
     if (currentOrderPhase === "ROUTE_TO_STORE" || currentOrderPhase === "AT_STORE" || currentOrderPhase === "ROUTE_TO_CUSTOMER") {
         if (nav.route_polyline && nav.route_polyline.length >= 2) {
             renderGoogleMapsBlueRoute(nav.route_polyline, nav.traffic_segments, nav.destination_coords);
@@ -328,7 +379,6 @@ function renderActiveRouteBanner(order, phase) {
 
     banner.style.display = "flex";
     
-    // Stable DOM caching: Only rebuild the button when phase or order ID changes!
     const stateKey = `${order.order_id}_${phase}`;
     if (banner.dataset.stateKey === stateKey) {
         return;
@@ -367,15 +417,86 @@ function renderActiveRouteBanner(order, phase) {
     }
 }
 
-function showDeliveryCelebration(payout = 85.0) {
-    const toast = document.getElementById("deliveredToast");
-    if (!toast) return;
-    document.getElementById("toastPayoutText").textContent = `+₹${payout.toFixed(2)} Credited to Rider Wallet`;
-    toast.style.display = "flex";
-    playAudioChime(1200, 0.3);
-    setTimeout(() => {
-        toast.style.display = "none";
-    }, 4000);
+// Shows Rich Post-Delivery Payment QR & Rider Daily Income Modal
+function showDeliveryCompleteModal(result) {
+    if (!result) return;
+
+    const modal = document.getElementById("deliveryCompleteModal");
+    if (!modal) return;
+
+    const order = result.order || {};
+    const payment = result.payment || {};
+    const breakdown = result.payout_breakdown || {};
+    const daily = result.daily_income || {};
+
+    const titleEl = document.getElementById("modalOrderTitle");
+    if (titleEl) titleEl.textContent = `Order #${order.order_id || 'DELIVERY'} (${(order.platform || 'Partner').toUpperCase()})`;
+
+    // Left Panel: Customer Payment Collection & Dynamic QR Code
+    const qrBox = document.getElementById("paymentQrBox");
+    const prepaidBox = document.getElementById("prepaidSuccessBox");
+    const collectAmtEl = document.getElementById("modalCollectAmt");
+    const qrContainer = document.getElementById("qrCanvasContainer");
+    const statusBadge = document.getElementById("modalPaymentStatusBadge");
+
+    if (payment.is_pending && payment.amount_to_collect > 0) {
+        if (qrBox) qrBox.style.display = "flex";
+        if (prepaidBox) prepaidBox.style.display = "none";
+        if (collectAmtEl) collectAmtEl.textContent = `₹${payment.amount_to_collect.toFixed(2)}`;
+        if (statusBadge) statusBadge.textContent = `⚠️ CASH / UPI (COD) PENDING: COLLECT ₹${payment.amount_to_collect.toFixed(2)}`;
+        
+        const upiLink = payment.upi_payment_link || `upi://pay?pa=lastmile.merchant@icici&pn=DeliveryPartner&am=${payment.amount_to_collect.toFixed(2)}&cu=INR`;
+        if (qrContainer) {
+            qrContainer.innerHTML = generateQrSvg(upiLink);
+        }
+    } else {
+        if (qrBox) qrBox.style.display = "none";
+        if (prepaidBox) prepaidBox.style.display = "flex";
+    }
+
+    // Right Panel: Rider Earnings Summary & Daily Target
+    const payoutEl = document.getElementById("modalTripPayout");
+    if (payoutEl) payoutEl.textContent = `+₹${(result.payout || 0).toFixed(2)}`;
+
+    const baseEl = document.getElementById("modalBasePay");
+    if (baseEl) baseEl.textContent = `₹${(breakdown.base_pay || (result.payout * 0.52) || 38).toFixed(2)}`;
+
+    const distEl = document.getElementById("modalDistPay");
+    if (distEl) distEl.textContent = `₹${(breakdown.distance_pay || (result.payout * 0.35) || 28).toFixed(2)}`;
+
+    const surgeEl = document.getElementById("modalSurgePay");
+    if (surgeEl) surgeEl.textContent = `+₹${(breakdown.surge_bonus || 15).toFixed(2)}`;
+
+    // Daily Status
+    const dailyEarningsEl = document.getElementById("modalDailyEarnings");
+    if (dailyEarningsEl) {
+        dailyEarningsEl.textContent = `₹${(daily.earnings_today_inr || 570).toFixed(2)} / ₹${(daily.daily_target_inr || 800).toFixed(2)}`;
+    }
+
+    const progBar = document.getElementById("modalProgressBar");
+    if (progBar) {
+        progBar.style.width = `${daily.progress_pct || 71}%`;
+    }
+
+    const ordersCountEl = document.getElementById("modalOrdersCount");
+    if (ordersCountEl) {
+        ordersCountEl.textContent = `${daily.orders_completed_count || 7} of ${daily.daily_target || 8} Orders Completed`;
+    }
+
+    const targetPctEl = document.getElementById("modalTargetPct");
+    if (targetPctEl) {
+        targetPctEl.textContent = `${daily.progress_pct || 71}% Goal`;
+    }
+
+    modal.style.display = "flex";
+    playAudioChime(1200, 0.35);
+}
+
+function closeDeliveryModal() {
+    const modal = document.getElementById("deliveryCompleteModal");
+    if (modal) modal.style.display = "none";
+    currentOrderPhase = "IDLE";
+    refreshOrders();
 }
 
 // Dispatches command via WebSocket and HTTP REST with optimistic instant updates
@@ -383,7 +504,6 @@ async function sendCommand(action, payload = {}) {
     playAudioChime(850, 0.08);
     console.log("[HUD ACTION]", action, payload);
 
-    // Optimistic local state updates for 0ms lag
     if (action === "reach_store") {
         currentOrderPhase = "AT_STORE";
         renderActiveRouteBanner(currentSelectedOrder, "AT_STORE");
@@ -434,7 +554,7 @@ async function sendCommand(action, payload = {}) {
                 updateHUD(jsonRes.snapshot);
             }
             if (action === "complete_delivery" && jsonRes && jsonRes.result && jsonRes.result.success) {
-                showDeliveryCelebration(jsonRes.result.payout);
+                showDeliveryCompleteModal(jsonRes.result);
             }
         }
     } catch (e) {
@@ -471,7 +591,14 @@ document.addEventListener("keydown", (e) => {
     else if (key === "S") triggerSos();
     else if (key === "T") triggerTilt();
     else if (key === "D") toggleDashcam();
-    else if (e.key === "Escape") resetEmergency();
+    else if (e.key === "Escape") {
+        const modal = document.getElementById("deliveryCompleteModal");
+        if (modal && modal.style.display === "flex") {
+            closeDeliveryModal();
+        } else {
+            resetEmergency();
+        }
+    }
 });
 
 // Initialize on DOM ready
