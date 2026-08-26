@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LastMile Guard - Google Maps Navigation & Order Workflow HUD</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LastMile Guard - 5-Inch Hardware Simulator & Automotive Navigation HUD</title>
     <!-- Leaflet CSS for high-contrast vector road & traffic maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="/static/css/tripper.css">
@@ -13,157 +13,217 @@
     {% endif %}
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
-<body class="gmaps-theme">
-    <div class="gmaps-app-container" id="appContainer">
-        <!-- FULLSCREEN ROAD & TRAFFIC MAP CANVAS -->
-        <div id="mapView" class="map-view"></div>
-
-        <!-- TOP: GOOGLE MAPS NAVIGATION TURN CARD -->
-        <div class="gmaps-top-container">
-            <div class="gmaps-turn-card" id="turnCard">
-                <div class="turn-icon-box">
-                    <svg class="turn-svg" id="turnSvg" viewBox="0 0 100 100">
-                        <path id="turnPath" d="M25 80 L25 55 Q25 35 45 35 L60 35 L60 20 L85 45 L60 70 L60 55 L45 55 Q38 55 38 65 L38 80 Z" fill="#FFFFFF"/>
-                    </svg>
-                </div>
-                <div class="turn-text-content">
-                    <div class="turn-dist-row">
-                        <span class="turn-dist-num" id="turnDistNum">150</span>
-                        <span class="turn-dist-unit" id="turnDistUnit">m</span>
-                        <span class="traffic-condition-badge" id="trafficConditionBadge">🟢 Normal Flow</span>
-                    </div>
-                    <div class="turn-road-name" id="turnRoadName">Mahatma Gandhi Road</div>
-                    <div class="turn-next-preview" id="turnNextPreview">Then bear left onto Beliaghata Main Rd</div>
+<body class="workbench-theme">
+    <div class="workbench-layout">
+        <!-- 5-INCH HARDWARE ENCLOSURE (800x480 ACTIVE DISPLAY) -->
+        <div class="device-chassis">
+            <div class="chassis-top-bar">
+                <div class="chassis-lens-dot" title="Front Dashcam Lens"></div>
+                <div class="chassis-title">LASTMILE GUARD • 5.0" AUTOMOTIVE IPS HUD (800×480)</div>
+                <div class="chassis-leds">
+                    <span class="status-led led-green" title="System Normal"></span>
+                    <span class="status-led led-blue" title="GPS Locked"></span>
+                    <span class="status-led led-orange" title="Dashcam RAM-Disk Active"></span>
                 </div>
             </div>
 
-            <!-- HARDWARE & EARNINGS TELEMETRY PILL -->
-            <div class="gmaps-telemetry-pill">
-                <span class="tele-item" id="earningsBadge">💰 ₹450</span>
-                <span class="tele-item" id="tempBadge">⚡ 45.0°C</span>
-                <span class="tele-item" id="voltBadge">🔋 5.1V</span>
-                <span class="tele-item" id="gpsBadge">🛰️ 10 SATS</span>
-            </div>
-        </div>
+            <!-- THE 800x480 ACTIVE SCREEN -->
+            <div class="screen-viewport" id="screenViewport">
+                <!-- FULLSCREEN ROAD & TRAFFIC MAP CANVAS -->
+                <div id="mapView" class="map-view"></div>
 
-        <!-- FLOATING SPEEDOMETER BUBBLE (GOOGLE MAPS STYLE) -->
-        <div class="gmaps-speed-bubble">
-            <span class="speed-num" id="speedNum">38</span>
-            <span class="speed-label">km/h</span>
-        </div>
-
-        <!-- ACTIVE ORDER STAGE TRACKER BANNER -->
-        <div class="order-stage-banner" id="orderStageBanner" style="display: none;">
-            <div class="stage-info">
-                <span class="stage-badge" id="stageBadge">🛵 EN ROUTE TO RESTAURANT</span>
-                <span class="stage-title" id="stageTitle">Wow! Momo Express (Pickup #892)</span>
-            </div>
-            <div class="stage-actions" id="stageActions"></div>
-        </div>
-
-        <!-- INCOMING ORDER OFFER OVERLAY MODAL -->
-        <div class="order-offer-modal" id="orderOfferModal" style="display: none;">
-            <div class="offer-card">
-                <div class="offer-header">
-                    <span class="offer-platform-tag" id="offerPlatformTag">SWIGGY NEW ORDER</span>
-                    <span class="offer-payout" id="offerPayout">₹85.00</span>
-                </div>
-                <div class="offer-body">
-                    <div class="offer-spot">
-                        <span class="spot-icon">🍴</span>
-                        <div class="spot-details">
-                            <strong id="offerRestName">Wow! Momo Express</strong>
-                            <small id="offerRestAddr">Central Avenue Food Plaza</small>
+                <!-- TOP: GOOGLE MAPS NAVIGATION TURN CARD -->
+                <div class="gmaps-top-container">
+                    <div class="gmaps-turn-card" id="turnCard">
+                        <div class="turn-icon-box">
+                            <svg class="turn-svg" id="turnSvg" viewBox="0 0 100 100">
+                                <path id="turnPath" d="M25 80 L25 55 Q25 35 45 35 L60 35 L60 20 L85 45 L60 70 L60 55 L45 55 Q38 55 38 65 L38 80 Z" fill="#FFFFFF"/>
+                            </svg>
+                        </div>
+                        <div class="turn-text-content">
+                            <div class="turn-dist-row">
+                                <span class="turn-dist-num" id="turnDistNum">150</span>
+                                <span class="turn-dist-unit" id="turnDistUnit">m</span>
+                                <span class="traffic-condition-badge" id="trafficConditionBadge">🟢 Normal Flow</span>
+                            </div>
+                            <div class="turn-road-name" id="turnRoadName">Mahatma Gandhi Road</div>
+                            <div class="turn-next-preview" id="turnNextPreview">Then: Bear left onto Beliaghata Main Rd</div>
                         </div>
                     </div>
-                    <div class="offer-spot">
-                        <span class="spot-icon">🏠</span>
-                        <div class="spot-details">
-                            <strong id="offerCustName">Debanjan M. (Sector V)</strong>
-                            <small id="offerCustAddr">Salt Lake Sector V, Block EP</small>
+
+                    <!-- HARDWARE & EARNINGS TELEMETRY PILL -->
+                    <div class="gmaps-telemetry-pill">
+                        <span class="tele-item" id="earningsBadge">💰 ₹450</span>
+                        <span class="tele-item" id="tempBadge">⚡ 45.0°C</span>
+                        <span class="tele-item" id="voltBadge">🔋 5.1V</span>
+                        <span class="tele-item" id="gpsBadge">🛰️ 10 SATS</span>
+                    </div>
+                </div>
+
+                <!-- FLOATING SPEEDOMETER BUBBLE -->
+                <div class="gmaps-speed-bubble">
+                    <span class="speed-num" id="speedNum">38</span>
+                    <span class="speed-label">km/h</span>
+                </div>
+
+                <!-- ACTIVE ORDER STAGE TRACKER BANNER (STEP 1 / STEP 2) -->
+                <div class="order-stage-banner" id="orderStageBanner" style="display: none;">
+                    <div class="stage-info">
+                        <span class="stage-badge" id="stageBadge">🛵 STEP 1: EN ROUTE TO RESTAURANT</span>
+                        <span class="stage-title" id="stageTitle">Wow! Momo Express (Pickup #892)</span>
+                    </div>
+                    <div class="stage-actions" id="stageActions"></div>
+                </div>
+
+                <!-- ORDER DELIVERED CELEBRATION TOAST -->
+                <div class="order-delivered-toast" id="deliveredToast" style="display: none;">
+                    <span class="toast-icon">🎉</span>
+                    <div class="toast-text">
+                        <strong>Order Successfully Delivered!</strong>
+                        <small id="toastPayoutText">+₹85.00 Credited to Rider Wallet</small>
+                    </div>
+                </div>
+
+                <!-- INCOMING ORDER OFFER OVERLAY MODAL -->
+                <div class="order-offer-modal" id="orderOfferModal" style="display: none;">
+                    <div class="offer-card">
+                        <div class="offer-header">
+                            <span class="offer-platform-tag" id="offerPlatformTag">SWIGGY NEW ORDER</span>
+                            <span class="offer-payout" id="offerPayout">₹85.00</span>
+                        </div>
+                        <div class="offer-body">
+                            <div class="offer-spot">
+                                <span class="spot-icon">🍴</span>
+                                <div class="spot-details">
+                                    <strong id="offerRestName">Wow! Momo Express</strong>
+                                    <small id="offerRestAddr">Central Avenue Food Plaza</small>
+                                </div>
+                            </div>
+                            <div class="offer-spot">
+                                <span class="spot-icon">🏠</span>
+                                <div class="spot-details">
+                                    <strong id="offerCustName">Debanjan M. (Sector V)</strong>
+                                    <small id="offerCustAddr">Salt Lake Sector V, Block EP</small>
+                                </div>
+                            </div>
+                            <div class="offer-items" id="offerItems">📦 2x Momo Platters, 1x Cold Drink</div>
+                        </div>
+                        <div class="offer-actions">
+                            <button class="btn-decline-order" id="btnDeclineOrder" onclick="declineOrder()">✕ Decline</button>
+                            <button class="btn-accept-order" id="btnAcceptOrder" onclick="acceptOrder()">✅ ACCEPT ORDER [A]</button>
                         </div>
                     </div>
-                    <div class="offer-items" id="offerItems">📦 2x Momo Platters, 1x Cold Drink</div>
                 </div>
-                <div class="offer-actions">
-                    <button class="btn-decline-order" id="btnDeclineOrder" onclick="declineOrder()">✕ Decline</button>
-                    <button class="btn-accept-order" id="btnAcceptOrder" onclick="acceptOrder()">✅ ACCEPT ORDER [A]</button>
-                </div>
-            </div>
-        </div>
 
-        <!-- FLOATING DASHCAM PIP -->
-        <div class="gmaps-dashcam-pip" id="dashcamPip" style="display: none;">
-            <div class="dashcam-pip-bar">
-                <span>WITNESS DASHCAM [LIVE]</span>
-                <button class="pip-close" onclick="toggleDashcam()">✕</button>
-            </div>
-            <img id="dashcamFeed" src="/api/camera/stream" alt="Dashcam Stream">
-        </div>
-
-        <!-- BOTTOM: GOOGLE MAPS TRIP SUMMARY & ORDER CONTROL BAR -->
-        <div class="gmaps-bottom-card">
-            <div class="trip-time-box">
-                <div class="trip-time-row">
-                    <span class="trip-time-val" id="tripTimeVal">4 min</span>
-                    <span class="traffic-delay-text" id="trafficDelayText">Fastest route</span>
-                </div>
-                <div class="trip-sub-row">
-                    <span class="trip-dist-val" id="tripDistVal">2.8 km</span>
-                    <span class="trip-dot">•</span>
-                    <span class="trip-eta-val" id="tripEtaVal">12:54 PM</span>
-                </div>
-            </div>
-
-            <!-- PRIMARY ORDER WORKFLOW BUTTONS DIRECTLY ACCESSIBLE -->
-            <div class="primary-order-controls">
-                <button class="order-action-btn btn-new-order" id="btnNewOrder" onclick="offerMockOrder('swiggy')">🍔 New Order</button>
-                <button class="order-action-btn btn-accept-direct" id="btnAcceptDirect" onclick="acceptOrder()">✅ Accept</button>
-                <button class="order-action-btn btn-pickup-direct" id="btnPickupDirect" onclick="confirmPickup()">🍴 Picked Up</button>
-                <button class="order-action-btn btn-deliver-direct" id="btnDeliverDirect" onclick="completeDelivery()">📦 Delivered</button>
-            </div>
-
-            <div class="trip-actions">
-                <button class="btn-import-dest" onclick="openDestinationModal()" title="Change Destination">📍 Route</button>
-                <button class="btn-end-route" onclick="triggerSos()" title="Emergency SOS">🚨 SOS</button>
-            </div>
-        </div>
-
-        <!-- DESTINATION IMPORT MODAL -->
-        <div class="destination-modal" id="destModal" style="display: none;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>📍 Import Road Plan & Destination</h3>
-                    <button class="modal-close" onclick="closeDestinationModal()">✕</button>
-                </div>
-                <div class="modal-body">
-                    <p class="modal-desc">Select a preset delivery corridor or enter custom coordinates:</p>
-                    <div class="preset-destinations">
-                        <button class="preset-btn" onclick="selectPreset('Salt Lake Sector V', 22.585500, 88.416800)">🏢 Sector V Tech Hub</button>
-                        <button class="preset-btn" onclick="selectPreset('Park Street Food Hub', 22.551000, 88.353000)">🍕 Park Street Restaurant Hub</button>
-                        <button class="preset-btn" onclick="selectPreset('New Town Axis Mall', 22.589000, 88.465000)">🛍️ New Town Delivery Center</button>
-                        <button class="preset-btn" onclick="selectPreset('Howrah Railway Station', 22.583000, 88.342000)">🚂 Howrah Express Cargo</button>
+                <!-- FLOATING DASHCAM PIP -->
+                <div class="gmaps-dashcam-pip" id="dashcamPip" style="display: none;">
+                    <div class="dashcam-pip-bar">
+                        <span>WITNESS DASHCAM [LIVE]</span>
+                        <button class="pip-close" onclick="toggleDashcam()">✕</button>
                     </div>
-                    <div class="custom-dest-row">
-                        <input type="text" id="customName" placeholder="Destination Name (e.g. Zomato Customer Drop)">
-                        <div class="coord-inputs">
-                            <input type="number" step="0.0001" id="customLat" placeholder="Latitude (e.g. 22.5855)">
-                            <input type="number" step="0.0001" id="customLng" placeholder="Longitude (e.g. 88.4168)">
+                    <img id="dashcamFeed" src="/api/camera/stream" alt="Dashcam Stream">
+                </div>
+
+                <!-- BOTTOM: GOOGLE MAPS TRIP SUMMARY CARD -->
+                <div class="gmaps-bottom-card">
+                    <div class="trip-time-box">
+                        <div class="trip-time-row">
+                            <span class="trip-time-val" id="tripTimeVal">4 min</span>
+                            <span class="traffic-delay-text" id="trafficDelayText">Fastest route</span>
                         </div>
-                        <button class="btn-apply-dest" onclick="applyCustomDestination()">Update Route & Road Plan</button>
+                        <div class="trip-sub-row">
+                            <span class="trip-dist-val" id="tripDistVal">2.8 km</span>
+                            <span class="trip-dot">•</span>
+                            <span class="trip-eta-val" id="tripEtaVal">12:54 PM</span>
+                        </div>
+                    </div>
+
+                    <div class="destination-preview-box">
+                        <span class="dest-label" id="destHeaderLabel">TARGET DESTINATION:</span>
+                        <span class="dest-name" id="destName">Salt Lake Sector V Delivery Drop</span>
+                    </div>
+
+                    <div class="trip-actions">
+                        <button class="btn-import-dest" onclick="openDestinationModal()" title="Change Destination">📍 Route</button>
+                        <button class="btn-end-route" onclick="triggerSos()" title="Emergency SOS">🚨 SOS</button>
+                    </div>
+                </div>
+
+                <!-- DESTINATION IMPORT MODAL -->
+                <div class="destination-modal" id="destModal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>📍 Import Road Plan & Destination</h3>
+                            <button class="modal-close" onclick="closeDestinationModal()">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="modal-desc">Select a delivery corridor or enter custom coordinates:</p>
+                            <div class="preset-destinations">
+                                <button class="preset-btn" onclick="selectPreset('Salt Lake Sector V', 22.585500, 88.416800)">🏢 Sector V Tech Hub</button>
+                                <button class="preset-btn" onclick="selectPreset('Park Street Food Hub', 22.551000, 88.353000)">🍕 Park Street Food Hub</button>
+                                <button class="preset-btn" onclick="selectPreset('New Town Axis Mall', 22.589000, 88.465000)">🛍️ New Town Delivery</button>
+                                <button class="preset-btn" onclick="selectPreset('Howrah Express Cargo', 22.583000, 88.342000)">🚂 Howrah Cargo Terminal</button>
+                            </div>
+                            <div class="custom-dest-row">
+                                <input type="text" id="customName" placeholder="Destination Name (e.g. Customer Drop)">
+                                <div class="coord-inputs">
+                                    <input type="number" step="0.0001" id="customLat" placeholder="Latitude (e.g. 22.5855)">
+                                    <input type="number" step="0.0001" id="customLng" placeholder="Longitude (e.g. 88.4168)">
+                                </div>
+                                <button class="btn-apply-dest" onclick="applyCustomDestination()">Update Route & Road Plan</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EMERGENCY SOS & CRASH OVERLAY -->
+                <div class="emergency-overlay" id="emergencyOverlay" style="display: none;">
+                    <div class="emergency-card">
+                        <div class="emergency-icon">🚨</div>
+                        <div class="emergency-title" id="emergencyTitle">EMERGENCY SOS ACTIVE</div>
+                        <div class="emergency-sub" id="emergencySub">Video Evidence Locked to /evidence/incidents/</div>
+                        <div class="emergency-gps" id="emergencyGps">GPS: 22.572645, 88.363892 | Speed: 38 km/h</div>
+                        <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME NAVIGATION</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- EMERGENCY SOS & CRASH OVERLAY -->
-        <div class="emergency-overlay" id="emergencyOverlay" style="display: none;">
-            <div class="emergency-card">
-                <div class="emergency-icon">🚨</div>
-                <div class="emergency-title" id="emergencyTitle">EMERGENCY SOS ACTIVE</div>
-                <div class="emergency-sub" id="emergencySub">Video Evidence Locked to /evidence/incidents/</div>
-                <div class="emergency-gps" id="emergencyGps">GPS: 22.572645, 88.363892 | Speed: 38 km/h</div>
-                <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME NAVIGATION</button>
+        <!-- REAL-TIME TEST BENCH CONTROLS (UNDERNEATH 5-INCH DISPLAY) -->
+        <div class="bench-control-panel">
+            <div class="panel-header">
+                <span class="panel-tag">HARDWARE TEST RIG CONTROLS</span>
+                <span class="panel-hint">Click below or use keyboard shortcuts to trigger live events:</span>
+            </div>
+            <div class="bench-buttons-row">
+                <button class="bench-btn btn-swiggy" id="btnBenchOffer" onclick="offerMockOrder('swiggy')">
+                    <span class="btn-icon">🍔</span>
+                    <span class="btn-text">1. Inject Order <kbd>[O]</kbd></span>
+                </button>
+                <button class="bench-btn btn-accept" id="btnBenchAccept" onclick="acceptOrder()">
+                    <span class="btn-icon">✅</span>
+                    <span class="btn-text">2. Accept Order <kbd>[A]</kbd></span>
+                </button>
+                <button class="bench-btn btn-pickup" id="btnBenchPickup" onclick="confirmPickup()">
+                    <span class="btn-icon">🍴</span>
+                    <span class="btn-text">3. Food Picked Up <kbd>[K]</kbd></span>
+                </button>
+                <button class="bench-btn btn-deliver" id="btnBenchDeliver" onclick="completeDelivery()">
+                    <span class="btn-icon">📦</span>
+                    <span class="btn-text">4. Deliver to Customer <kbd>[U]</kbd></span>
+                </button>
+                <button class="bench-btn btn-sos" id="btnBenchSos" onclick="triggerSos()">
+                    <span class="btn-icon">🚨</span>
+                    <span class="btn-text">Manual SOS <kbd>[S]</kbd></span>
+                </button>
+                <button class="bench-btn btn-crash" id="btnBenchCrash" onclick="triggerTilt()">
+                    <span class="btn-icon">💥</span>
+                    <span class="btn-text">Tilt Crash <kbd>[T]</kbd></span>
+                </button>
+                <button class="bench-btn btn-cam" id="btnBenchCam" onclick="toggleDashcam()">
+                    <span class="btn-icon">📷</span>
+                    <span class="btn-text">Dashcam <kbd>[D]</kbd></span>
+                </button>
             </div>
         </div>
     </div>

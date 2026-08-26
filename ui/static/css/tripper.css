@@ -1,13 +1,12 @@
 /* ==============================================================================
-   LastMile Guard - Google Maps Navigation & Order Workflow HUD Theme
-   Responsive Full-Screen & 5-Inch Automotive Kiosk Layout
+   LastMile Guard - 5-Inch Automotive Hardware Simulator & Google Maps HUD
+   Active Screen Dimensions: Exactly 800px × 480px (Standard 5" DSI/HDMI Display)
    ============================================================================== */
 
 :root {
     --gmaps-green: #0F9D58;
     --gmaps-dark-green: #0b8043;
     --gmaps-blue: #1A73E8;
-    --gmaps-route-blue: #2979FF;
     --gmaps-dark-bg: #1F2430;
     --gmaps-card-bg: rgba(32, 33, 36, 0.96);
     --gmaps-border: rgba(255, 255, 255, 0.15);
@@ -29,25 +28,97 @@
     -webkit-tap-highlight-color: transparent;
 }
 
-body.gmaps-theme {
-    background-color: #000000;
+body.workbench-theme {
+    background-color: #0b0f19;
+    background-image: radial-gradient(circle at 50% 30%, #151d2f 0%, #080c14 100%);
     color: var(--text-primary);
     font-family: var(--font-stack);
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 20px;
+    overflow-x: hidden;
 }
 
-/* Responsive Full-Screen App Container */
-.gmaps-app-container {
-    width: 100vw;
-    height: 100vh;
+.workbench-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+}
+
+/* ==============================================================================
+   5-INCH HARDWARE DEVICE CHASSIS (ALUMINUM BEZEL)
+   ============================================================================== */
+.device-chassis {
+    background: #181b22;
+    border: 3px solid #2a3140;
+    border-radius: 20px;
+    padding: 12px 14px 14px 14px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.chassis-top-bar {
+    width: 800px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 8px 8px 8px;
+}
+
+.chassis-lens-dot {
+    width: 10px;
+    height: 10px;
+    background: #000;
+    border: 2px solid #3b4252;
+    border-radius: 50%;
+    box-shadow: inset 0 0 3px #1a73e8;
+}
+
+.chassis-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.chassis-leds {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-led {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+.led-green { background: #00E676; box-shadow: 0 0 8px #00E676; animation: blink-slow 2s infinite; }
+.led-blue { background: #00B0FF; box-shadow: 0 0 8px #00B0FF; }
+.led-orange { background: #FF9100; box-shadow: 0 0 8px #FF9100; }
+
+@keyframes blink-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* ==============================================================================
+   EXACT 800x480 ACTIVE 5-INCH DISPLAY VIEWPORT
+   ============================================================================== */
+.screen-viewport {
+    width: 800px;
+    height: 480px;
     background-color: #19212C;
+    border-radius: 8px;
     position: relative;
     overflow: hidden;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
     display: flex;
     flex-direction: column;
 }
@@ -56,24 +127,24 @@ body.gmaps-theme {
 .map-view {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    width: 100%;
-    height: 100%;
+    width: 800px;
+    height: 480px;
     z-index: 1;
     background: #19212C;
 }
 
 .leaflet-container {
     background-color: #19212C !important;
-    width: 100% !important;
-    height: 100% !important;
+    width: 800px !important;
+    height: 480px !important;
 }
 
 /* TOP GOOGLE MAPS TURN CARD */
 .gmaps-top-container {
     position: absolute;
-    top: 12px;
-    left: 14px;
-    right: 14px;
+    top: 10px;
+    left: 12px;
+    right: 12px;
     z-index: 30;
     display: flex;
     justify-content: space-between;
@@ -84,19 +155,19 @@ body.gmaps-theme {
 .gmaps-turn-card {
     pointer-events: auto;
     background: var(--gmaps-green);
-    border-radius: 14px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
-    padding: 10px 16px;
-    gap: 14px;
-    min-width: 440px;
-    max-width: 540px;
+    padding: 8px 14px;
+    gap: 12px;
+    min-width: 420px;
+    max-width: 500px;
 }
 
 .turn-icon-box {
-    width: 50px;
-    height: 50px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -104,8 +175,8 @@ body.gmaps-theme {
 }
 
 .turn-svg {
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
@@ -123,44 +194,44 @@ body.gmaps-theme {
 }
 
 .turn-dist-num {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 900;
     color: #FFFFFF;
     letter-spacing: -0.5px;
 }
 
 .turn-dist-unit {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     color: #E8F0FE;
     margin-right: 6px;
 }
 
 .traffic-condition-badge {
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.25);
     font-size: 10px;
     font-weight: 800;
-    padding: 2px 8px;
+    padding: 2px 7px;
     border-radius: 10px;
     color: #FFF;
 }
 
 .turn-road-name {
-    font-size: 19px;
+    font-size: 17px;
     font-weight: 800;
     color: #FFFFFF;
-    margin-top: 3px;
+    margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .turn-next-preview {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);
-    margin-top: 2px;
+    margin-top: 1px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -172,15 +243,14 @@ body.gmaps-theme {
     background: rgba(15, 23, 42, 0.94);
     border: 1px solid var(--gmaps-border);
     backdrop-filter: blur(8px);
-    border-radius: 20px;
-    padding: 6px 14px;
+    border-radius: 18px;
+    padding: 5px 12px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 12px;
+    gap: 10px;
+    font-size: 11px;
     font-weight: 800;
     color: var(--text-secondary);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
 }
 
 #earningsBadge {
@@ -191,14 +261,14 @@ body.gmaps-theme {
 /* FLOATING SPEEDOMETER BUBBLE */
 .gmaps-speed-bubble {
     position: absolute;
-    bottom: 90px;
-    left: 18px;
-    width: 72px;
-    height: 72px;
+    bottom: 78px;
+    left: 14px;
+    width: 64px;
+    height: 64px;
     background: rgba(32, 33, 36, 0.95);
     border: 3px solid #FFFFFF;
     border-radius: 50%;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -207,35 +277,36 @@ body.gmaps-theme {
 }
 
 .speed-num {
-    font-size: 28px;
+    font-size: 25px;
     font-weight: 900;
     color: #FFFFFF;
     line-height: 1;
 }
 
 .speed-label {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 800;
     color: var(--text-secondary);
     text-transform: uppercase;
 }
 
-/* ACTIVE ORDER STAGE TRACKER BANNER */
+/* ACTIVE ORDER STAGE BANNER */
 .order-stage-banner {
     position: absolute;
-    top: 96px;
-    left: 14px;
-    right: 14px;
+    top: 86px;
+    left: 12px;
+    right: 12px;
     background: rgba(26, 32, 44, 0.96);
-    border: 1px solid rgba(255, 145, 0, 0.5);
-    border-radius: 12px;
-    padding: 10px 18px;
+    border: 1px solid rgba(255, 145, 0, 0.6);
+    border-radius: 10px;
+    padding: 8px 14px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.7);
     display: flex;
     align-items: center;
     justify-content: space-between;
     z-index: 35;
     pointer-events: auto;
+    animation: slide-down 0.25s ease-out;
 }
 
 .stage-info {
@@ -244,38 +315,71 @@ body.gmaps-theme {
 }
 
 .stage-badge {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 900;
     color: var(--accent-orange);
     letter-spacing: 0.5px;
 }
 
 .stage-title {
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 800;
     color: #FFF;
 }
+
+.stage-action-btn {
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+    color: #FFF;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+}
+
+/* ORDER DELIVERED TOAST */
+.order-delivered-toast {
+    position: absolute;
+    top: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #00E676;
+    color: #000;
+    padding: 10px 20px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 230, 118, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 60;
+    animation: bounce-in 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.toast-icon { font-size: 24px; }
+.toast-text strong { display: block; font-size: 14px; font-weight: 900; }
+.toast-text small { font-size: 12px; font-weight: 700; opacity: 0.85; }
 
 /* INCOMING ORDER OFFER MODAL */
 .order-offer-modal {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(6px);
     z-index: 150;
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: auto;
+    animation: fade-in 0.2s ease-out;
 }
 
 .offer-card {
     background: #202124;
     border: 2px solid var(--accent-orange);
-    border-radius: 16px;
-    width: 480px;
-    max-width: 90vw;
-    padding: 22px;
+    border-radius: 14px;
+    width: 440px;
+    padding: 16px 20px;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95);
 }
 
@@ -284,20 +388,20 @@ body.gmaps-theme {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid var(--gmaps-border);
-    padding-bottom: 10px;
+    padding-bottom: 8px;
 }
 
 .offer-platform-tag {
     background: var(--accent-orange);
     color: #FFF;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 900;
-    padding: 4px 10px;
+    padding: 3px 8px;
     border-radius: 6px;
 }
 
 .offer-payout {
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 900;
     color: var(--traffic-green);
 }
@@ -305,28 +409,28 @@ body.gmaps-theme {
 .offer-body {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin: 16px 0;
+    gap: 8px;
+    margin: 12px 0;
 }
 
 .offer-spot {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     background: rgba(255, 255, 255, 0.06);
-    padding: 10px 14px;
+    padding: 8px 12px;
     border-radius: 8px;
 }
 
-.spot-icon { font-size: 22px; }
-.spot-details strong { display: block; font-size: 15px; color: #FFF; }
-.spot-details small { color: var(--text-secondary); font-size: 13px; }
-.offer-items { font-size: 13px; color: #90CAF9; font-weight: 600; padding: 0 4px; }
+.spot-icon { font-size: 18px; }
+.spot-details strong { display: block; font-size: 13px; color: #FFF; }
+.spot-details small { color: var(--text-secondary); font-size: 11px; }
+.offer-items { font-size: 12px; color: #90CAF9; font-weight: 600; padding: 0 4px; }
 
 .offer-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 16px;
+    gap: 10px;
+    margin-top: 12px;
 }
 
 .btn-decline-order {
@@ -334,9 +438,9 @@ body.gmaps-theme {
     background: #3C4043;
     color: #FFF;
     border: none;
-    padding: 14px;
+    padding: 10px;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
     cursor: pointer;
 }
@@ -346,25 +450,21 @@ body.gmaps-theme {
     background: var(--gmaps-green);
     color: #FFF;
     border: none;
-    padding: 14px;
+    padding: 10px;
     border-radius: 8px;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 900;
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(15, 157, 88, 0.5);
 }
 
-.btn-accept-order:active, .btn-decline-order:active {
-    transform: scale(0.97);
-}
-
 /* DASHCAM PIP */
 .gmaps-dashcam-pip {
     position: absolute;
-    top: 96px;
-    left: 14px;
-    width: 240px;
-    height: 140px;
+    top: 86px;
+    left: 12px;
+    width: 200px;
+    height: 120px;
     border: 2px solid var(--gmaps-blue);
     border-radius: 8px;
     overflow: hidden;
@@ -375,10 +475,10 @@ body.gmaps-theme {
 
 .dashcam-pip-bar {
     background: rgba(0, 0, 0, 0.85);
-    padding: 4px 8px;
+    padding: 3px 6px;
     display: flex;
     justify-content: space-between;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     color: #00E676;
 }
@@ -388,12 +488,12 @@ body.gmaps-theme {
     border: none;
     color: #FFF;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .gmaps-dashcam-pip img {
     width: 100%;
-    height: 120px;
+    height: 100px;
     object-fit: cover;
 }
 
@@ -403,13 +503,13 @@ body.gmaps-theme {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 76px;
+    height: 68px;
     background: var(--gmaps-card-bg);
     border-top: 1px solid var(--gmaps-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
+    padding: 0 16px;
     z-index: 40;
     pointer-events: auto;
 }
@@ -417,24 +517,23 @@ body.gmaps-theme {
 .trip-time-box {
     display: flex;
     flex-direction: column;
-    min-width: 140px;
 }
 
 .trip-time-row {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: 6px;
 }
 
 .trip-time-val {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 900;
     color: var(--gmaps-green);
     line-height: 1.1;
 }
 
 .traffic-delay-text {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--traffic-green);
 }
@@ -443,62 +542,48 @@ body.gmaps-theme {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     color: var(--text-secondary);
 }
 
 .trip-dot { color: #5F6368; }
 
-/* PRIMARY ORDER WORKFLOW CONTROLS DIRECTLY IN BOTTOM BAR */
-.primary-order-controls {
+.destination-preview-box {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    max-width: 320px;
 }
 
-.order-action-btn {
-    border: none;
-    padding: 10px 16px;
-    border-radius: 24px;
+.dest-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: #8AB4F8;
+    letter-spacing: 0.5px;
+}
+
+.dest-name {
     font-size: 13px;
-    font-weight: 900;
-    cursor: pointer;
-    color: #FFF;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    transition: transform 0.1s, box-shadow 0.1s;
+    font-weight: 700;
+    color: #FFFFFF;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-
-.order-action-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.6);
-}
-
-.order-action-btn:active {
-    transform: scale(0.95);
-}
-
-.btn-new-order { background: #FC8019; }
-.btn-accept-direct { background: #00E676; color: #000; }
-.btn-pickup-direct { background: #00B0FF; color: #000; }
-.btn-deliver-direct { background: #7C4DFF; color: #FFF; }
 
 .trip-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .btn-import-dest {
     background: #3C4043;
     color: #FFF;
     border: none;
-    padding: 10px 16px;
-    border-radius: 20px;
-    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 16px;
+    font-size: 11px;
     font-weight: 800;
     cursor: pointer;
 }
@@ -507,9 +592,9 @@ body.gmaps-theme {
     background: var(--accent-red);
     color: #FFF;
     border: none;
-    padding: 10px 18px;
-    border-radius: 20px;
-    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 16px;
+    font-size: 11px;
     font-weight: 900;
     cursor: pointer;
 }
@@ -530,9 +615,9 @@ body.gmaps-theme {
 .modal-content {
     background: #202124;
     border: 1px solid var(--gmaps-border);
-    border-radius: 16px;
-    width: 520px;
-    padding: 20px;
+    border-radius: 14px;
+    width: 480px;
+    padding: 16px;
     box-shadow: 0 16px 40px rgba(0,0,0,0.8);
 }
 
@@ -541,81 +626,66 @@ body.gmaps-theme {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid var(--gmaps-border);
-    padding-bottom: 10px;
+    padding-bottom: 8px;
 }
 
 .modal-close {
     background: transparent;
     border: none;
     color: #FFF;
-    font-size: 18px;
+    font-size: 16px;
     cursor: pointer;
 }
 
 .modal-desc {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-secondary);
-    margin: 12px 0 10px;
+    margin: 10px 0 8px;
 }
 
 .preset-destinations {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: 6px;
+    margin-bottom: 12px;
 }
 
 .preset-btn {
     background: #303134;
     color: #E8EAED;
     border: 1px solid rgba(255,255,255,0.1);
-    padding: 10px 12px;
-    border-radius: 8px;
-    font-size: 12px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 700;
     text-align: left;
     cursor: pointer;
 }
 
-.preset-btn:hover {
-    background: #3c4043;
-    border-color: var(--gmaps-blue);
-}
+.preset-btn:hover { background: #3c4043; border-color: var(--gmaps-blue); }
 
-.custom-dest-row {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
+.custom-dest-row { display: flex; flex-direction: column; gap: 6px; }
 .custom-dest-row input {
     background: #303134;
     border: 1px solid var(--gmaps-border);
     color: #FFF;
-    padding: 8px 12px;
+    padding: 6px 10px;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 12px;
 }
 
-.coord-inputs {
-    display: flex;
-    gap: 8px;
-}
-
-.coord-inputs input {
-    flex: 1;
-}
+.coord-inputs { display: flex; gap: 6px; }
+.coord-inputs input { flex: 1; }
 
 .btn-apply-dest {
     background: var(--gmaps-green);
     color: #FFF;
     border: none;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 13px;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 12px;
     font-weight: 800;
     cursor: pointer;
-    margin-top: 4px;
 }
 
 /* EMERGENCY OVERLAY */
@@ -633,26 +703,136 @@ body.gmaps-theme {
 .emergency-card {
     text-align: center;
     background: #000000;
-    padding: 24px 36px;
-    border-radius: 16px;
+    padding: 20px 30px;
+    border-radius: 14px;
     border: 3px solid #FFF;
     box-shadow: 0 0 50px #FF0000;
 }
 
-.emergency-icon { font-size: 48px; }
-.emergency-title { font-size: 26px; font-weight: 900; color: #FF1744; margin-top: 6px; }
-.emergency-sub { font-size: 14px; color: #CFD8DC; margin-top: 6px; }
-.emergency-gps { font-size: 13px; color: #FFD54F; margin-top: 10px; font-family: monospace; }
+.emergency-icon { font-size: 40px; }
+.emergency-title { font-size: 22px; font-weight: 900; color: #FF1744; margin-top: 4px; }
+.emergency-sub { font-size: 13px; color: #CFD8DC; margin-top: 4px; }
+.emergency-gps { font-size: 12px; color: #FFD54F; margin-top: 8px; font-family: monospace; }
 .btn-reset {
-    margin-top: 16px;
+    margin-top: 14px;
     background: #FF1744;
     color: #FFF;
     border: none;
-    padding: 10px 24px;
-    font-size: 14px;
+    padding: 8px 20px;
+    font-size: 13px;
     font-weight: 800;
     border-radius: 8px;
     cursor: pointer;
+}
+
+/* ==============================================================================
+   TEST BENCH HARDWARE CONTROLS (UNDERNEATH 5-INCH DISPLAY)
+   ============================================================================== */
+.bench-control-panel {
+    width: 828px;
+    background: #11141d;
+    border: 2px solid #232936;
+    border-radius: 14px;
+    padding: 14px 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-tag {
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+.panel-hint {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.bench-buttons-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr) 0.8fr 0.8fr 0.8fr;
+    gap: 8px;
+}
+
+.bench-btn {
+    border: none;
+    padding: 10px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: transform 0.08s, filter 0.1s;
+}
+
+.bench-btn:hover {
+    filter: brightness(1.15);
+    transform: translateY(-2px);
+}
+
+.bench-btn:active {
+    transform: scale(0.95);
+    filter: brightness(0.9);
+}
+
+.bench-btn .btn-icon { font-size: 18px; }
+.bench-btn .btn-text {
+    font-size: 11px;
+    font-weight: 900;
+    color: #FFF;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+}
+
+.bench-btn kbd {
+    font-size: 9px;
+    opacity: 0.85;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin-top: 2px;
+}
+
+.btn-swiggy { background: linear-gradient(135deg, #FC8019, #e65100); }
+.btn-accept { background: linear-gradient(135deg, #00E676, #00b248); }
+.btn-accept .btn-text { color: #000; }
+.btn-pickup { background: linear-gradient(135deg, #00B0FF, #0081cb); }
+.btn-pickup .btn-text { color: #000; }
+.btn-deliver { background: linear-gradient(135deg, #7C4DFF, #512da8); }
+.btn-sos { background: linear-gradient(135deg, #E53935, #b71c1c); }
+.btn-crash { background: linear-gradient(135deg, #FB8C00, #ef6c00); }
+.btn-cam { background: linear-gradient(135deg, #00897B, #004d40); }
+
+@keyframes slide-down {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes bounce-in {
+    0% { transform: translate(-50%, -20px); opacity: 0; }
+    70% { transform: translate(-50%, 4px); opacity: 1; }
+    100% { transform: translate(-50%, 0); opacity: 1; }
 }
 
 @keyframes strobe-bg {

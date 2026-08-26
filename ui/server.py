@@ -21,7 +21,7 @@ class DestinationImportRequest(BaseModel):
     lng: float
 
 def create_app(engine: LastMileEngine) -> FastAPI:
-    app = FastAPI(title="LastMile Guard Google Maps Navigation HUD", version="1.2.0")
+    app = FastAPI(title="LastMile Guard 5-Inch Navigation HUD", version="1.3.0")
 
     base_dir = Path(__file__).parent
     static_dir = base_dir / "static"
@@ -45,7 +45,7 @@ def create_app(engine: LastMileEngine) -> FastAPI:
             name="index.html",
             context={
                 "app_name": engine.config.get("app_name", "LastMile Guard"),
-                "version": engine.config.get("version", "1.2.0"),
+                "version": engine.config.get("version", "1.3.0"),
                 "google_maps_api_key": engine.config.get("maps", {}).get("google_maps_api_key", "")
             }
         )
@@ -79,14 +79,6 @@ def create_app(engine: LastMileEngine) -> FastAPI:
                         engine.complete_current_delivery()
                     elif action == "decline_order":
                         engine.orders.decline_order()
-                    elif action == "mock_order":
-                        source = cmd_data.get("source", "swiggy")
-                        engine.offer_mock_order(source)
-                    elif action == "clear_alert":
-                        engine.clear_active_alert()
-                    elif action == "set_brightness":
-                        level = int(cmd_data.get("level", 85))
-                        engine.hal.sensors.set_brightness(level)
                     elif action == "import_destination":
                         name = cmd_data.get("name", "New Destination")
                         lat = float(cmd_data.get("lat", 22.5855))
@@ -100,35 +92,45 @@ def create_app(engine: LastMileEngine) -> FastAPI:
         except WebSocketDisconnect:
             engine.connected_clients.discard(websocket)
 
+    @app.get("/api/telemetry")
+    async def api_get_telemetry():
+        return engine.get_latest_telemetry_snapshot()
+
     @app.post("/api/orders/offer")
     async def api_offer_order(platform: str = "swiggy"):
-        order = engine.offer_mock_order(platform)
+        engine.offer_mock_order(platform)
         await engine.broadcast_snapshot()
-        return {"status": "Order offered", "order": order.to_dict()}
+        return {"status": "Order offered", "snapshot": engine.get_latest_telemetry_snapshot()}
 
     @app.post("/api/orders/accept")
     async def api_accept_order():
-        order = engine.accept_current_order()
+        engine.accept_current_order()
         await engine.broadcast_snapshot()
-        return {"status": "Order accepted", "order": order.to_dict() if order else None}
+        return {"status": "Order accepted", "snapshot": engine.get_latest_telemetry_snapshot()}
 
     @app.post("/api/orders/pickup")
     async def api_confirm_pickup():
-        order = engine.confirm_food_pickup()
+        engine.confirm_food_pickup()
         await engine.broadcast_snapshot()
-        return {"status": "Food picked up", "order": order.to_dict() if order else None}
+        return {"status": "Food picked up", "snapshot": engine.get_latest_telemetry_snapshot()}
 
     @app.post("/api/orders/deliver")
     async def api_complete_delivery():
-        order = engine.complete_current_delivery()
+        engine.complete_current_delivery()
         await engine.broadcast_snapshot()
-        return {"status": "Delivered", "earnings": engine.orders.earnings_today_inr}
+        return {"status": "Delivered", "snapshot": engine.get_latest_telemetry_snapshot()}
+
+    @app.post("/api/orders/decline")
+    async def api_decline_order():
+        engine.orders.decline_order()
+        await engine.broadcast_snapshot()
+        return {"status": "Declined", "snapshot": engine.get_latest_telemetry_snapshot()}
 
     @app.post("/api/navigation/destination")
     async def api_import_destination(req: DestinationImportRequest):
         engine.import_destination(req.name, req.lat, req.lng)
         await engine.broadcast_snapshot()
-        return {"status": "Destination updated", "name": req.name, "coords": [req.lat, req.lng]}
+        return {"status": "Destination updated", "snapshot": engine.get_latest_telemetry_snapshot()}
 
     @app.get("/api/camera/frame.jpg")
     async def get_camera_frame():
@@ -153,12 +155,12 @@ def create_app(engine: LastMileEngine) -> FastAPI:
     async def api_trigger_sos():
         engine.on_sos_triggered()
         await engine.broadcast_snapshot()
-        return {"status": "SOS triggered"}
+        return {"status": "SOS triggered", "snapshot": engine.get_latest_telemetry_snapshot()}
 
     @app.post("/api/test/tilt")
     async def api_trigger_tilt():
         engine.on_tilt_triggered()
         await engine.broadcast_snapshot()
-        return {"status": "Tilt crash triggered"}
+        return {"status": "Tilt crash triggered", "snapshot": engine.get_latest_telemetry_snapshot()}
 
     return app

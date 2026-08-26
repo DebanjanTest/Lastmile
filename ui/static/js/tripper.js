@@ -1,13 +1,9 @@
 // ==============================================================================
-// LastMile Guard - Google Maps Navigation, Traffic & Order Workflow Client
-// Features multi-colored traffic polyline segments & 2-stage delivery lifecycle
+// LastMile Guard - 5-Inch Navigation HUD & Real-Time Test Rig Client
 // ==============================================================================
 
 let ws = null;
 let audioCtx = null;
-let currentBrightness = 85;
-
-// Map & Navigation Objects
 let mapInstance = null;
 let riderMarker = null;
 let destMarker = null;
@@ -26,17 +22,20 @@ const SVG_ICONS = {
     UTURN: "M30 80 L30 45 Q30 20 50 20 Q70 20 70 45 L70 80 L80 80 L60 95 L40 80 L52 80 L52 45 Q52 35 50 35 Q48 35 48 45 L48 80 Z"
 };
 
-function playAudioChime(freq = 880, duration = 0.15) {
+function playAudioChime(freq = 880, duration = 0.12) {
     try {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
         }
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = "sine";
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start();
@@ -64,7 +63,7 @@ function initMap(initialLat = 22.5726, initialLng = 88.3639) {
             subdomains: 'abcd'
         }).addTo(mapInstance);
 
-        // Custom Rider Navigation Puck (Vehicle Chevron)
+        // Rider Navigation Puck
         const riderIcon = L.divIcon({
             className: 'rider-puck-container',
             html: `<div id="riderPuck" style="width:36px;height:36px;background:#1A73E8;border:3px solid #FFF;border-radius:50%;box-shadow:0 0 16px #1A73E8;display:flex;align-items:center;justify-content:center;transform:rotate(45deg);"><svg width="20" height="20" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,18 2,22" fill="#FFF"/></svg></div>`,
@@ -74,12 +73,12 @@ function initMap(initialLat = 22.5726, initialLng = 88.3639) {
 
         riderMarker = L.marker([initialLat, initialLng], { icon: riderIcon }).addTo(mapInstance);
 
-        // Custom Destination Pin
+        // Destination Pin
         const destIcon = L.divIcon({
             className: 'dest-pin-container',
-            html: `<div id="destPinIcon" style="font-size:32px;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.6));">🏁</div>`,
-            iconSize: [32, 32],
-            iconAnchor: [16, 30]
+            html: `<div id="destPinIcon" style="font-size:30px;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.6));">🏁</div>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 28]
         });
 
         destMarker = L.marker([22.5855, 88.4168], { icon: destIcon }).addTo(mapInstance);
@@ -110,7 +109,7 @@ function initWebSocket() {
         };
 
         ws.onclose = () => {
-            setTimeout(initWebSocket, 2000);
+            setTimeout(initWebSocket, 1500);
         };
     } catch (e) {
         console.error("[WS CONNECT ERROR]", e);
@@ -129,7 +128,7 @@ function updateHUD(data) {
     }
     if (data.earnings_today_inr !== undefined) {
         const earnEl = document.getElementById("earningsBadge");
-        if (earnEl) earnEl.textContent = `💰 ₹${data.earnings_today_inr.toFixed(0)}`;
+        if (earnEl) earnEl.textContent = `💰 ₹${Math.round(data.earnings_today_inr)}`;
     }
 
     // 2. GPS Telemetry & Kinematics
@@ -155,7 +154,7 @@ function updateHUD(data) {
         }
     }
 
-    // 3. Google Maps Navigation Maneuver & Multi-Colored Traffic Polyline
+    // 3. Navigation Turn Card & Traffic Polyline
     if (data.navigation) {
         const nav = data.navigation;
         const distEl = document.getElementById("turnDistNum");
@@ -165,7 +164,7 @@ function updateHUD(data) {
         const prevEl = document.getElementById("turnNextPreview");
         if (prevEl) prevEl.textContent = `Then: ${nav.next_instruction}`;
 
-        // Traffic condition badge on turn card
+        // Traffic condition badge
         const trafficBadge = document.getElementById("trafficConditionBadge");
         if (trafficBadge) {
             if (nav.current_traffic_status === "HEAVY_JAM") {
@@ -190,6 +189,8 @@ function updateHUD(data) {
         if (timeEl) timeEl.textContent = `${nav.eta_minutes} min`;
         const tDistEl = document.getElementById("tripDistVal");
         if (tDistEl) tDistEl.textContent = `${nav.remaining_total_dist_km} km`;
+        const dNameEl = document.getElementById("destName");
+        if (dNameEl) dNameEl.textContent = nav.destination_name;
 
         // Traffic delay indicator text
         const delayEl = document.getElementById("trafficDelayText");
@@ -271,10 +272,12 @@ function updateOrderWorkflowUI(order) {
     const stageBadge = document.getElementById("stageBadge");
     const stageTitle = document.getElementById("stageTitle");
     const stageActions = document.getElementById("stageActions");
+    const destHeader = document.getElementById("destHeaderLabel");
 
     if (!order) {
         if (offerModal) offerModal.style.display = "none";
         if (stageBanner) stageBanner.style.display = "none";
+        if (destHeader) destHeader.textContent = "TARGET DESTINATION:";
         return;
     }
 
@@ -308,8 +311,9 @@ function updateOrderWorkflowUI(order) {
         }
         if (stageTitle) stageTitle.textContent = `${order.restaurant_name} (Pickup #${order.order_id})`;
         if (stageActions) {
-            stageActions.innerHTML = `<button class="order-action-btn btn-pickup-direct" onclick="confirmPickup()">🍴 Food Picked Up [K]</button>`;
+            stageActions.innerHTML = `<button class="stage-action-btn" onclick="confirmPickup()" style="background:#00B0FF;">🍴 Food Picked Up [K]</button>`;
         }
+        if (destHeader) destHeader.textContent = "RESTAURANT PICKUP:";
     } else if (order.state === "NAV_TO_CUSTOMER") {
         if (offerModal) offerModal.style.display = "none";
         if (stageBanner) stageBanner.style.display = "flex";
@@ -319,41 +323,66 @@ function updateOrderWorkflowUI(order) {
         }
         if (stageTitle) stageTitle.textContent = `${order.customer_name} - ${order.customer_address}`;
         if (stageActions) {
-            stageActions.innerHTML = `<button class="order-action-btn btn-deliver-direct" onclick="completeDelivery()">✅ Complete Delivery [U]</button>`;
+            stageActions.innerHTML = `<button class="stage-action-btn" onclick="completeDelivery()" style="background:#7C4DFF;">✅ Complete Delivery [U]</button>`;
         }
+        if (destHeader) destHeader.textContent = "CUSTOMER DROP:";
     } else {
         if (offerModal) offerModal.style.display = "none";
         if (stageBanner) stageBanner.style.display = "none";
+        if (destHeader) destHeader.textContent = "TARGET DESTINATION:";
     }
 }
 
-function sendCommand(cmdObj) {
-    playAudioChime(1000, 0.08);
-    console.log("[COMMAND DISPATCH]", cmdObj);
+function showDeliveredCelebration(payoutText = "+₹85.00 Credited to Rider Wallet") {
+    const toast = document.getElementById("deliveredToast");
+    if (!toast) return;
+    const txt = document.getElementById("toastPayoutText");
+    if (txt) txt.textContent = payoutText;
+    toast.style.display = "flex";
+    playAudioChime(1200, 0.25);
+    setTimeout(() => {
+        toast.style.display = "none";
+    }, 4000);
+}
+
+// Dispatches command via WebSocket and HTTP REST with immediate state update
+async function sendCommand(cmdObj) {
+    playAudioChime(800, 0.08);
+    console.log("[TEST RIG ACTION]", cmdObj);
     
     // 1. Try WebSocket
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(cmdObj));
     }
     
-    // 2. HTTP REST endpoint to guarantee 100% execution
-    const act = cmdObj.action;
-    if (act === "offer_order") {
-        fetch(`/api/orders/offer?platform=${cmdObj.platform || 'swiggy'}`, { method: 'POST' }).catch(() => {});
-    } else if (act === "accept_order") {
-        fetch('/api/orders/accept', { method: 'POST' }).catch(() => {});
-    } else if (act === "confirm_pickup") {
-        fetch('/api/orders/pickup', { method: 'POST' }).catch(() => {});
-    } else if (act === "complete_delivery") {
-        fetch('/api/orders/deliver', { method: 'POST' }).catch(() => {});
-    } else if (act === "trigger_sos") {
-        fetch('/api/test/sos', { method: 'POST' }).catch(() => {});
-    } else if (act === "trigger_tilt") {
-        fetch('/api/test/tilt', { method: 'POST' }).catch(() => {});
+    // 2. Immediate REST Endpoint Call
+    try {
+        const act = cmdObj.action;
+        let url = null;
+        if (act === "offer_order") url = `/api/orders/offer?platform=${cmdObj.platform || 'swiggy'}`;
+        else if (act === "accept_order") url = '/api/orders/accept';
+        else if (act === "confirm_pickup") url = '/api/orders/pickup';
+        else if (act === "complete_delivery") url = '/api/orders/deliver';
+        else if (act === "decline_order") url = '/api/orders/decline';
+        else if (act === "trigger_sos") url = '/api/test/sos';
+        else if (act === "trigger_tilt") url = '/api/test/tilt';
+
+        if (url) {
+            const res = await fetch(url, { method: 'POST' });
+            const jsonRes = await res.json();
+            if (jsonRes && jsonRes.snapshot) {
+                updateHUD(jsonRes.snapshot);
+            }
+            if (act === "complete_delivery") {
+                showDeliveredCelebration();
+            }
+        }
+    } catch (err) {
+        console.warn("[REST DISPATCH]", err);
     }
 }
 
-// Order Management Actions
+// Public action bindings
 function offerMockOrder(platform = "swiggy") {
     sendCommand({ action: "offer_order", platform: platform });
 }
@@ -374,7 +403,6 @@ function completeDelivery() {
     sendCommand({ action: "complete_delivery" });
 }
 
-// Emergency & Alert Triggers
 function triggerSos() {
     sendCommand({ action: "trigger_sos" });
 }
@@ -392,7 +420,6 @@ function toggleDashcam() {
     if (pip) pip.style.display = pip.style.display === "none" ? "block" : "none";
 }
 
-// Destination Modal
 function openDestinationModal() {
     const el = document.getElementById("destModal");
     if (el) el.style.display = "flex";
@@ -419,11 +446,11 @@ function applyCustomDestination() {
         sendCommand({ action: "import_destination", name: name, lat: lat, lng: lng });
         closeDestinationModal();
     } else {
-        alert("Please enter valid Latitude and Longitude values.");
+        alert("Please enter valid coordinates.");
     }
 }
 
-// Global Keyboard Hotkeys
+// Global Keyboard Shortcuts
 document.addEventListener("keydown", (e) => {
     const key = e.key.toUpperCase();
     if (key === "O") offerMockOrder("swiggy");

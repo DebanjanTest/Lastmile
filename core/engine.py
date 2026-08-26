@@ -1,7 +1,6 @@
 """
 LastMile Guard Core Engine
 Coordinates HAL, Navigation, Traffic, Dashcam, Order Lifecycle, and UI Telemetry Streams.
-Thread-safe and concurrency-safe broadcasting.
 """
 
 import asyncio
@@ -105,8 +104,7 @@ class LastMileEngine:
 
     # Order Lifecycle Callbacks
     def offer_mock_order(self, platform: str = "swiggy") -> DeliveryOrder:
-        loc = self.navigation.current_lat, self.navigation.current_lng
-        # Offset restaurant ~1.2km and customer ~3.2km away in current city
+        loc = (self.navigation.current_lat, self.navigation.current_lng)
         rest_lat = loc[0] + 0.0070
         rest_lng = loc[1] + 0.0065
         cust_lat = loc[0] + 0.0160
@@ -145,7 +143,6 @@ class LastMileEngine:
         health = self.sentinel.check_health()
         brightness = self.hal.sensors.get_brightness()
 
-        # Modulate speed according to traffic condition
         if hasattr(self.hal.gps, "set_traffic_factor"):
             factor = self.navigation.get_current_traffic_speed_factor()
             self.hal.gps.set_traffic_factor(factor)
@@ -194,4 +191,4 @@ class LastMileEngine:
     async def _telemetry_broadcast_loop(self) -> None:
         while self._running:
             await self.broadcast_snapshot()
-            await asyncio.sleep(0.25)  # Smooth 4 Hz update rate
+            await asyncio.sleep(0.2)
