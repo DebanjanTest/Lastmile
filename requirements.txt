@@ -1,0 +1,13 @@
+# Core Web & API Engine (Ponytail Lean UI)
+fastapi>=0.104.0
+uvicorn>=0.23.0
+websockets>=12.0
+requests>=2.31.0
+
+# Telemetry & Hardware Parsing
+pynmea2>=1.19.0
+pyserial>=3.5
+psutil>=5.9.0
+
+# Video Simulation & Processing (Headless)
+opencv-python-headless>=4.8.0

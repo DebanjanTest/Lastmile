@@ -1,0 +1,40 @@
+{
+  "app_name": "LastMile Guard",
+  "version": "1.0.0",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000
+  },
+  "simulation": {
+    "force_simulation": false,
+    "playback_speed_multiplier": 1.0
+  },
+  "hardware": {
+    "gps_port_linux": "/dev/ttyAMA0",
+    "gps_port_windows": "COM3",
+    "gps_baudrate": 9600,
+    "sos_gpio_pin": 17,
+    "tilt_gpio_pin": 27,
+    "buzzer_gpio_pin": 22,
+    "brightness_pwm_pin": 18
+  },
+  "dashcam": {
+    "buffer_seconds": 60,
+    "post_incident_record_seconds": 30,
+    "fps": 30,
+    "resolution_width": 1280,
+    "resolution_height": 720,
+    "storage_path": "evidence/incidents",
+    "use_ram_buffer": true
+  },
+  "navigation": {
+    "default_city": "Kolkata Delivery Corridor",
+    "speed_kmh": 38.5,
+    "update_interval_ms": 500
+  },
+  "system_monitor": {
+    "thermal_warning_celsius": 70.0,
+    "thermal_critical_celsius": 80.0,
+    "check_interval_seconds": 2.0
+  }
+}

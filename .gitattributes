@@ -1,0 +1,11 @@
+# Enforce LF line endings for all text files (ensures shell scripts run cleanly on Ubuntu/Pi)
+* text=auto eol=lf
+
+# Explicit binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.mp4 binary
+*.h264 binary
+*.db binary
+*.sqlite3 binary

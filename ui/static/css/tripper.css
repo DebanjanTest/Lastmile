@@ -1,0 +1,393 @@
+/* LastMile Guard - High-Contrast Tripper Navigation & HUD Stylesheet */
+
+:root {
+    --bg-color: #07090E;
+    --card-bg: rgba(18, 24, 38, 0.9);
+    --border-color: rgba(0, 229, 255, 0.25);
+    --accent-cyan: #00E5FF;
+    --accent-orange: #FF9100;
+    --accent-green: #00E676;
+    --accent-red: #FF1744;
+    --text-main: #FFFFFF;
+    --text-muted: #90A4AE;
+    --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+}
+
+body {
+    background-color: #000000;
+    color: var(--text-main);
+    font-family: var(--font-stack);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+/* 800x480 Base Aspect Ratio Box - Centered & Scalable */
+.hud-container {
+    width: 800px;
+    height: 480px;
+    background: radial-gradient(circle at center, #0E1626 0%, #060911 100%);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: 0 0 40px rgba(0, 229, 255, 0.15);
+    overflow: hidden;
+}
+
+/* TOP STATUS BAR */
+.hud-header {
+    height: 48px;
+    background: rgba(10, 16, 28, 0.85);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.header-left, .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.hud-time {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+}
+
+.hud-badge {
+    background: rgba(255, 23, 68, 0.2);
+    color: var(--accent-red);
+    border: 1px solid var(--accent-red);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    animation: pulse-red 2s infinite;
+}
+
+.brand-title {
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #CFD8DC;
+}
+
+.mode-tag {
+    background: rgba(0, 229, 255, 0.15);
+    color: var(--accent-cyan);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+}
+
+.stat-item {
+    color: var(--text-muted);
+}
+
+/* MAIN STAGE */
+.hud-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 10px 24px;
+    position: relative;
+    gap: 24px;
+}
+
+/* LEFT: TRIPPER ROTATING GAUGE */
+.tripper-gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 220px;
+}
+
+.gauge-ring {
+    width: 170px;
+    height: 170px;
+    border-radius: 50%;
+    border: 3px solid rgba(0, 229, 255, 0.3);
+    background: radial-gradient(circle, rgba(0, 229, 255, 0.08) 0%, rgba(0, 0, 0, 0.4) 80%);
+    box-shadow: inset 0 0 20px rgba(0, 229, 255, 0.2), 0 0 15px rgba(0, 229, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.maneuver-icon {
+    width: 100px;
+    height: 100px;
+    filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.8));
+    transition: transform 0.3s ease;
+}
+
+.distance-to-turn {
+    margin-top: 10px;
+    font-weight: 800;
+    color: #FFFFFF;
+}
+
+.dist-val {
+    font-size: 34px;
+    color: var(--accent-cyan);
+    letter-spacing: -1px;
+}
+
+.dist-unit {
+    font-size: 18px;
+    color: var(--text-muted);
+    margin-left: 2px;
+}
+
+/* RIGHT: NAVIGATION INSTRUCTIONS & SPEED */
+.nav-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    height: 100%;
+}
+
+.instruction-box {
+    background: var(--card-bg);
+    border-left: 4px solid var(--accent-cyan);
+    padding: 12px 18px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.action-label {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--accent-cyan);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.road-name {
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.speed-cluster {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.speed-value {
+    font-size: 58px;
+    font-weight: 900;
+    color: #FFFFFF;
+    line-height: 1;
+    letter-spacing: -2px;
+}
+
+.speed-unit {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent-orange);
+}
+
+.bearing-badge {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-left: auto;
+}
+
+/* DASHCAM PIP */
+.dashcam-pip {
+    position: absolute;
+    right: 24px;
+    top: 15px;
+    width: 240px;
+    height: 140px;
+    border: 2px solid var(--accent-cyan);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+    z-index: 50;
+}
+
+.pip-header {
+    background: rgba(0, 0, 0, 0.8);
+    font-size: 9px;
+    padding: 3px 6px;
+    color: var(--accent-green);
+    font-weight: 700;
+}
+
+.dashcam-pip img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+}
+
+/* BOTTOM FOOTER & ALERTS */
+.hud-footer {
+    height: 64px;
+    background: rgba(10, 16, 28, 0.95);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+}
+
+.footer-left, .footer-right {
+    display: flex;
+    flex-direction: column;
+}
+
+.footer-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.8px;
+}
+
+.footer-val {
+    font-size: 17px;
+    font-weight: 800;
+    color: #ECEFF1;
+}
+
+.delivery-banner {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 6px 14px;
+    border-radius: 20px;
+    gap: 10px;
+    max-width: 380px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.delivery-pill {
+    background: #FC8019;
+    color: #FFF;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.delivery-text {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* EMERGENCY OVERLAY */
+.emergency-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(180, 0, 0, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    animation: strobe-bg 0.8s infinite alternate;
+}
+
+.emergency-card {
+    text-align: center;
+    background: #000000;
+    padding: 24px 36px;
+    border-radius: 16px;
+    border: 3px solid #FFF;
+    box-shadow: 0 0 50px #FF0000;
+}
+
+.emergency-icon { font-size: 48px; }
+.emergency-title { font-size: 26px; font-weight: 900; color: #FF1744; margin-top: 6px; }
+.emergency-sub { font-size: 14px; color: #CFD8DC; margin-top: 6px; }
+.emergency-gps { font-size: 13px; color: #FFD54F; margin-top: 10px; font-family: monospace; }
+.btn-reset {
+    margin-top: 16px;
+    background: #FF1744;
+    color: #FFF;
+    border: none;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 800;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+/* TEST TOOLBAR */
+.test-toolbar {
+    position: fixed;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 14px;
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    z-index: 200;
+}
+
+.tb-title { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.tb-btn {
+    border: none;
+    padding: 5px 10px;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #FFF;
+}
+.btn-danger { background: #E53935; }
+.btn-warning { background: #FB8C00; }
+.btn-swiggy { background: #FC8019; }
+.btn-zomato { background: #E23744; }
+.btn-call { background: #43A047; }
+.btn-cam { background: #00897B; }
+.btn-bright { background: #546E7A; }
+.tb-note { font-size: 10px; color: #78909C; margin-left: 6px; }
+
+/* ANIMATIONS */
+@keyframes pulse-red {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+@keyframes strobe-bg {
+    0% { background: rgba(180, 0, 0, 0.92); }
+    100% { background: rgba(80, 0, 0, 0.96); }
+}

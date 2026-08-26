@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LastMile Guard - Tripper Navigation & Dashcam HUD</title>
+    <link rel="stylesheet" href="/static/css/tripper.css">
+</head>
+<body class="theme-night">
+    <div class="hud-container" id="hudContainer">
+        <!-- TOP TELEMETRY BAR -->
+        <header class="hud-header">
+            <div class="header-left">
+                <span class="hud-time" id="hudClock">12:00:00</span>
+                <span class="hud-badge" id="recBadge">● REC (RAM)</span>
+            </div>
+            <div class="header-center">
+                <span class="brand-title">LASTMILE GUARD</span>
+                <span class="mode-tag" id="modeTag">PI 5 HYBRID</span>
+            </div>
+            <div class="header-right">
+                <span class="stat-item" id="tempStat">⚡ 45.0°C</span>
+                <span class="stat-item" id="voltStat">🔋 5.1V OK</span>
+                <span class="stat-item" id="gpsStat">🛰️ GPS: FIXED</span>
+            </div>
+        </header>
+
+        <!-- MAIN TRIPPER STAGE -->
+        <main class="hud-main">
+            <!-- LEFT: TURN-BY-TURN VECTOR ARROW -->
+            <div class="tripper-gauge">
+                <div class="gauge-ring">
+                    <svg class="maneuver-icon" id="maneuverSvg" viewBox="0 0 100 100">
+                        <!-- Default Straight Arrow -->
+                        <path id="arrowPath" d="M50 15 L75 45 L58 45 L58 85 L42 85 L42 45 L25 45 Z" fill="#00E5FF"/>
+                    </svg>
+                </div>
+                <div class="distance-to-turn">
+                    <span class="dist-val" id="distToTurn">150</span>
+                    <span class="dist-unit">m</span>
+                </div>
+            </div>
+
+            <!-- CENTER/RIGHT: NAVIGATION DIRECTIONS & SPEED -->
+            <div class="nav-details">
+                <div class="instruction-box">
+                    <div class="action-label" id="actionLabel">TURN RIGHT</div>
+                    <div class="road-name" id="roadName">Mahatma Gandhi Road</div>
+                </div>
+
+                <div class="speed-cluster">
+                    <div class="speed-value" id="speedVal">38.5</div>
+                    <div class="speed-unit">KM / H</div>
+                    <div class="bearing-badge" id="bearingVal">NE (45°)</div>
+                </div>
+            </div>
+
+            <!-- DASHCAM PIP (PICTURE IN PICTURE) -->
+            <div class="dashcam-pip" id="dashcamPip" style="display: none;">
+                <div class="pip-header">WITNESS DASHCAM [LIVE]</div>
+                <img id="dashcamFeed" src="/api/camera/stream" alt="Dashcam Stream">
+            </div>
+        </main>
+
+        <!-- BOTTOM STATUS & ETA BAR -->
+        <footer class="hud-footer">
+            <div class="footer-left">
+                <span class="footer-label">REMAINING</span>
+                <span class="footer-val" id="remainingDist">2.8 km</span>
+            </div>
+            <div class="footer-center" id="deliveryBannerContainer">
+                <div class="delivery-banner" id="deliveryBanner">
+                    <span class="delivery-pill" id="deliveryPill">SWIGGY</span>
+                    <span class="delivery-text" id="deliveryText">Ready for delivery alerts...</span>
+                </div>
+            </div>
+            <div class="footer-right">
+                <span class="footer-label">ESTIMATED ARRIVAL</span>
+                <span class="footer-val" id="etaVal">12:54 PM (4 min)</span>
+            </div>
+        </footer>
+
+        <!-- EMERGENCY CRASH / SOS OVERLAY -->
+        <div class="emergency-overlay" id="emergencyOverlay" style="display: none;">
+            <div class="emergency-card">
+                <div class="emergency-icon">🚨</div>
+                <div class="emergency-title" id="emergencyTitle">EMERGENCY SOS ACTIVE</div>
+                <div class="emergency-sub" id="emergencySub">Video Evidence Locked to /evidence/incidents/</div>
+                <div class="emergency-gps" id="emergencyGps">GPS: 22.572645, 88.363892 | Speed: 38 km/h</div>
+                <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME</button>
+            </div>
+        </div>
+
+        <!-- DEVELOPER & HDMI TEST TOOLBAR -->
+        <div class="test-toolbar" id="testToolbar">
+            <span class="tb-title">TEST CONTROLS:</span>
+            <button class="tb-btn btn-danger" onclick="triggerSos()">🚨 SOS [S]</button>
+            <button class="tb-btn btn-warning" onclick="triggerTilt()">💥 Crash/Tilt [T]</button>
+            <button class="tb-btn btn-swiggy" onclick="injectOrder('swiggy')">🍔 Swiggy [O]</button>
+            <button class="tb-btn btn-zomato" onclick="injectOrder('zomato')">🍕 Zomato [Z]</button>
+            <button class="tb-btn btn-call" onclick="injectOrder('call')">📞 Call [C]</button>
+            <button class="tb-btn btn-cam" onclick="toggleDashcam()">📷 Dashcam [D]</button>
+            <button class="tb-btn btn-bright" onclick="adjustBrightness(10)">💡 +10%</button>
+            <button class="tb-btn btn-bright" onclick="adjustBrightness(-10)">💡 -10%</button>
+            <span class="tb-note">Hotkeys active on HDMI Keyboard</span>
+        </div>
+    </div>
+
+    <script src="/static/js/tripper.js"></script>
+</body>
+</html>
