@@ -1,6 +1,6 @@
 // ==============================================================================
-// LastMile Guard - Google Maps Navigation HUD Client (Ponytail Engine)
-// Supports Leaflet.js (zero API key) and Google Maps JavaScript API seamlessly
+// LastMile Guard - Google Maps Navigation, Traffic & Order Workflow Client
+// Features multi-colored traffic polyline segments & 2-stage delivery lifecycle
 // ==============================================================================
 
 let ws = null;
@@ -11,7 +11,7 @@ let currentBrightness = 85;
 let mapInstance = null;
 let riderMarker = null;
 let destMarker = null;
-let routePolyline = null;
+let trafficPolylines = [];
 let isMapInitialized = false;
 
 // Maneuver SVG Icons (Google Maps Navigation Style)
@@ -43,7 +43,7 @@ function initMap(initialLat = 22.5726, initialLng = 88.3639) {
             subdomains: 'abcd'
         }).addTo(mapInstance);
 
-        // Custom Rider Vehicle Navigation Puck (Glowing Blue Arrow)
+        // Custom Rider Navigation Puck (Vehicle Chevron)
         const riderIcon = L.divIcon({
             className: 'rider-puck-container',
             html: `<div id="riderPuck" style="width:36px;height:36px;background:#1A73E8;border:3px solid #FFF;border-radius:50%;box-shadow:0 0 16px #1A73E8;display:flex;align-items:center;justify-content:center;transform:rotate(45deg);"><svg width="20" height="20" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,18 2,22" fill="#FFF"/></svg></div>`,
@@ -53,26 +53,16 @@ function initMap(initialLat = 22.5726, initialLng = 88.3639) {
 
         riderMarker = L.marker([initialLat, initialLng], { icon: riderIcon }).addTo(mapInstance);
 
-        // Custom Red Destination Pin
+        // Custom Destination Pin
         const destIcon = L.divIcon({
             className: 'dest-pin-container',
-            html: `<div style="font-size:32px;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.6));">🏁</div>`,
+            html: `<div id="destPinIcon" style="font-size:32px;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.6));">🏁</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 30]
         });
 
         destMarker = L.marker([22.5855, 88.4168], { icon: destIcon }).addTo(mapInstance);
-
-        // Glowing Blue Navigation Polyline
-        routePolyline = L.polyline([], {
-            color: '#1A73E8',
-            weight: 7,
-            opacity: 0.9,
-            lineJoin: 'round'
-        }).addTo(mapInstance);
-
         isMapInitialized = true;
-        console.log("[MAP] Road Navigation map initialized successfully.");
     } catch (e) {
         console.error("[MAP ERROR]", e);
     }
@@ -103,14 +93,17 @@ function initWebSocket() {
 }
 
 function updateHUD(data) {
-    // 1. Hardware & System Health
+    // 1. Hardware & Earnings Telemetry
     if (data.health) {
         document.getElementById("tempBadge").textContent = `⚡ ${data.health.cpu_temp_c}°C`;
         const voltEl = document.getElementById("voltBadge");
         voltEl.textContent = `🔋 ${data.health.voltage_status === 'OK' ? '5.1V' : data.health.voltage_status}`;
     }
+    if (data.earnings_today_inr !== undefined) {
+        document.getElementById("earningsBadge").textContent = `💰 ₹${data.earnings_today_inr.toFixed(0)}`;
+    }
 
-    // 2. GPS Telemetry & Speed
+    // 2. GPS Telemetry & Kinematics
     if (data.gps) {
         const gps = data.gps;
         document.getElementById("gpsBadge").textContent = gps.is_fixed ? `🛰️ ${gps.satellites} SATS` : `🛰️ ACQUIRING...`;
@@ -120,10 +113,9 @@ function updateHUD(data) {
             initMap(gps.latitude, gps.longitude);
         }
 
-        // Smoothly pan map and rotate rider puck
         if (mapInstance && riderMarker) {
             riderMarker.setLatLng([gps.latitude, gps.longitude]);
-            mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.4 });
+            mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.3 });
             
             const puckEl = document.getElementById("riderPuck");
             if (puckEl) {
@@ -132,12 +124,25 @@ function updateHUD(data) {
         }
     }
 
-    // 3. Google Maps Navigation Maneuver & Polyline
+    // 3. Google Maps Navigation Maneuver & Multi-Colored Traffic Polyline
     if (data.navigation) {
         const nav = data.navigation;
         document.getElementById("turnDistNum").textContent = nav.distance_to_turn_m;
         document.getElementById("turnRoadName").textContent = nav.road_name;
         document.getElementById("turnNextPreview").textContent = `Then: ${nav.next_instruction}`;
+
+        // Traffic condition badge on turn card
+        const trafficBadge = document.getElementById("trafficConditionBadge");
+        if (nav.current_traffic_status === "HEAVY_JAM") {
+            trafficBadge.textContent = "🔴 Heavy Traffic Jam";
+            trafficBadge.style.backgroundColor = "#FF1744";
+        } else if (nav.current_traffic_status === "MODERATE") {
+            trafficBadge.textContent = "🟠 Moderate Traffic";
+            trafficBadge.style.backgroundColor = "#FF9100";
+        } else {
+            trafficBadge.textContent = "🟢 Normal Flow";
+            trafficBadge.style.backgroundColor = "#00E676";
+        }
 
         // Update SVG icon
         const pathData = SVG_ICONS[nav.maneuver_type] || SVG_ICONS.STRAIGHT;
@@ -148,32 +153,31 @@ function updateHUD(data) {
         document.getElementById("tripDistVal").textContent = `${nav.remaining_total_dist_km} km`;
         document.getElementById("destName").textContent = nav.destination_name;
 
-        // Calculate arrival clock time
+        // Traffic delay indicator text
+        const delayEl = document.getElementById("trafficDelayText");
+        if (nav.traffic_delay_minutes > 0) {
+            delayEl.textContent = `+${nav.traffic_delay_minutes} min delay`;
+            delayEl.style.color = "#FF1744";
+        } else {
+            delayEl.textContent = "Fastest route";
+            delayEl.style.color = "#00E676";
+        }
+
         const arrival = new Date(Date.now() + nav.eta_minutes * 60000);
         document.getElementById("tripEtaVal").textContent = arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-        // Update Polyline & Destination Pin on Map
-        if (mapInstance && nav.route_polyline && routePolyline) {
-            routePolyline.setLatLngs(nav.route_polyline);
+        // Multi-colored traffic polyline rendering
+        if (mapInstance && nav.route_polyline && nav.traffic_segments) {
+            renderTrafficPolyline(nav.route_polyline, nav.traffic_segments);
         }
+
         if (destMarker && nav.destination_coords) {
             destMarker.setLatLng([nav.destination_coords.lat, nav.destination_coords.lng]);
         }
     }
 
-    // 4. Delivery Notification Card
-    const delCard = document.getElementById("deliveryCard");
-    if (data.active_alert) {
-        delCard.style.display = "flex";
-        const tag = document.getElementById("deliveryTag");
-        tag.textContent = data.active_alert.source.toUpperCase();
-        tag.style.backgroundColor = data.active_alert.badge_color;
-        document.getElementById("deliveryTitle").textContent = data.active_alert.title;
-        document.getElementById("deliveryDesc").textContent = data.active_alert.body;
-        delCard.style.borderLeftColor = data.active_alert.badge_color;
-    } else {
-        delCard.style.display = "none";
-    }
+    // 4. Order Lifecycle & Multi-Stop Workflow UI
+    updateOrderWorkflowUI(data.order);
 
     // 5. Emergency SOS Overlay
     const emerg = document.getElementById("emergencyOverlay");
@@ -188,10 +192,107 @@ function updateHUD(data) {
     }
 }
 
+function renderTrafficPolyline(polyline, trafficSegments) {
+    // Remove old polyline layers
+    trafficPolylines.forEach(p => mapInstance.removeLayer(p));
+    trafficPolylines = [];
+
+    if (!trafficSegments || trafficSegments.length === 0) {
+        const poly = L.polyline(polyline, { color: '#1A73E8', weight: 7, opacity: 0.9 }).addTo(mapInstance);
+        trafficPolylines.push(poly);
+        return;
+    }
+
+    // Render each traffic segment with its designated color
+    trafficSegments.forEach(seg => {
+        const pts = polyline.slice(seg.start_idx, seg.end_idx + 1);
+        if (pts.length >= 2) {
+            const line = L.polyline(pts, {
+                color: seg.color,
+                weight: 7,
+                opacity: 0.92,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(mapInstance);
+            trafficPolylines.push(line);
+        }
+    });
+}
+
+function updateOrderWorkflowUI(order) {
+    const offerModal = document.getElementById("orderOfferModal");
+    const stageBanner = document.getElementById("orderStageBanner");
+    const stageBadge = document.getElementById("stageBadge");
+    const stageTitle = document.getElementById("stageTitle");
+    const stageActions = document.getElementById("stageActions");
+    const destHeader = document.getElementById("destHeaderLabel");
+
+    if (!order) {
+        offerModal.style.display = "none";
+        stageBanner.style.display = "none";
+        destHeader.textContent = "TARGET DESTINATION:";
+        return;
+    }
+
+    if (order.state === "OFFERED") {
+        offerModal.style.display = "flex";
+        stageBanner.style.display = "none";
+        document.getElementById("offerPlatformTag").textContent = `${order.platform.toUpperCase()} NEW ORDER`;
+        document.getElementById("offerPlatformTag").style.backgroundColor = order.platform === "zomato" ? "#E23744" : "#FC8019";
+        document.getElementById("offerPayout").textContent = `₹${order.payout_inr.toFixed(2)}`;
+        document.getElementById("offerRestName").textContent = order.restaurant_name;
+        document.getElementById("offerRestAddr").textContent = order.restaurant_address;
+        document.getElementById("offerCustName").textContent = order.customer_name;
+        document.getElementById("offerCustAddr").textContent = order.customer_address;
+        document.getElementById("offerItems").textContent = `📦 ${order.items}`;
+    } else if (order.state === "NAV_TO_RESTAURANT") {
+        offerModal.style.display = "none";
+        stageBanner.style.display = "flex";
+        stageBadge.textContent = "🛵 STEP 1: EN ROUTE TO RESTAURANT";
+        stageBadge.style.color = "#FF9100";
+        stageTitle.textContent = `${order.restaurant_name} (Pickup #${order.order_id})`;
+        stageActions.innerHTML = `<button class="stage-action-btn" onclick="confirmPickup()" style="background:#00B0FF;">🍴 Food Picked Up [K]</button>`;
+        destHeader.textContent = "RESTAURANT PICKUP:";
+    } else if (order.state === "NAV_TO_CUSTOMER") {
+        offerModal.style.display = "none";
+        stageBanner.style.display = "flex";
+        stageBadge.textContent = "📦 STEP 2: EN ROUTE TO CUSTOMER";
+        stageBadge.style.color = "#00E676";
+        stageTitle.textContent = `${order.customer_name} - ${order.customer_address}`;
+        stageActions.innerHTML = `<button class="stage-action-btn" onclick="completeDelivery()" style="background:#7C4DFF;">✅ Complete Delivery [U]</button>`;
+        destHeader.textContent = "CUSTOMER DROP:";
+    } else {
+        offerModal.style.display = "none";
+        stageBanner.style.display = "none";
+        destHeader.textContent = "TARGET DESTINATION:";
+    }
+}
+
 function sendCommand(cmdObj) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(cmdObj));
     }
+}
+
+// Order Management Commands
+function offerMockOrder(platform = "swiggy") {
+    sendCommand({ action: "offer_order", platform: platform });
+}
+
+function acceptOrder() {
+    sendCommand({ action: "accept_order" });
+}
+
+function declineOrder() {
+    sendCommand({ action: "decline_order" });
+}
+
+function confirmPickup() {
+    sendCommand({ action: "confirm_pickup" });
+}
+
+function completeDelivery() {
+    sendCommand({ action: "complete_delivery" });
 }
 
 // Emergency & Alert Triggers
@@ -205,14 +306,6 @@ function triggerTilt() {
 
 function resetEmergency() {
     sendCommand({ action: "reset_emergency" });
-}
-
-function injectOrder(source) {
-    sendCommand({ action: "mock_order", source: source });
-}
-
-function clearDeliveryAlert() {
-    sendCommand({ action: "clear_alert" });
 }
 
 function toggleDashcam() {
@@ -252,21 +345,21 @@ function applyCustomDestination() {
     }
 }
 
-// Global Keyboard Hotkeys for Testing on Pi 5 / Windows
+// Global Keyboard Hotkeys
 document.addEventListener("keydown", (e) => {
     const key = e.key.toUpperCase();
-    if (key === "S") triggerSos();
+    if (key === "O") offerMockOrder("swiggy");
+    else if (key === "A") acceptOrder();
+    else if (key === "K") confirmPickup();
+    else if (key === "U") completeDelivery();
+    else if (key === "S") triggerSos();
     else if (key === "T") triggerTilt();
-    else if (key === "O") injectOrder("swiggy");
-    else if (key === "Z") injectOrder("zomato");
-    else if (key === "C") injectOrder("call");
     else if (key === "D") toggleDashcam();
-    else if (key === "1") adjustBrightness(10);
-    else if (key === "2") adjustBrightness(-10);
     else if (key === "P") openDestinationModal();
     else if (key === "ESCAPE") {
         resetEmergency();
         closeDestinationModal();
+        declineOrder();
     }
 });
 

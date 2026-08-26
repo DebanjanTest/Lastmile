@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LastMile Guard - Google Maps Navigation & Dashcam HUD</title>
-    <!-- Leaflet CSS for offline/zero-API-key vector road maps -->
+    <title>LastMile Guard - Google Maps Navigation & Order Workflow HUD</title>
+    <!-- Leaflet CSS for high-contrast vector road & traffic maps -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <link rel="stylesheet" href="/static/css/tripper.css">
     
@@ -15,7 +15,7 @@
 </head>
 <body class="gmaps-theme">
     <div class="gmaps-app-container" id="appContainer">
-        <!-- FULLSCREEN ROAD MAP CANVAS -->
+        <!-- FULLSCREEN ROAD & TRAFFIC MAP CANVAS -->
         <div id="mapView" class="map-view"></div>
 
         <!-- TOP: GOOGLE MAPS NAVIGATION TURN CARD -->
@@ -30,15 +30,16 @@
                     <div class="turn-dist-row">
                         <span class="turn-dist-num" id="turnDistNum">150</span>
                         <span class="turn-dist-unit" id="turnDistUnit">m</span>
+                        <span class="traffic-condition-badge" id="trafficConditionBadge">🟢 Normal Flow</span>
                     </div>
                     <div class="turn-road-name" id="turnRoadName">Mahatma Gandhi Road</div>
                     <div class="turn-next-preview" id="turnNextPreview">Then bear left onto Beliaghata Main Rd</div>
                 </div>
             </div>
 
-            <!-- HARDWARE TELEMETRY BADGES (PI 5 SoC) -->
+            <!-- HARDWARE & EARNINGS TELEMETRY PILL -->
             <div class="gmaps-telemetry-pill">
-                <span class="tele-item" id="recBadge">● REC (RAM)</span>
+                <span class="tele-item" id="earningsBadge">💰 ₹450</span>
                 <span class="tele-item" id="tempBadge">⚡ 45.0°C</span>
                 <span class="tele-item" id="voltBadge">🔋 5.1V</span>
                 <span class="tele-item" id="gpsBadge">🛰️ 10 SATS</span>
@@ -51,17 +52,49 @@
             <span class="speed-label">km/h</span>
         </div>
 
-        <!-- FLOATING DELIVERY ALERT NOTIFICATION -->
-        <div class="gmaps-delivery-card" id="deliveryCard">
-            <div class="delivery-brand-tag" id="deliveryTag">SWIGGY</div>
-            <div class="delivery-info">
-                <div class="delivery-title" id="deliveryTitle">Order Pickup #4092</div>
-                <div class="delivery-desc" id="deliveryDesc">Wow! Momo - Central Ave (1.2 km away)</div>
+        <!-- ACTIVE ORDER STAGE TRACKER BANNER -->
+        <div class="order-stage-banner" id="orderStageBanner" style="display: none;">
+            <div class="stage-info">
+                <span class="stage-badge" id="stageBadge">🛵 EN ROUTE TO RESTAURANT</span>
+                <span class="stage-title" id="stageTitle">Wow! Momo Express (Pickup #892)</span>
             </div>
-            <button class="delivery-dismiss-btn" onclick="clearDeliveryAlert()">✕</button>
+            <div class="stage-actions" id="stageActions">
+                <!-- Action button dynamically injected (Pickup / Deliver) -->
+            </div>
         </div>
 
-        <!-- FLOATING DASHCAM PIP (PICTURE-IN-PICTURE) -->
+        <!-- INCOMING ORDER OFFER OVERLAY MODAL -->
+        <div class="order-offer-modal" id="orderOfferModal" style="display: none;">
+            <div class="offer-card">
+                <div class="offer-header">
+                    <span class="offer-platform-tag" id="offerPlatformTag">SWIGGY NEW ORDER</span>
+                    <span class="offer-payout" id="offerPayout">₹85.00</span>
+                </div>
+                <div class="offer-body">
+                    <div class="offer-spot">
+                        <span class="spot-icon">🍴</span>
+                        <div class="spot-details">
+                            <strong id="offerRestName">Wow! Momo Express</strong>
+                            <small id="offerRestAddr">Central Avenue Food Hub (1.2 km away)</small>
+                        </div>
+                    </div>
+                    <div class="offer-spot">
+                        <span class="spot-icon">🏠</span>
+                        <div class="spot-details">
+                            <strong id="offerCustName">Debanjan M.</strong>
+                            <small id="offerCustAddr">Sector V, Salt Lake (2.4 km drop)</small>
+                        </div>
+                    </div>
+                    <div class="offer-items" id="offerItems">📦 2x Momo Platters, 1x Cold Drink</div>
+                </div>
+                <div class="offer-actions">
+                    <button class="btn-decline-order" onclick="declineOrder()">✕ Decline</button>
+                    <button class="btn-accept-order" onclick="acceptOrder()">✅ ACCEPT ORDER [A]</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- FLOATING DASHCAM PIP -->
         <div class="gmaps-dashcam-pip" id="dashcamPip" style="display: none;">
             <div class="dashcam-pip-bar">
                 <span>WITNESS DASHCAM [LIVE]</span>
@@ -73,7 +106,10 @@
         <!-- BOTTOM: GOOGLE MAPS TRIP SUMMARY CARD -->
         <div class="gmaps-bottom-card">
             <div class="trip-time-box">
-                <span class="trip-time-val" id="tripTimeVal">4 min</span>
+                <div class="trip-time-row">
+                    <span class="trip-time-val" id="tripTimeVal">4 min</span>
+                    <span class="traffic-delay-text" id="trafficDelayText">Fastest route</span>
+                </div>
                 <div class="trip-sub-row">
                     <span class="trip-dist-val" id="tripDistVal">2.8 km</span>
                     <span class="trip-dot">•</span>
@@ -82,12 +118,12 @@
             </div>
 
             <div class="destination-preview-box">
-                <span class="dest-label">DESTINATION:</span>
+                <span class="dest-label" id="destHeaderLabel">TARGET DESTINATION:</span>
                 <span class="dest-name" id="destName">Salt Lake Sector V Delivery Drop</span>
             </div>
 
             <div class="trip-actions">
-                <button class="btn-import-dest" onclick="openDestinationModal()" title="Change Destination">📍 Plan Route</button>
+                <button class="btn-import-dest" onclick="openDestinationModal()" title="Change Destination">📍 Route</button>
                 <button class="btn-end-route" onclick="triggerSos()" title="Emergency SOS">🚨 SOS</button>
             </div>
         </div>
@@ -100,7 +136,7 @@
                     <button class="modal-close" onclick="closeDestinationModal()">✕</button>
                 </div>
                 <div class="modal-body">
-                    <p class="modal-desc">Select a preset delivery corridor or enter custom GPS coordinates:</p>
+                    <p class="modal-desc">Select a preset delivery corridor or enter custom coordinates:</p>
                     <div class="preset-destinations">
                         <button class="preset-btn" onclick="selectPreset('Salt Lake Sector V', 22.585500, 88.416800)">🏢 Sector V Tech Hub</button>
                         <button class="preset-btn" onclick="selectPreset('Park Street Food Hub', 22.551000, 88.353000)">🍕 Park Street Restaurant Hub</button>
@@ -132,15 +168,14 @@
 
         <!-- DEVELOPER & HDMI TEST TOOLBAR -->
         <div class="test-toolbar" id="testToolbar">
-            <span class="tb-title">QUICK TEST:</span>
+            <span class="tb-title">TEST CONTROLS:</span>
+            <button class="tb-btn btn-swiggy" onclick="offerMockOrder('swiggy')">🍔 New Order [O]</button>
+            <button class="tb-btn btn-accept" onclick="acceptOrder()">✅ Accept [A]</button>
+            <button class="tb-btn btn-pickup" onclick="confirmPickup()">🍴 Pickup [K]</button>
+            <button class="tb-btn btn-deliver" onclick="completeDelivery()">📦 Deliver [U]</button>
             <button class="tb-btn btn-danger" onclick="triggerSos()">🚨 SOS [S]</button>
             <button class="tb-btn btn-warning" onclick="triggerTilt()">💥 Crash [T]</button>
-            <button class="tb-btn btn-swiggy" onclick="injectOrder('swiggy')">🍔 Swiggy [O]</button>
-            <button class="tb-btn btn-zomato" onclick="injectOrder('zomato')">🍕 Zomato [Z]</button>
-            <button class="tb-btn btn-call" onclick="injectOrder('call')">📞 Call [C]</button>
             <button class="tb-btn btn-cam" onclick="toggleDashcam()">📷 Cam [D]</button>
-            <button class="tb-btn btn-bright" onclick="adjustBrightness(10)">💡 +10%</button>
-            <button class="tb-btn btn-bright" onclick="adjustBrightness(-10)">💡 -10%</button>
         </div>
     </div>
 

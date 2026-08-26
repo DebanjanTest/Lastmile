@@ -1,5 +1,5 @@
 /* ==============================================================================
-   LastMile Guard - Google Maps Automotive Navigation HUD Theme
+   LastMile Guard - Google Maps Navigation & Order Workflow HUD Theme
    Optimized for 5-Inch Displays (800x480) and HDMI Monitors
    ============================================================================== */
 
@@ -15,6 +15,9 @@
     --text-secondary: #BDC1C6;
     --accent-orange: #FC8019;
     --accent-red: #EA4335;
+    --traffic-green: #00E676;
+    --traffic-orange: #FF9100;
+    --traffic-red: #FF1744;
     --font-stack: -apple-system, BlinkMacSystemFont, "Google Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -59,7 +62,6 @@ body.gmaps-theme {
     background: #19212C;
 }
 
-/* LEAFLET DARK MAP TILE STYLING */
 .leaflet-container {
     background-color: #19212C !important;
 }
@@ -86,8 +88,8 @@ body.gmaps-theme {
     align-items: center;
     padding: 10px 16px;
     gap: 14px;
-    min-width: 420px;
-    max-width: 520px;
+    min-width: 440px;
+    max-width: 530px;
 }
 
 .turn-icon-box {
@@ -113,8 +115,8 @@ body.gmaps-theme {
 
 .turn-dist-row {
     display: flex;
-    align-items: baseline;
-    gap: 2px;
+    align-items: center;
+    gap: 6px;
     line-height: 1;
 }
 
@@ -129,7 +131,17 @@ body.gmaps-theme {
     font-size: 16px;
     font-weight: 700;
     color: #E8F0FE;
-    margin-left: 2px;
+    margin-right: 6px;
+}
+
+.traffic-condition-badge {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: #FFF;
 }
 
 .turn-road-name {
@@ -152,10 +164,10 @@ body.gmaps-theme {
     text-overflow: ellipsis;
 }
 
-/* HARDWARE TELEMETRY BADGES */
+/* HARDWARE & TELEMETRY PILL */
 .gmaps-telemetry-pill {
     pointer-events: auto;
-    background: rgba(15, 23, 42, 0.9);
+    background: rgba(15, 23, 42, 0.92);
     border: 1px solid var(--gmaps-border);
     backdrop-filter: blur(8px);
     border-radius: 20px;
@@ -168,9 +180,9 @@ body.gmaps-theme {
     color: var(--text-secondary);
 }
 
-#recBadge {
-    color: var(--accent-red);
-    animation: pulse-red 2s infinite;
+#earningsBadge {
+    color: var(--traffic-green);
+    font-weight: 900;
 }
 
 /* FLOATING SPEEDOMETER BUBBLE */
@@ -205,63 +217,146 @@ body.gmaps-theme {
     text-transform: uppercase;
 }
 
-/* FLOATING DELIVERY ALERT NOTIFICATION */
-.gmaps-delivery-card {
+/* ACTIVE ORDER STAGE TRACKER BANNER */
+.order-stage-banner {
     position: absolute;
     top: 96px;
+    left: 14px;
     right: 14px;
-    background: var(--gmaps-card-bg);
-    border-left: 5px solid var(--accent-orange);
-    border-radius: 10px;
-    padding: 10px 14px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    background: rgba(26, 32, 44, 0.96);
+    border: 1px solid rgba(255, 145, 0, 0.4);
+    border-radius: 12px;
+    padding: 8px 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     display: flex;
     align-items: center;
-    gap: 12px;
-    z-index: 20;
-    max-width: 380px;
-    border-top: 1px solid var(--gmaps-border);
-    border-right: 1px solid var(--gmaps-border);
-    border-bottom: 1px solid var(--gmaps-border);
+    justify-content: space-between;
+    z-index: 25;
 }
 
-.delivery-brand-tag {
-    background: var(--accent-orange);
-    color: #FFF;
-    font-size: 11px;
-    font-weight: 900;
-    padding: 3px 8px;
-    border-radius: 6px;
-}
-
-.delivery-info {
+.stage-info {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
 }
 
-.delivery-title {
+.stage-badge {
+    font-size: 11px;
+    font-weight: 900;
+    color: var(--accent-orange);
+    letter-spacing: 0.5px;
+}
+
+.stage-title {
     font-size: 14px;
     font-weight: 800;
     color: #FFF;
 }
 
-.delivery-desc {
+.stage-action-btn {
+    background: var(--gmaps-green);
+    color: #FFF;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
     font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 800;
+    cursor: pointer;
 }
 
-.delivery-dismiss-btn {
-    background: transparent;
+/* INCOMING ORDER OFFER MODAL */
+.order-offer-modal {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.offer-card {
+    background: #202124;
+    border: 2px solid var(--accent-orange);
+    border-radius: 16px;
+    width: 480px;
+    padding: 20px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9);
+}
+
+.offer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--gmaps-border);
+    padding-bottom: 10px;
+}
+
+.offer-platform-tag {
+    background: var(--accent-orange);
+    color: #FFF;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.offer-payout {
+    font-size: 26px;
+    font-weight: 900;
+    color: var(--traffic-green);
+}
+
+.offer-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0;
+}
+
+.offer-spot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.spot-icon { font-size: 20px; }
+.spot-details strong { display: block; font-size: 14px; color: #FFF; }
+.spot-details small { color: var(--text-secondary); font-size: 12px; }
+.offer-items { font-size: 12px; color: #90CAF9; font-weight: 600; padding: 0 4px; }
+
+.offer-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.btn-decline-order {
+    flex: 1;
+    background: #3C4043;
+    color: #FFF;
     border: none;
-    color: var(--text-secondary);
-    font-size: 14px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 800;
     cursor: pointer;
-    margin-left: auto;
+}
+
+.btn-accept-order {
+    flex: 2;
+    background: var(--gmaps-green);
+    color: #FFF;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(15, 157, 88, 0.4);
 }
 
 /* DASHCAM PIP */
@@ -324,11 +419,23 @@ body.gmaps-theme {
     flex-direction: column;
 }
 
+.trip-time-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
 .trip-time-val {
     font-size: 24px;
     font-weight: 900;
     color: var(--gmaps-green);
     line-height: 1.1;
+}
+
+.traffic-delay-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--traffic-green);
 }
 
 .trip-sub-row {
@@ -562,15 +669,11 @@ body.gmaps-theme {
 .btn-danger { background: #E53935; }
 .btn-warning { background: #FB8C00; }
 .btn-swiggy { background: #FC8019; }
-.btn-zomato { background: #E23744; }
-.btn-call { background: #43A047; }
+.btn-accept { background: #00E676; color: #000; font-weight: 900; }
+.btn-pickup { background: #00B0FF; color: #000; font-weight: 900; }
+.btn-deliver { background: #7C4DFF; color: #FFF; font-weight: 900; }
 .btn-cam { background: #00897B; }
 .btn-bright { background: #546E7A; }
-
-@keyframes pulse-red {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-}
 
 @keyframes strobe-bg {
     0% { background: rgba(180, 0, 0, 0.94); }

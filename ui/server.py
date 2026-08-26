@@ -1,6 +1,6 @@
 """
 FastAPI UI Bridge & Telemetry Server
-Serves Google Maps Navigation style HUD and streams real-time WebSocket telemetry.
+Serves Google Maps Navigation HUD, multi-stop Order Lifecycle, and Traffic Streams.
 """
 
 import json
@@ -21,7 +21,7 @@ class DestinationImportRequest(BaseModel):
     lng: float
 
 def create_app(engine: LastMileEngine) -> FastAPI:
-    app = FastAPI(title="LastMile Guard Google Maps Navigation HUD", version="1.1.0")
+    app = FastAPI(title="LastMile Guard Google Maps Navigation HUD", version="1.2.0")
 
     base_dir = Path(__file__).parent
     static_dir = base_dir / "static"
@@ -45,7 +45,7 @@ def create_app(engine: LastMileEngine) -> FastAPI:
             name="index.html",
             context={
                 "app_name": engine.config.get("app_name", "LastMile Guard"),
-                "version": engine.config.get("version", "1.1.0"),
+                "version": engine.config.get("version", "1.2.0"),
                 "google_maps_api_key": engine.config.get("maps", {}).get("google_maps_api_key", "")
             }
         )
@@ -68,26 +68,20 @@ def create_app(engine: LastMileEngine) -> FastAPI:
                         engine.on_tilt_triggered()
                     elif action == "reset_emergency":
                         engine.reset_emergency()
+                    elif action == "offer_order":
+                        platform = cmd_data.get("platform", "swiggy")
+                        engine.offer_mock_order(platform)
+                    elif action == "accept_order":
+                        engine.accept_current_order()
+                    elif action == "confirm_pickup":
+                        engine.confirm_food_pickup()
+                    elif action == "complete_delivery":
+                        engine.complete_current_delivery()
+                    elif action == "decline_order":
+                        engine.orders.decline_order()
                     elif action == "mock_order":
                         source = cmd_data.get("source", "swiggy")
-                        if source == "zomato":
-                            engine.post_delivery_alert(
-                                title="Zomato Rider Alert",
-                                body="Pickup Order #892 from Mainland China (Salt Lake)",
-                                package_name="com.application.zomato"
-                            )
-                        elif source == "call":
-                            engine.post_delivery_alert(
-                                title="Customer Incoming Call",
-                                body="Call from +91 98301 XXXXX (Sector V Drop)",
-                                package_name="com.android.dialer"
-                            )
-                        else:
-                            engine.post_delivery_alert(
-                                title="Swiggy Delivery Partner",
-                                body="Pickup Order #4092 from Wow! Momo (Central Ave)",
-                                package_name="in.swiggy.delivery"
-                            )
+                        engine.offer_mock_order(source)
                     elif action == "clear_alert":
                         engine.clear_active_alert()
                     elif action == "set_brightness":
@@ -102,6 +96,26 @@ def create_app(engine: LastMileEngine) -> FastAPI:
                     print(f"[WS COMMAND ERROR] {e}")
         except WebSocketDisconnect:
             engine.connected_clients.discard(websocket)
+
+    @app.post("/api/orders/offer")
+    async def api_offer_order(platform: str = "swiggy"):
+        order = engine.offer_mock_order(platform)
+        return {"status": "Order offered", "order": order.to_dict()}
+
+    @app.post("/api/orders/accept")
+    async def api_accept_order():
+        order = engine.accept_current_order()
+        return {"status": "Order accepted", "order": order.to_dict() if order else None}
+
+    @app.post("/api/orders/pickup")
+    async def api_confirm_pickup():
+        order = engine.confirm_food_pickup()
+        return {"status": "Food picked up", "order": order.to_dict() if order else None}
+
+    @app.post("/api/orders/deliver")
+    async def api_complete_delivery():
+        order = engine.complete_current_delivery()
+        return {"status": "Delivered", "earnings": engine.orders.earnings_today_inr}
 
     @app.post("/api/navigation/destination")
     async def api_import_destination(req: DestinationImportRequest):
@@ -136,13 +150,5 @@ def create_app(engine: LastMileEngine) -> FastAPI:
     async def api_trigger_tilt():
         engine.on_tilt_triggered()
         return {"status": "Tilt crash triggered"}
-
-    @app.post("/api/test/order")
-    async def api_trigger_mock_order(platform: str = "swiggy"):
-        if platform == "zomato":
-            engine.post_delivery_alert("Zomato Rider Alert", "Pickup Order #892 from Mainland China", "com.application.zomato")
-        else:
-            engine.post_delivery_alert("Swiggy Delivery Partner", "Pickup Order #4092 from Wow! Momo", "in.swiggy.delivery")
-        return {"status": f"Mock {platform} order posted"}
 
     return app

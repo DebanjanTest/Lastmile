@@ -1,6 +1,6 @@
 """
 Mock Hardware Drivers for Windows Simulation & Testing
-Detects real system location to start simulation from where the user is physically located.
+Integrates KinematicVehicleSimulator for genuine, physics-based vehicle motion and traffic jam effects.
 """
 
 import time
@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional, Callable, Dict, Any, List
 from hal.base import BaseGPS, BaseCamera, BaseSensors, BaseSystemHealth, GPSData, SystemHealthData
 from hal.geolocation import get_system_location
+from hal.kinematic_simulator import KinematicVehicleSimulator
 
 try:
     import cv2
@@ -21,31 +22,33 @@ except ImportError:
 
 class MockGPS(BaseGPS):
     def __init__(self, speed_kmh: float = 38.0):
-        self.speed_kmh = speed_kmh
         self.running = False
-        self._current_index = 0
-        self._progress = 0.0
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
         
+        # Initialize kinematic physics simulator
+        self.kinematics = KinematicVehicleSimulator(target_cruise_speed_kmh=speed_kmh)
+        self.traffic_speed_factor = 1.0
+
         # Detect physical system location
         sys_loc = get_system_location()
         self.origin_lat = sys_loc["lat"]
         self.origin_lng = sys_loc["lng"]
-        
-        # Build local route around detected system location
-        self.simulated_waypoints = [
-            {"lat": self.origin_lat, "lon": self.origin_lng},
-            {"lat": self.origin_lat + 0.0035, "lon": self.origin_lng + 0.0025},
-            {"lat": self.origin_lat + 0.0070, "lon": self.origin_lng + 0.0060},
-            {"lat": self.origin_lat + 0.0120, "lon": self.origin_lng + 0.0110},
-            {"lat": self.origin_lat + 0.0160, "lon": self.origin_lng + 0.0180}
+
+        # Initial fallback route
+        init_route = [
+            [self.origin_lat, self.origin_lng],
+            [self.origin_lat + 0.0040, self.origin_lng + 0.0030],
+            [self.origin_lat + 0.0080, self.origin_lng + 0.0075],
+            [self.origin_lat + 0.0130, self.origin_lng + 0.0120],
+            [self.origin_lat + 0.0180, self.origin_lng + 0.0190]
         ]
+        self.kinematics.load_polyline(init_route)
 
         self._latest_fix = GPSData(
             latitude=self.origin_lat,
             longitude=self.origin_lng,
-            speed_kmh=self.speed_kmh,
+            speed_kmh=0.0,
             heading_deg=45.0,
             altitude_m=14.0,
             timestamp=datetime.now(timezone.utc),
@@ -54,13 +57,13 @@ class MockGPS(BaseGPS):
         )
 
     def set_route_waypoints(self, waypoints: List[List[float]]) -> None:
-        """Updates the simulated playback route to follow imported road polylines."""
-        if waypoints and len(waypoints) >= 2:
-            with self._lock:
-                self.simulated_waypoints = [{"lat": p[0], "lon": p[1]} for p in waypoints]
-                self._current_index = 0
-                self._progress = 0.0
-                print(f"[MOCK GPS] Route updated with {len(waypoints)} road coordinates.")
+        """Loads new road polyline into kinematics simulator."""
+        with self._lock:
+            self.kinematics.load_polyline(waypoints)
+
+    def set_traffic_factor(self, factor: float) -> None:
+        with self._lock:
+            self.traffic_speed_factor = factor
 
     def start(self) -> None:
         self.running = True
@@ -70,48 +73,18 @@ class MockGPS(BaseGPS):
     def stop(self) -> None:
         self.running = False
 
-    def _calculate_heading(self, lat1, lon1, lat2, lon2) -> float:
-        d_lon = math.radians(lon2 - lon1)
-        y = math.sin(d_lon) * math.cos(math.radians(lat2))
-        x = (math.cos(math.radians(lat1)) * math.sin(math.radians(lat2)) -
-             math.sin(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.cos(d_lon))
-        bearing = math.degrees(math.atan2(y, x))
-        return (bearing + 360) % 360
-
     def _update_loop(self) -> None:
         while self.running:
-            time.sleep(0.5)
+            time.sleep(0.2)  # High-fidelity 5 Hz physics update
             with self._lock:
-                pts = self.simulated_waypoints
-                if len(pts) < 2:
-                    continue
-
-                idx = self._current_index
-                next_idx = (idx + 1) % len(pts)
+                lat, lng, speed, heading = self.kinematics.step(traffic_speed_factor=self.traffic_speed_factor)
                 
-                p1 = pts[idx]
-                p2 = pts[next_idx]
-                
-                self._progress += 0.03
-                if self._progress >= 1.0:
-                    self._progress = 0.0
-                    self._current_index = next_idx
-                    p1 = pts[next_idx]
-                    p2 = pts[(next_idx + 1) % len(pts)]
-
-                lat = p1["lat"] + (p2["lat"] - p1["lat"]) * self._progress
-                lon = p1["lon"] + (p2["lon"] - p1["lon"]) * self._progress
-                heading = self._calculate_heading(p1["lat"], p1["lon"], p2["lat"], p2["lon"])
-                
-                jitter = math.sin(time.time() * 2) * 2.5
-                current_speed = max(10.0, self.speed_kmh + jitter)
-
                 self._latest_fix = GPSData(
                     latitude=lat,
-                    longitude=lon,
-                    speed_kmh=current_speed,
+                    longitude=lng,
+                    speed_kmh=speed,
                     heading_deg=heading,
-                    altitude_m=12.0 + math.sin(time.time()) * 2.0,
+                    altitude_m=12.0 + math.sin(time.time()) * 1.5,
                     timestamp=datetime.now(timezone.utc),
                     is_fixed=True,
                     satellites=10
