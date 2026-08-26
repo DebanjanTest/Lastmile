@@ -11,6 +11,7 @@ import shutil
 from hal.base import GPSData
 from hal.drivers_mock import MockGPS, MockCamera, MockSensors
 from hal.factory import create_hal
+from hal.geolocation import get_system_location
 from core.navigation import NavigationEngine
 from core.delivery_parser import DeliveryParser
 from core.dashcam import DashcamManager
@@ -39,12 +40,19 @@ class TestLastMileGuard(unittest.TestCase):
         self.assertTrue(fix.is_fixed)
         self.assertGreater(fix.speed_kmh, 0.0)
 
+    def test_geolocation(self):
+        loc = get_system_location()
+        self.assertIn("lat", loc)
+        self.assertIn("lng", loc)
+        self.assertIsInstance(loc["lat"], float)
+        self.assertIsInstance(loc["lng"], float)
+
     def test_navigation_engine(self):
         nav = NavigationEngine()
-        # Location 150m before first turn
+        loc = get_system_location()
         gps = GPSData(
-            latitude=22.5710,
-            longitude=88.3620,
+            latitude=loc["lat"],
+            longitude=loc["lng"],
             speed_kmh=40.0,
             heading_deg=90.0,
             altitude_m=10.0,
@@ -52,9 +60,10 @@ class TestLastMileGuard(unittest.TestCase):
             is_fixed=True
         )
         maneuver = nav.update_location(gps)
-        self.assertIn("Central Ave", maneuver.instruction)
+        self.assertTrue(len(maneuver.instruction) > 0)
+        self.assertTrue(len(maneuver.road_name) > 0)
         self.assertGreaterEqual(maneuver.eta_minutes, 0)
-        self.assertGreater(maneuver.distance_to_turn_m, 0)
+        self.assertGreater(len(maneuver.route_polyline), 0)
 
     def test_delivery_parser(self):
         zomato = DeliveryParser.parse_notification(

@@ -1,6 +1,6 @@
 """
-Mock Hardware Drivers for Windows Simulation & Development
-Generates realistic GPS route playback, synthetic Dashcam feeds, and interactive triggers.
+Mock Hardware Drivers for Windows Simulation & Testing
+Detects real system location to start simulation from where the user is physically located.
 """
 
 import time
@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Callable, Dict, Any, List
 from hal.base import BaseGPS, BaseCamera, BaseSensors, BaseSystemHealth, GPSData, SystemHealthData
+from hal.geolocation import get_system_location
 
 try:
     import cv2
@@ -18,36 +19,48 @@ except ImportError:
     cv2 = None
     np = None
 
-# Realistic urban delivery route waypoints (e.g., Kolkata corridor)
-SIMULATED_ROUTE = [
-    {"lat": 22.572645, "lon": 88.363892, "maneuver": "Start from Kolkata Central Hub", "dist": 0.0},
-    {"lat": 22.573900, "lon": 88.364500, "maneuver": "Head northeast on Central Ave", "dist": 150.0},
-    {"lat": 22.576200, "lon": 88.367800, "maneuver": "In 200m Turn Right onto MG Road", "dist": 350.0},
-    {"lat": 22.578000, "lon": 88.373500, "maneuver": "Continue straight past Sealdah Flyover", "dist": 600.0},
-    {"lat": 22.580500, "lon": 88.384000, "maneuver": "In 300m Take Roundabout 2nd exit onto EM Bypass", "dist": 1100.0},
-    {"lat": 22.585500, "lon": 88.416800, "maneuver": "Arriving at Sector V Delivery Destination", "dist": 2400.0}
-]
-
 class MockGPS(BaseGPS):
     def __init__(self, speed_kmh: float = 38.0):
         self.speed_kmh = speed_kmh
         self.running = False
         self._current_index = 0
-        self._progress = 0.0  # 0.0 to 1.0 between waypoints
+        self._progress = 0.0
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
         
-        start = SIMULATED_ROUTE[0]
+        # Detect physical system location
+        sys_loc = get_system_location()
+        self.origin_lat = sys_loc["lat"]
+        self.origin_lng = sys_loc["lng"]
+        
+        # Build local route around detected system location
+        self.simulated_waypoints = [
+            {"lat": self.origin_lat, "lon": self.origin_lng},
+            {"lat": self.origin_lat + 0.0035, "lon": self.origin_lng + 0.0025},
+            {"lat": self.origin_lat + 0.0070, "lon": self.origin_lng + 0.0060},
+            {"lat": self.origin_lat + 0.0120, "lon": self.origin_lng + 0.0110},
+            {"lat": self.origin_lat + 0.0160, "lon": self.origin_lng + 0.0180}
+        ]
+
         self._latest_fix = GPSData(
-            latitude=start["lat"],
-            longitude=start["lon"],
+            latitude=self.origin_lat,
+            longitude=self.origin_lng,
             speed_kmh=self.speed_kmh,
             heading_deg=45.0,
-            altitude_m=12.5,
+            altitude_m=14.0,
             timestamp=datetime.now(timezone.utc),
             is_fixed=True,
             satellites=10
         )
+
+    def set_route_waypoints(self, waypoints: List[List[float]]) -> None:
+        """Updates the simulated playback route to follow imported road polylines."""
+        if waypoints and len(waypoints) >= 2:
+            with self._lock:
+                self.simulated_waypoints = [{"lat": p[0], "lon": p[1]} for p in waypoints]
+                self._current_index = 0
+                self._progress = 0.0
+                print(f"[MOCK GPS] Route updated with {len(waypoints)} road coordinates.")
 
     def start(self) -> None:
         self.running = True
@@ -69,26 +82,28 @@ class MockGPS(BaseGPS):
         while self.running:
             time.sleep(0.5)
             with self._lock:
+                pts = self.simulated_waypoints
+                if len(pts) < 2:
+                    continue
+
                 idx = self._current_index
-                next_idx = (idx + 1) % len(SIMULATED_ROUTE)
+                next_idx = (idx + 1) % len(pts)
                 
-                p1 = SIMULATED_ROUTE[idx]
-                p2 = SIMULATED_ROUTE[next_idx]
+                p1 = pts[idx]
+                p2 = pts[next_idx]
                 
-                self._progress += 0.04  # Advance smoothly
+                self._progress += 0.03
                 if self._progress >= 1.0:
                     self._progress = 0.0
                     self._current_index = next_idx
-                    p1 = SIMULATED_ROUTE[next_idx]
-                    p2 = SIMULATED_ROUTE[(next_idx + 1) % len(SIMULATED_ROUTE)]
+                    p1 = pts[next_idx]
+                    p2 = pts[(next_idx + 1) % len(pts)]
 
-                # Linear interpolation
                 lat = p1["lat"] + (p2["lat"] - p1["lat"]) * self._progress
                 lon = p1["lon"] + (p2["lon"] - p1["lon"]) * self._progress
                 heading = self._calculate_heading(p1["lat"], p1["lon"], p2["lat"], p2["lon"])
                 
-                # Small speed jitter (+/- 3 km/h)
-                jitter = math.sin(time.time() * 2) * 3.0
+                jitter = math.sin(time.time() * 2) * 2.5
                 current_speed = max(10.0, self.speed_kmh + jitter)
 
                 self._latest_fix = GPSData(
@@ -107,13 +122,12 @@ class MockGPS(BaseGPS):
             return self._latest_fix
 
 class MockCamera(BaseCamera):
-    """Generates synthetic video frames and manages an in-memory rolling circular buffer."""
     def __init__(self, buffer_seconds: int = 60, storage_dir: str = "evidence/incidents"):
         self.buffer_seconds = buffer_seconds
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.running = False
-        self._frame_buffer: List[tuple[float, Any]] = []  # (timestamp, frame)
+        self._frame_buffer: List[tuple[float, Any]] = []
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
 
@@ -128,14 +142,13 @@ class MockCamera(BaseCamera):
     def _capture_loop(self) -> None:
         frame_count = 0
         while self.running:
-            time.sleep(0.1)  # 10 fps simulation in mock mode to save CPU
+            time.sleep(0.1)
             now = time.time()
             frame = self._generate_synthetic_frame(frame_count, now)
             frame_count += 1
 
             with self._lock:
                 self._frame_buffer.append((now, frame))
-                # Purge frames older than buffer_seconds
                 cutoff = now - self.buffer_seconds
                 while self._frame_buffer and self._frame_buffer[0][0] < cutoff:
                     self._frame_buffer.pop(0)
@@ -143,7 +156,6 @@ class MockCamera(BaseCamera):
     def _generate_synthetic_frame(self, frame_num: int, timestamp: float):
         if cv2 is None or np is None:
             return None
-        # Create dark road background
         img = np.zeros((360, 640, 3), dtype=np.uint8)
         img[:] = (25, 25, 30)
 
@@ -157,7 +169,6 @@ class MockCamera(BaseCamera):
         for y in range(240 + offset, 360, 40):
             cv2.line(img, (320, y), (320, min(360, y + 20)), (0, 215, 255), 3)
 
-        # Telemetry Watermark HUD
         time_str = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
         cv2.putText(img, f"LASTMILE GUARD - WITNESS DASHCAM [SIM]", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 180), 1)
         cv2.putText(img, f"REC (RAM-BUF) | {time_str} | 38.5 KM/H", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (220, 220, 220), 1)
@@ -175,7 +186,6 @@ class MockCamera(BaseCamera):
             return buf.tobytes()
 
     def lock_incident(self, reason: str, metadata: Dict[str, Any]) -> str:
-        """Flushes RAM circular buffer and saves an immutable incident evidence record."""
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"incident_{reason.lower().replace(' ', '_')}_{timestamp_str}.mp4"
         filepath = self.storage_dir / filename
@@ -187,23 +197,20 @@ class MockCamera(BaseCamera):
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             out = cv2.VideoWriter(str(filepath), fourcc, 10.0, (640, 360))
             for frame in frames_to_save:
-                # Add incident lock banner
                 annotated = frame.copy()
                 cv2.putText(annotated, f"INCIDENT LOCKED: {reason.upper()}", (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                 out.write(annotated)
             out.release()
 
-        # Write accompanying metadata JSON
         meta_path = filepath.with_suffix(".json")
-        meta_content = {
+        import json
+        meta_path.write_text(json.dumps({
             "incident_reason": reason,
             "timestamp": datetime.now().isoformat(),
             "telemetry": metadata,
             "locked_frames_count": len(frames_to_save),
             "file_path": str(filepath)
-        }
-        import json
-        meta_path.write_text(json.dumps(meta_content, indent=2))
+        }, indent=2))
         return str(filepath)
 
 class MockSensors(BaseSensors):

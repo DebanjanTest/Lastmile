@@ -20,10 +20,20 @@ class LastMileEngine:
         self.hal: HALContainer = create_hal(config)
         
         maps_cfg = config.get("maps", {})
-        origin_name = maps_cfg.get("default_origin", {}).get("name", "Kolkata Central Hub")
-        destination_name = maps_cfg.get("default_destination", {}).get("name", "Sector V Delivery Drop")
+        origin_name = maps_cfg.get("default_origin", {}).get("name", "Dispatch Origin")
+        destination_name = maps_cfg.get("default_destination", {}).get("name", "Delivery Destination")
+        google_api_key = maps_cfg.get("google_maps_api_key", "")
 
-        self.navigation = NavigationEngine(origin_name=origin_name, destination_name=destination_name)
+        self.navigation = NavigationEngine(
+            origin_name=origin_name,
+            destination_name=destination_name,
+            google_api_key=google_api_key
+        )
+        
+        # If in simulation mode, sync GPS waypoints with the initial road polyline
+        if hasattr(self.hal.gps, "set_route_waypoints") and self.navigation.route_polyline:
+            self.hal.gps.set_route_waypoints(self.navigation.route_polyline)
+
         self.dashcam = DashcamManager(self.hal.camera)
         self.sentinel = SystemHealthSentinel(
             self.hal.health,
@@ -38,17 +48,13 @@ class LastMileEngine:
         self._running = False
 
     async def start(self) -> None:
-        """Starts all background services and registers sensor interrupts."""
         self._running = True
-        
-        # Start hardware subsystems
         self.hal.gps.start()
         self.dashcam.start()
         self.hal.sensors.start(
             on_sos=self.on_sos_triggered,
             on_tilt=self.on_tilt_triggered
         )
-        
         print("[ENGINE] LastMile Guard Core Engine Started Successfully.")
         asyncio.create_task(self._telemetry_broadcast_loop())
 
@@ -60,7 +66,6 @@ class LastMileEngine:
         print("[ENGINE] LastMile Guard Engine Stopped.")
 
     def on_sos_triggered(self) -> None:
-        """Callback when physical SOS button is pressed or triggered via UI."""
         print("[SAFETY] SOS BUTTON PRESSED! Initiating emergency protocol...")
         gps_fix = self.hal.gps.get_latest_fix()
         self.is_emergency = True
@@ -68,7 +73,6 @@ class LastMileEngine:
         self.dashcam.trigger_incident_lock("MANUAL_SOS_ALERT", gps_fix)
 
     def on_tilt_triggered(self) -> None:
-        """Callback when physical Tilt/Crash sensor detects vehicle fall."""
         print("[SAFETY] VEHICLE TILT / CRASH DETECTED! Initiating emergency protocol...")
         gps_fix = self.hal.gps.get_latest_fix()
         self.is_emergency = True
@@ -88,8 +92,10 @@ class LastMileEngine:
     def clear_active_alert(self) -> None:
         self.active_alert = None
 
-    def import_destination(self, name: str, lat: float, lng: float, steps: Optional[List[Dict[str, Any]]] = None) -> None:
-        self.navigation.import_destination(name, lat, lng, steps)
+    def import_destination(self, name: str, lat: float, lng: float) -> None:
+        self.navigation.import_destination(name, lat, lng)
+        if hasattr(self.hal.gps, "set_route_waypoints") and self.navigation.route_polyline:
+            self.hal.gps.set_route_waypoints(self.navigation.route_polyline)
 
     def get_latest_telemetry_snapshot(self) -> Dict[str, Any]:
         gps_fix = self.hal.gps.get_latest_fix()
@@ -118,13 +124,11 @@ class LastMileEngine:
         }
 
     async def _telemetry_broadcast_loop(self) -> None:
-        """Publishes high-frequency telemetry packets to all connected UI clients."""
         while self._running:
             try:
                 snapshot = self.get_latest_telemetry_snapshot()
                 json_data = json.dumps(snapshot)
                 
-                # Broadcast to active WebSockets
                 stale_clients = []
                 for ws in self.connected_clients:
                     try:
@@ -135,4 +139,4 @@ class LastMileEngine:
                     self.connected_clients.discard(stale)
             except Exception as e:
                 print(f"[ENGINE ERROR] Telemetry loop: {e}")
-            await asyncio.sleep(0.2)  # 5 updates per second
+            await asyncio.sleep(0.2)

@@ -1,22 +1,14 @@
 """
-Turn-by-Turn Navigation & Road Plan Engine (Google Maps Navigation Style)
-Provides route geometry, turn maneuvers, distance countdown, and destination importing.
+Turn-by-Turn Navigation & Road Plan Engine
+Leverages real system location and dynamic OSRM / Google Maps road routing.
 """
 
 import math
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
-from datetime import datetime
 from hal.base import GPSData
-
-@dataclass
-class RoutePoint:
-    lat: float
-    lng: float
-    instruction: str
-    road_name: str
-    maneuver_type: str  # STRAIGHT, TURN_LEFT, TURN_RIGHT, SLIGHT_LEFT, SLIGHT_RIGHT, UTURN, ROUNDABOUT, DESTINATION
-    dist_m: float
+from hal.geolocation import get_system_location
+from core.router import fetch_road_route, RoutePoint
 
 @dataclass
 class Maneuver:
@@ -48,60 +40,53 @@ class Maneuver:
         }
 
 class NavigationEngine:
-    def __init__(self, origin_name: str = "Kolkata Central Hub", destination_name: str = "Salt Lake Sector V Drop"):
-        self.origin_name = origin_name
+    def __init__(self, origin_name: str = "Dispatch Origin", destination_name: str = "Delivery Destination", google_api_key: str = ""):
+        self.google_api_key = google_api_key
         self.destination_name = destination_name
         
-        # Demarked Road Plan & Route Polyline
-        self.route_steps: List[RoutePoint] = [
-            RoutePoint(22.572645, 88.363892, "Head northeast on Central Ave", "Central Avenue", "STRAIGHT", 250),
-            RoutePoint(22.573900, 88.364500, "In 150m Turn Right onto MG Road", "MG Road", "TURN_RIGHT", 350),
-            RoutePoint(22.576200, 88.367800, "Continue straight towards Sealdah Flyover", "Sealdah Flyover", "STRAIGHT", 600),
-            RoutePoint(22.578000, 88.373500, "In 250m Bear Left onto Beliaghata Main Rd", "Beliaghata Main Rd", "SLIGHT_LEFT", 800),
-            RoutePoint(22.580500, 88.384000, "In 300m Take Roundabout 2nd exit onto EM Bypass", "EM Bypass", "ROUNDABOUT", 1100),
-            RoutePoint(22.585500, 88.416800, "Arriving at Sector V Delivery Destination", "Sector V Hub", "DESTINATION", 0)
-        ]
+        # 1. Detect physical starting location
+        sys_loc = get_system_location()
+        self.origin_name = f"{sys_loc.get('city', 'Current Location')} Station"
+        self.current_lat = sys_loc["lat"]
+        self.current_lng = sys_loc["lng"]
         
-        self.destination_coords = {
-            "lat": self.route_steps[-1].lat,
-            "lng": self.route_steps[-1].lng
-        }
-        
-        # High-resolution road polyline for Google Maps / Leaflet rendering
-        self.route_polyline = [
-            [p.lat, p.lng] for p in self.route_steps
-        ]
+        # Target destination (~3 km away from current location by default)
+        self.dest_lat = self.current_lat + 0.0160
+        self.dest_lng = self.current_lng + 0.0180
+        self.destination_coords = {"lat": self.dest_lat, "lng": self.dest_lng}
+
+        # 2. Fetch real road network routing
+        self.route_steps, self.route_polyline = fetch_road_route(
+            start_lat=self.current_lat,
+            start_lng=self.current_lng,
+            dest_lat=self.dest_lat,
+            dest_lng=self.dest_lng,
+            dest_name=self.destination_name,
+            google_api_key=self.google_api_key
+        )
         
         self._current_step_idx = 0
 
-    def import_destination(self, dest_name: str, dest_lat: float, dest_lng: float, steps: Optional[List[Dict[str, Any]]] = None) -> None:
-        """Dynamically imports a new destination and recalculates the road plan."""
+    def import_destination(self, dest_name: str, dest_lat: float, dest_lng: float) -> None:
+        """Dynamically imports a new destination and fetches real road directions."""
         self.destination_name = dest_name
+        self.dest_lat = dest_lat
+        self.dest_lng = dest_lng
         self.destination_coords = {"lat": dest_lat, "lng": dest_lng}
-        if steps:
-            self.route_steps = [
-                RoutePoint(
-                    lat=s.get("lat", dest_lat),
-                    lng=s.get("lng", dest_lng),
-                    instruction=s.get("instruction", "Proceed to destination"),
-                    road_name=s.get("road", "Main Road"),
-                    maneuver_type=s.get("type", "STRAIGHT"),
-                    dist_m=float(s.get("dist_m", 500))
-                ) for s in steps
-            ]
-        else:
-            # Generate straight-line connection if no detailed steps provided
-            self.route_steps = [
-                RoutePoint(22.572645, 88.363892, f"Navigate towards {dest_name}", "En Route", "STRAIGHT", 500),
-                RoutePoint(dest_lat, dest_lng, f"Arrive at {dest_name}", dest_name, "DESTINATION", 0)
-            ]
-        self.route_polyline = [[p.lat, p.lng] for p in self.route_steps]
+
+        self.route_steps, self.route_polyline = fetch_road_route(
+            start_lat=self.current_lat,
+            start_lng=self.current_lng,
+            dest_lat=dest_lat,
+            dest_lng=dest_lng,
+            dest_name=dest_name,
+            google_api_key=self.google_api_key
+        )
         self._current_step_idx = 0
-        print(f"[NAVIGATION] New destination imported: {dest_name} ({dest_lat}, {dest_lng})")
+        print(f"[NAVIGATION] New destination route generated: {dest_name} ({len(self.route_steps)} steps)")
 
     def _haversine_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-        """Returns distance in meters between two GPS coordinates."""
-        R = 6371000.0  # Earth radius in meters
+        R = 6371000.0
         phi1 = math.radians(lat1)
         phi2 = math.radians(lat2)
         delta_phi = math.radians(lat2 - lat1)
@@ -112,11 +97,15 @@ class NavigationEngine:
         return R * c
 
     def update_location(self, gps: GPSData) -> Maneuver:
-        if not gps.is_fixed:
+        if gps.is_fixed:
+            self.current_lat = gps.latitude
+            self.current_lng = gps.longitude
+
+        if not self.route_steps:
             return Maneuver(
-                instruction="Acquiring GPS Satellite Signal...",
-                road_name="Locating...",
-                next_instruction="Drive towards indicated route",
+                instruction="Proceed to route",
+                road_name="Main Road",
+                next_instruction="Drive forward",
                 maneuver_type="STRAIGHT",
                 distance_to_turn_m=0.0,
                 remaining_total_dist_km=0.0,
@@ -128,19 +117,17 @@ class NavigationEngine:
             )
 
         step = self.route_steps[self._current_step_idx]
-        dist_to_step = self._haversine_distance(gps.latitude, gps.longitude, step.lat, step.lng)
+        dist_to_step = self._haversine_distance(self.current_lat, self.current_lng, step.lat, step.lng)
 
         # Advance to next waypoint if within 35m
         if dist_to_step < 35 and self._current_step_idx < len(self.route_steps) - 1:
             self._current_step_idx += 1
             step = self.route_steps[self._current_step_idx]
-            dist_to_step = self._haversine_distance(gps.latitude, gps.longitude, step.lat, step.lng)
+            dist_to_step = self._haversine_distance(self.current_lat, self.current_lng, step.lat, step.lng)
 
-        # Next upcoming instruction preview
         next_step_idx = min(self._current_step_idx + 1, len(self.route_steps) - 1)
         next_instruction = self.route_steps[next_step_idx].instruction if next_step_idx != self._current_step_idx else "Destination ahead"
 
-        # Calculate remaining route distance
         remaining_m = dist_to_step
         for i in range(self._current_step_idx + 1, len(self.route_steps)):
             remaining_m += self.route_steps[i].dist_m

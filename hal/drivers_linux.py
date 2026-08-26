@@ -1,6 +1,6 @@
 """
 Real Hardware Drivers for Raspberry Pi 5 (Ubuntu / Raspberry Pi OS)
-Interfaces directly with /dev/ttyAMA0 (UART GPS), Picamera2, and GPIO interrupts.
+Interfaces directly with /dev/ttyAMA0 (UART GPS), Picamera2, and GPIO interrupts with system location fallback.
 """
 
 import time
@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Callable, Dict, Any, List
 from hal.base import BaseGPS, BaseCamera, BaseSensors, GPSData
+from hal.geolocation import get_system_location
 
-# Hardware-dependent imports protected with try-except for safe fallback
 try:
     import serial
     import pynmea2
@@ -39,12 +39,15 @@ class RealGPS(BaseGPS):
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
         self._serial_conn = None
+        
+        # Initial seed from system network location while waiting for satellite fix
+        sys_loc = get_system_location()
         self._latest_fix = GPSData(
-            latitude=22.5726,
-            longitude=88.3639,
+            latitude=sys_loc["lat"],
+            longitude=sys_loc["lng"],
             speed_kmh=0.0,
             heading_deg=0.0,
-            altitude_m=0.0,
+            altitude_m=12.0,
             timestamp=datetime.now(timezone.utc),
             is_fixed=False,
             satellites=0
@@ -75,7 +78,7 @@ class RealGPS(BaseGPS):
                 line = self._serial_conn.readline().decode('ascii', errors='replace').strip()
                 if line.startswith('$GPRMC') or line.startswith('$GNRMC'):
                     msg = pynmea2.parse(line)
-                    if getattr(msg, 'status', '') == 'A':  # Valid fix
+                    if getattr(msg, 'status', '') == 'A':
                         with self._lock:
                             speed_knots = float(msg.spd_over_grnd or 0.0)
                             self._latest_fix = GPSData(
@@ -119,7 +122,6 @@ class RealPicamera2(BaseCamera):
             config = self.picam2.create_video_configuration(main={"size": (1280, 720)})
             self.picam2.configure(config)
             
-            # Circular buffer in memory
             buffer_frames = self.buffer_seconds * 30
             self.circ_output = CircularOutput(buffersize=buffer_frames)
             encoder = H264Encoder(bitrate=10000000)
@@ -145,7 +147,6 @@ class RealPicamera2(BaseCamera):
         if self.circ_output:
             try:
                 self.circ_output.fileoutput = str(filepath)
-                # Keep recording post-incident for 15s in background
                 def _post_record_delay():
                     time.sleep(15)
                     if self.circ_output:
@@ -154,7 +155,6 @@ class RealPicamera2(BaseCamera):
             except Exception:
                 pass
 
-        # Accompanying metadata JSON
         meta_path = filepath.with_suffix(".json")
         import json
         meta_path.write_text(json.dumps({
