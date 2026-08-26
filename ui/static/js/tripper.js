@@ -12,7 +12,6 @@ let blueCorePolyline = null;
 let trafficOverlays = [];
 let currentOrderPhase = "IDLE";
 let currentSelectedOrder = null;
-let lastKnownOffers = [];
 
 // Maneuver SVG Icons (Google Maps Navigation Style)
 const SVG_ICONS = {
@@ -164,7 +163,6 @@ function updateHUD(data) {
         } else if (riderMarker) {
             riderMarker.setLatLng([gps.latitude, gps.longitude]);
             
-            // Only smoothly pan camera if actively in motion
             if (isMoving) {
                 mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.2 });
                 const puckEl = document.getElementById("riderPuck");
@@ -258,9 +256,9 @@ function renderNotificationStack(offers) {
     const stackEl = document.getElementById("orderNotificationStack");
     if (!stackEl) return;
 
-    // Only show notification feed when idle or delivered
     if (currentOrderPhase !== "IDLE" && currentOrderPhase !== "DELIVERED") {
         stackEl.innerHTML = "";
+        stackEl.dataset.offersJson = "";
         return;
     }
 
@@ -272,13 +270,13 @@ function renderNotificationStack(offers) {
                 </div>
             </div>
         `;
+        stackEl.dataset.offersJson = "empty";
         return;
     }
 
-    // Check if offers changed to avoid unnecessary DOM rebuilds
     const offersJson = JSON.stringify(offers.map(o => o.order_id));
     if (stackEl.dataset.offersJson === offersJson) {
-        return; // Keep existing cards without touching DOM
+        return; // Stable DOM caching: do not destroy cards if unchanged
     }
     stackEl.dataset.offersJson = offersJson;
 
@@ -322,10 +320,19 @@ function renderActiveRouteBanner(order, phase) {
 
     if (!order || phase === "IDLE" || phase === "DELIVERED") {
         banner.style.display = "none";
+        banner.dataset.stateKey = "";
         return;
     }
 
     banner.style.display = "flex";
+    
+    // Stable DOM caching: Only rebuild the button when phase or order ID changes!
+    const stateKey = `${order.order_id}_${phase}`;
+    if (banner.dataset.stateKey === stateKey) {
+        return;
+    }
+    banner.dataset.stateKey = stateKey;
+
     const badge = document.getElementById("routePhaseBadge");
     const title = document.getElementById("routeTargetTitle");
     const sub = document.getElementById("routeTargetSub");
@@ -369,10 +376,25 @@ function showDeliveryCelebration(payout = 85.0) {
     }, 4000);
 }
 
-// Dispatches command via WebSocket and HTTP REST
+// Dispatches command via WebSocket and HTTP REST with optimistic instant updates
 async function sendCommand(action, payload = {}) {
     playAudioChime(850, 0.08);
     console.log("[HUD ACTION]", action, payload);
+
+    // Optimistic local state updates for 0ms lag
+    if (action === "reach_store") {
+        currentOrderPhase = "AT_STORE";
+        renderActiveRouteBanner(currentSelectedOrder, "AT_STORE");
+    } else if (action === "pickup_order") {
+        currentOrderPhase = "ROUTE_TO_CUSTOMER";
+        renderActiveRouteBanner(currentSelectedOrder, "ROUTE_TO_CUSTOMER");
+    } else if (action === "complete_delivery") {
+        currentOrderPhase = "DELIVERED";
+        renderActiveRouteBanner(null, "DELIVERED");
+    } else if (action === "reset_emergency") {
+        const emerg = document.getElementById("emergencyOverlay");
+        if (emerg) emerg.style.display = "none";
+    }
 
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action, ...payload }));
@@ -411,10 +433,6 @@ async function sendCommand(action, payload = {}) {
             }
             if (action === "complete_delivery" && jsonRes && jsonRes.result && jsonRes.result.success) {
                 showDeliveryCelebration(jsonRes.result.payout);
-            }
-            if (action === "reset_emergency") {
-                const emerg = document.getElementById("emergencyOverlay");
-                if (emerg) emerg.style.display = "none";
             }
         }
     } catch (e) {
@@ -458,13 +476,11 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("DOMContentLoaded", () => {
     initMap(22.564300, 88.369300);
 
-    // Initial HTTP fetch for instantaneous display
     fetch('/api/telemetry')
         .then(res => res.json())
         .then(data => updateHUD(data))
         .catch(() => {});
 
-    // WebSocket real-time telemetry stream
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws/telemetry`;
 

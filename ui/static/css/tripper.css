@@ -321,7 +321,7 @@ body.workbench-theme {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    z-index: 35;
+    z-index: 60;
     pointer-events: auto;
     animation: slide-up 0.25s ease-out;
 }
@@ -350,20 +350,34 @@ body.workbench-theme {
     color: #94A3B8;
 }
 
+.route-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto;
+    z-index: 61;
+}
+
 .route-action-btn {
     border: none;
-    padding: 8px 16px;
+    padding: 9px 18px;
     border-radius: 8px;
     font-size: 12px;
     font-weight: 900;
     cursor: pointer;
     color: #000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    transition: transform 0.08s;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    transition: transform 0.08s, filter 0.1s;
+    pointer-events: auto;
+}
+
+.route-action-btn:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
 }
 
 .route-action-btn:active {
-    transform: scale(0.96);
+    transform: scale(0.95);
 }
 
 /* FLOATING SPEEDOMETER */
