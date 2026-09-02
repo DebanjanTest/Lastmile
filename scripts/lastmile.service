@@ -1,0 +1,18 @@
+[Unit]
+Description=LastMile Guard 5.0" Delivery HUD Automotive Service
+After=network.target graphical.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Lastmile
+ExecStart=/home/pi/Lastmile/run.sh
+Restart=always
+RestartSec=3
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical.target

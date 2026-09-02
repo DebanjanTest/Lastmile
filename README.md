@@ -111,49 +111,46 @@ LastMile-Guard/
 
 ## 🚀 Getting Started & Testing
 
-### Option 1: Testing on Raspberry Pi 5 (with HDMI Monitor)
+### Option 1: 1-Click Setup & Launch on Raspberry Pi 5 (Raspberry Pi OS / Ubuntu)
 
-If you have your **Raspberry Pi 5 connected to an HDMI monitor**, follow these steps:
+When downloaded from GitHub onto a **Raspberry Pi 5**, you can set up and run the entire system with a **single command or double-click**:
 
-1. **Clone the Repository on the Pi**:
+1. **Clone the Repository**:
    ```bash
    git clone https://github.com/DebanjanTest/Lastmile.git
    cd Lastmile
    ```
 
-2. **Run One-Liner Setup**:
+2. **1-Click Automated Setup**:
    ```bash
-   chmod +x scripts/*.sh
-   ./scripts/setup_ubuntu.sh
+   chmod +x setup_pi.sh run.sh
+   ./setup_pi.sh
    ```
+   * Installs all system dependencies (`python3-gpiozero`, `python3-rpi.gpio`, `chromium-browser`).
+   * Configures virtual environment with hardware bindings.
+   * **Creates a Desktop Shortcut on your Pi Desktop (`LastMile Guard HUD`)**.
 
-3. **Launch HDMI Kiosk Test**:
-   ```bash
-   ./scripts/run_hdmi_test.sh
-   ```
-   * The app will launch in fullscreen on the HDMI monitor.
-   * Reads **real internal Raspberry Pi 5 CPU temperature and voltage status**.
-   * Runs the simulated GPS delivery route and dashcam RAM buffer.
+3. **1-Click Launching**:
+   * **Method A (Desktop Icon)**: Simply double-click the **`LastMile Guard HUD`** icon on your Raspberry Pi desktop!
+   * **Method B (Terminal / Auto-Run)**: Run `./run.sh` to automatically launch the backend and open the HUD in fullscreen 5.0" Kiosk mode!
 
-4. **Interactive Keyboard Hotkeys on HDMI Screen**:
-   * `[S]` : Trigger SOS Emergency Alert
+4. **Interactive Keyboard Hotkeys on HUD Screen**:
+   * `[O]` : Refresh Incoming Multi-App Orders (Zomato / Swiggy / Zepto / Amazon)
+   * `[A]` : Opt In / Accept Top Delivery Offer
+   * `[R]` : Confirm Reached Store (Collect food)
+   * `[K]` : Confirm Food Picked Up (Route to customer)
+   * `[U]` : Complete Delivery (Trigger Payment QR & Daily Income popup)
+   * `[S]` : Trigger SOS Emergency Alert & Lock Dashcam Video
    * `[T]` : Simulate Vehicle Crash / Tilt Fall
-   * `[O]` : Push Mock Swiggy Delivery Alert
-   * `[Z]` : Push Mock Zomato Delivery Alert
-   * `[C]` : Push Mock Customer Call Alert
    * `[D]` : Toggle Live Dashcam View (PIP)
-   * `[1]` / `[2]` : Adjust Screen Brightness (+/- 10%)
-   * `[ESC]` : Dismiss Emergency Screen
+   * `[ESC]` : Dismiss Emergency Screen / Close Payment Modal
 
 ---
 
-### Option 2: Running Local Simulation on Windows
+### Option 2: Running 1-Click Simulation on Windows
 
-1. Double-click `scripts/run_windows.bat` or run:
-   ```cmd
-   python main.py
-   ```
-2. Open your web browser at `http://localhost:8000`.
+1. Double-click **`run.bat`** in the project folder.
+2. The server will auto-clear port conflicts, launch Python 3.12, and open **`http://localhost:8000`** in your browser.
 
 ---
 
