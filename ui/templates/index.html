@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=800, height=480, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LastMile Guard - Automotive HUD (Tauri v2 + Rust)</title>
-    <!-- Native Google Maps JavaScript API (Sole Primary Engine) -->
+    <!-- Native Google Maps JavaScript API (Loads only when non-empty key configured) -->
     <script>
         window.GOOGLE_MAPS_API_KEY = "{{ google_maps_api_key or '' }}";
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key or '' }}&libraries=geometry&callback=initGoogleMap" async defer onerror="window.onGoogleMapsLoadError && window.onGoogleMapsLoadError()"></script>
+    {% if google_maps_api_key and google_maps_api_key|length > 10 %}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry&callback=initGoogleMap" async defer></script>
+    {% endif %}
     <link rel="stylesheet" href="static/css/tripper.css">
 </head>
 <body class="hud-body">

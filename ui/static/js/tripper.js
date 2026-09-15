@@ -214,6 +214,20 @@ window.initGoogleMap = function() {
     console.log("[MAP] Google Maps Automotive Driver Engine Initialized");
 };
 
+// Intercept Google Maps Auth Failures (Missing/Invalid Key or Disabled Billing)
+window.gm_authFailure = function() {
+    console.warn("[MAP] Google Maps authentication failure detected. Activating Native Driver HUD Canvas.");
+    const mapEl = document.getElementById('mapView');
+    if (mapEl) mapEl.style.display = 'none';
+    initNativeNavCanvas();
+    const pill = document.querySelector('.system-pill');
+    if (pill) {
+        pill.textContent = "OFFLINE HUD";
+        pill.style.background = "rgba(234, 179, 8, 0.25)";
+        pill.style.color = "#FACC15";
+    }
+};
+
 window.onGoogleMapsLoadError = function() {
     console.warn("[MAP] Google Maps script failed or key not configured. Falling back to Native Driver HUD Canvas.");
     initNativeNavCanvas();
