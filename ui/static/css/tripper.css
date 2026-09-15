@@ -137,24 +137,88 @@ body.hud-body {
     box-shadow: 0 0 50px rgba(0, 0, 0, 0.95);
 }
 
-.map-view {
+/* AUTOMOTIVE CARTOGRAPHY VIEWPORT & LOWER-THIRD OFFSET (800x480) */
+.map-container-outer {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     width: 800px;
     height: 480px;
+    overflow: hidden;
     z-index: 1;
     background: #070B14;
 }
 
-/* Native High-Performance Automotive Vector Canvas (Zero External Watermarks) */
-.native-nav-canvas {
+.map-rotation-wrapper {
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    width: 800px;
-    height: 480px;
-    z-index: 2;
+    width: 1400px;
+    height: 1400px;
+    left: -300px;
+    top: -355px;
+    transform-origin: 700px 700px;
+    transition: transform 0.08s linear;
+    will-change: transform;
+}
+
+.map-view {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: #070B14;
+}
+
+/* OpenStreetMap unmetered dark inversion styling for automotive OLED depth */
+.leaflet-tile-pane {
+    filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(120%);
+}
+
+.leaflet-control-container .leaflet-control-attribution,
+.leaflet-control-container .leaflet-control-zoom {
+    display: none !important;
+}
+
+/* STICKY LOWER-THIRD RIDER PUCK (400px, 345px) */
+.rider-puck-anchor {
+    position: absolute;
+    left: 400px;
+    top: 345px;
+    transform: translate(-50%, -50%);
     pointer-events: none;
-    display: none;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rider-puck-pulse {
+    position: absolute;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: rgba(2, 132, 199, 0.25);
+    animation: puck-radar-pulse 2s infinite ease-out;
+}
+
+.rider-puck-body {
+    width: 44px;
+    height: 44px;
+    background: #0284C7;
+    border: 3px solid #FFFFFF;
+    border-radius: 50%;
+    box-shadow: 0 0 20px rgba(2, 132, 199, 0.9), 0 4px 12px rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s ease;
+}
+
+.puck-svg {
+    width: 22px;
+    height: 22px;
+}
+
+@keyframes puck-radar-pulse {
+    0% { transform: scale(0.6); opacity: 0.8; }
+    100% { transform: scale(2.0); opacity: 0; }
 }
 
 /* Suppress Google Maps Warning/Error Modals & Grey Backdrop */
@@ -454,6 +518,48 @@ body.hud-body {
     box-shadow: 0 4px 12px rgba(0, 230, 118, 0.35);
 }
 
+/* Glove-Friendly Dock Swipe Slider */
+.dock-slider-wrapper {
+    width: 100%;
+    height: 40px;
+}
+.dock-swipe-track {
+    position: relative;
+    width: 100%;
+    height: 40px;
+    background: rgba(7, 11, 20, 0.95);
+    border: 1.5px solid var(--border-navy);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+}
+.dock-swipe-handle {
+    position: absolute;
+    left: 3px;
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+    touch-action: none;
+}
+.dock-swipe-handle.pickup-mode {
+    background: linear-gradient(135deg, #00E676, #00b248);
+    box-shadow: 0 0 10px rgba(0, 230, 118, 0.8);
+}
+.dock-swipe-handle.deliver-mode {
+    background: linear-gradient(135deg, #FFD54F, #FFB300);
+    box-shadow: 0 0 10px rgba(255, 213, 79, 0.8);
+}
+
 /* ==============================================================================
    7. INCOMING DELIVERY NOTIFICATION FEED (IDLE STATE)
    ============================================================================== */
@@ -733,47 +839,85 @@ body.hud-body {
    10. CUSTOMER HANDOVER 4-DIGIT OTP TOUCH DIALOG
    ============================================================================== */
 .otp-dialog {
-    width: 360px;
+    width: 380px;
     background: var(--bg-surface);
     border: 1px solid var(--border-navy);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 14px;
+    padding: 16px 20px;
     text-align: center;
     display: flex;
     flex-direction: column;
     gap: 8px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95);
 }
-.otp-dialog-title { font-size: 13px; font-weight: 900; color: #FFF; }
+.otp-dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 6px;
+}
+.otp-dialog-title { font-size: 13px; font-weight: 900; color: #FFF; letter-spacing: 0.5px; }
 .otp-dialog-sub { font-size: 10px; color: var(--text-muted); }
-.otp-code-display {
+.otp-boxes-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 4px 0 6px 0;
+}
+.otp-box {
+    width: 48px;
+    height: 48px;
     background: var(--bg-navy);
-    border: 1px solid var(--accent-cyan);
-    border-radius: 8px;
-    font-size: 26px;
+    border: 2px solid var(--border-navy);
+    border-radius: 10px;
+    font-size: 24px;
     font-weight: 900;
-    letter-spacing: 12px;
     color: var(--accent-cyan);
-    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+    transition: all 0.15s ease;
+}
+.otp-box.active {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+.otp-box.filled {
+    border-color: var(--accent-success);
+    color: #FFFFFF;
+    background: rgba(0, 230, 118, 0.1);
 }
 .otp-numpad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
+    gap: 8px;
 }
-.otp-numpad button {
-    height: 42px;
+.btn-numpad {
+    height: 46px;
     background: var(--bg-surface-elevated);
     border: 1px solid var(--border-navy);
     color: #FFF;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 800;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
+    transition: all 0.1s ease;
+    user-select: none;
 }
-.otp-numpad button:active { background: var(--border-navy); }
+.btn-numpad:active {
+    transform: scale(0.95);
+    background: var(--border-navy);
+    border-color: var(--accent-cyan);
+}
 .btn-pad-special { color: var(--accent-danger) !important; font-size: 11px !important; }
 .btn-pad-confirm { background: var(--accent-success) !important; color: #000 !important; font-size: 11px !important; }
+.btn-svg-inline {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 4px;
+}
 
 /* ==============================================================================
    11. FULLSCREEN RAZORPAY CASH-ON-DELIVERY (COD) MODAL
@@ -1006,3 +1150,327 @@ body.hud-body {
     margin-top: 6px;
 }
 @keyframes pulse-alert { 0% { transform: scale(0.9); } 50% { transform: scale(1.1); } 100% { transform: scale(0.9); } }
+
+/* Dialog Action Buttons */
+.dialog-actions-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+.btn-dialog-accept {
+    flex: 1;
+    background: linear-gradient(135deg, #0284C7, #0369A1);
+    border: none;
+    color: #FFF;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 10px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: transform 0.1s ease;
+}
+.btn-dialog-accept:active {
+    transform: scale(0.97);
+}
+
+/* OTP Hints & Quick Actions */
+.otp-hint-highlight {
+    color: var(--accent-cyan);
+    font-weight: 900;
+    background: rgba(56, 189, 248, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.otp-hint-highlight:hover {
+    text-decoration: underline;
+}
+.otp-extra-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+    width: 100%;
+}
+.btn-otp-autofill {
+    flex: 1;
+    background: rgba(56, 189, 248, 0.2);
+    border: 1px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.btn-otp-close {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-navy);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* Instant Pay Helper */
+.btn-rzp-instant-pay {
+    background: linear-gradient(135deg, #00E676, #00b248);
+    border: none;
+    color: #070B14;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 6px;
+}
+.btn-rzp-instant-pay:active {
+    transform: scale(0.97);
+}
+
+/* Automotive HUD Notification Banner / Toast */
+.hud-toast {
+    position: absolute;
+    top: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(11, 19, 43, 0.96);
+    border: 1px solid var(--accent-cyan);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 12px rgba(56, 189, 248, 0.4);
+    border-radius: 20px;
+    padding: 6px 16px;
+    z-index: 500;
+    animation: toast-drop 0.25s ease-out;
+}
+.toast-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.toast-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent-cyan);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--accent-cyan);
+}
+.toast-text {
+    font-size: 11px;
+    font-weight: 800;
+    color: #FFF;
+    letter-spacing: 0.3px;
+}
+@keyframes toast-drop {
+    from { opacity: 0; transform: translate(-50%, -15px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ==============================================================================
+   12. GOOGLE AUTH & RAZORPAY TEST AMENITIES STYLES
+   ============================================================================== */
+.topbar-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--accent-cyan);
+    object-fit: cover;
+}
+
+.auth-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-left: 4px;
+    display: inline-block;
+}
+.auth-status-dot.linked {
+    background: #00E676;
+    box-shadow: 0 0 6px #00E676;
+}
+.auth-status-dot.unlinked {
+    background: #FFB300;
+    box-shadow: 0 0 6px #FFB300;
+}
+
+/* Razorpay Header Group & Test Pill */
+.rzp-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.rzp-badge-test {
+    background: rgba(0, 240, 255, 0.15);
+    border: 1px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+}
+.rzp-credential-strip {
+    font-size: 9px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.rzp-credential-strip strong {
+    color: var(--accent-cyan);
+    font-family: monospace;
+}
+.celebration-tx {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: monospace;
+    margin-top: 4px;
+}
+
+/* Google Driver Auth Card in Profile Drawer */
+.google-auth-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-navy);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+.auth-card-title {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--accent-cyan);
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
+}
+.auth-card-desc {
+    font-size: 9px;
+    color: var(--text-muted);
+    line-height: 1.3;
+    margin-bottom: 8px;
+}
+.btn-google-signin {
+    width: 100%;
+    background: #FFFFFF;
+    color: #1F2937;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-google-signin:hover {
+    background: #F3F4F6;
+}
+.btn-google-signin:active {
+    transform: scale(0.97);
+}
+.google-icon {
+    width: 16px;
+    height: 16px;
+}
+.google-user-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.drawer-user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--accent-cyan);
+    object-fit: cover;
+}
+.google-user-info {
+    flex: 1;
+    min-width: 0;
+}
+.google-name-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.google-name-line strong {
+    font-size: 12px;
+    color: #FFF;
+    font-weight: 800;
+}
+.badge-verified {
+    background: rgba(0, 230, 118, 0.15);
+    border: 1px solid #00E676;
+    color: #00E676;
+    font-size: 8px;
+    font-weight: 900;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+.google-email-line {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.btn-google-signout {
+    width: 100%;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    color: #F87171;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.btn-google-signout:active {
+    background: #EF4444;
+    color: #FFF;
+}
+
+/* Razorpay Drawer Card */
+.drawer-rzp-card {
+    background: rgba(14, 165, 233, 0.08);
+    border: 1px solid rgba(14, 165, 233, 0.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+}
+.rzp-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+.rzp-card-title {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--accent-cyan);
+}
+.rzp-card-mode {
+    font-size: 8px;
+    font-weight: 900;
+    color: #00E676;
+    background: rgba(0, 230, 118, 0.15);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+.rzp-card-detail, .rzp-card-vpa {
+    font-size: 9px;
+    color: var(--text-muted);
+    font-family: monospace;
+}

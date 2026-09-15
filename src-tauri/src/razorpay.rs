@@ -20,9 +20,29 @@ pub struct PaymentSuccessPayload {
     pub status: String,
 }
 
+pub fn get_razorpay_credentials() -> (String, String) {
+    let mut key_id = env::var("RAZORPAY_KEY_ID").unwrap_or_default();
+    let mut key_secret = env::var("RAZORPAY_KEY_SECRET").unwrap_or_default();
+
+    if key_id.is_empty() || key_secret.is_empty() {
+        if let Ok(config_str) = std::fs::read_to_string("config.json") {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&config_str) {
+                if let Some(rzp) = val.get("razorpay") {
+                    if key_id.is_empty() {
+                        key_id = rzp.get("key_id").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+                    }
+                    if key_secret.is_empty() {
+                        key_secret = rzp.get("key_secret").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+                    }
+                }
+            }
+        }
+    }
+    (key_id, key_secret)
+}
+
 pub async fn request_razorpay_qr(order_id: String, amount_inr: f64) -> Result<RazorpayQrResponse, String> {
-    let key_id = env::var("RAZORPAY_KEY_ID").unwrap_or_default();
-    let key_secret = env::var("RAZORPAY_KEY_SECRET").unwrap_or_default();
+    let (key_id, key_secret) = get_razorpay_credentials();
 
     if !key_id.is_empty() && !key_secret.is_empty() {
         let client = reqwest::Client::new();
@@ -100,8 +120,7 @@ pub fn spawn_payment_listener(app_handle: AppHandle, qr_id: String, order_id: St
         for tick in 1..=30 {
             tokio::time::sleep(Duration::from_secs(2)).await;
 
-            let key_id = env::var("RAZORPAY_KEY_ID").unwrap_or_default();
-            let key_secret = env::var("RAZORPAY_KEY_SECRET").unwrap_or_default();
+            let (key_id, key_secret) = get_razorpay_credentials();
             let mut is_paid = false;
 
             if !key_id.is_empty() && !key_secret.is_empty() && !qr_id.starts_with("qr_rzp_") {

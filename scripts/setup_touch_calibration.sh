@@ -47,8 +47,35 @@ else
     echo "[TOUCH NOTICE] xinput not found or running in Wayland headless environment. Bypassing X11 transformation."
 fi
 
-# Optional: Ensure systemd service installation if run with --install-service
-if [ "$1" == "--install-service" ]; then
+# Optional: Ensure system-wide persistent calibration if run with --install-persistent or --install-service
+if [ "$1" == "--install-service" ] || [ "$1" == "--install-persistent" ]; then
+    echo "[TOUCH] Deploying persistent udev and libinput rules..."
+
+    # 1. Persistent udev rule for Wayland / libinput
+    if [ -d "/etc/udev/rules.d" ]; then
+        sudo bash -c 'cat > /etc/udev/rules.d/99-touchscreen-calibration.rules' << 'EOF'
+ACTION=="add|change", KERNEL=="event*", ATTRS{name}=="*Touch*", ENV{LIBINPUT_CALIBRATION_MATRIX}="-1 0 1 0 -1 1"
+ACTION=="add|change", KERNEL=="event*", ATTRS{name}=="*WaveShare*", ENV{LIBINPUT_CALIBRATION_MATRIX}="-1 0 1 0 -1 1"
+ACTION=="add|change", KERNEL=="event*", ATTRS{name}=="*Goodix*", ENV{LIBINPUT_CALIBRATION_MATRIX}="-1 0 1 0 -1 1"
+EOF
+        sudo udevadm control --reload-rules || true
+        echo "[TOUCH] Installed udev rule at /etc/udev/rules.d/99-touchscreen-calibration.rules"
+    fi
+
+    # 2. Persistent X11 configuration
+    if [ -d "/etc/X11" ]; then
+        sudo mkdir -p /etc/X11/xorg.conf.d/
+        sudo bash -c 'cat > /etc/X11/xorg.conf.d/99-touchscreen-calibration.conf' << 'EOF'
+Section "InputClass"
+    Identifier "Touchscreen Inversion Calibration"
+    MatchIsTouchscreen "on"
+    Option "TransformationMatrix" "-1 0 1 0 -1 1 0 0 1"
+EndSection
+EOF
+        echo "[TOUCH] Installed Xorg configuration at /etc/X11/xorg.conf.d/99-touchscreen-calibration.conf"
+    fi
+
+    # 3. Systemd oneshot service
     echo "[TOUCH] Installing boot-time systemd service..."
     SERVICE_PATH="/etc/systemd/system/touch-calibration.service"
     SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/setup_touch_calibration.sh"
@@ -70,7 +97,7 @@ RemainAfterExit=yes
 WantedBy=graphical.target
 EOF
 
-    sudo systemctl daemon-reload
-    sudo systemctl enable touch-calibration.service
+    sudo systemctl daemon-reload || true
+    sudo systemctl enable touch-calibration.service || true
     echo "[TOUCH] Service installed and enabled at $SERVICE_PATH."
 fi

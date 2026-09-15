@@ -6,9 +6,43 @@
     <title>LastMile Guard - Automotive HUD (Tauri v2 + Rust)</title>
     <!-- Native Google Maps JavaScript API -->
     <script>
-        window.GOOGLE_MAPS_API_KEY = window.GOOGLE_MAPS_API_KEY || "";
+        window.GOOGLE_MAPS_API_KEY = "";
+        window.FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDummyTestKeyForLastMileGuard2026",
+            authDomain: "lastmile-guard-hud.firebaseapp.com",
+            projectId: "lastmile-guard-hud",
+            storageBucket: "lastmile-guard-hud.appspot.com",
+            messagingSenderId: "104928374829",
+            appId: "1:104928374829:web:a93f82d73bc0912e84c98f",
+            mock_account: {
+                uid: "google_test_rider_debanjan",
+                displayName: "Debanjan Mondal",
+                email: "debanjan.rider@lastmile.io",
+                photoURL: ""
+            }
+        };
+        window.RAZORPAY_CONFIG = {
+            enabled: true,
+            is_test_mode: true,
+            key_id: "rzp_test_5WqgY9Q2Z1X3lK",
+            merchant_name: "LastMile Guard Logistics",
+            merchant_vpa: "razorpay.lastmile@icici"
+        };
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?libraries=geometry&callback=initGoogleMap" async defer></script>
+    <script>
+        if (window.GOOGLE_MAPS_API_KEY && window.GOOGLE_MAPS_API_KEY.length > 10) {
+            const s = document.createElement("script");
+            s.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY}&libraries=geometry&callback=initGoogleMap`;
+            s.async = true;
+            s.defer = true;
+            document.head.appendChild(s);
+        }
+    </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Firebase App & Auth SDK (v10 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <link rel="stylesheet" href="static/css/tripper.css">
 </head>
 <body class="hud-body">
@@ -26,8 +60,21 @@
 
     <!-- 800x480 WVGA AUTOMOTIVE HUD CHASSIS -->
     <div class="hud-viewport" id="screenViewport">
-        <!-- FULLSCREEN GOOGLE MAP CANVAS -->
-        <div id="mapView" class="map-view"></div>
+        <!-- AUTOMOTIVE CARTOGRAPHY VIEWPORT WITH HEADING-UP ROTATION -->
+        <div class="map-container-outer" id="mapOuter">
+            <div class="map-rotation-wrapper" id="mapRotationWrapper">
+                <div id="mapView" class="map-view"></div>
+            </div>
+            <!-- STICKY LOWER-THIRD RIDER PUCK (72% VERTICAL OFFSET) -->
+            <div id="riderPuckAnchor" class="rider-puck-anchor">
+                <div class="rider-puck-pulse"></div>
+                <div class="rider-puck-body" id="riderPuckArrow">
+                    <svg viewBox="0 0 24 24" class="puck-svg">
+                        <polygon points="12,2 22,22 12,18 2,22" fill="#0284C7" stroke="#FFFFFF" stroke-width="2.5"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
 
         <!-- DRIVER-CENTRIC MAP QUICK CONTROLS (HIGH-TARGET GLOVE FRIENDLY) -->
         <div class="driver-map-controls">
@@ -54,9 +101,11 @@
             </div>
             <div class="center-clock" id="hudClock">12:00 PM</div>
             <div class="top-actions">
-                <button class="btn-top-profile" onclick="openProfileDrawer()" title="Rider Profile">
-                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-4-4z"/></svg>
+                <button class="btn-top-profile" onclick="openProfileDrawer()" title="Rider Profile & Google Account">
+                    <img id="topBarAvatarImg" class="topbar-avatar" src="" style="display:none;" alt="Avatar" />
+                    <svg id="topBarDefaultIcon" class="icon-svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-4-4z"/></svg>
                     <span id="topBarRiderName">Debanjan</span>
+                    <span class="auth-status-dot unlinked" id="topBarAuthDot" title="Google Auth Status"></span>
                 </button>
                 <button class="btn-top-sos" onclick="triggerSos()" title="Emergency Protocol">
                     <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"/></svg>
@@ -108,9 +157,15 @@
                     <svg class="icon-svg" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
                     <span>Call</span>
                 </button>
-                <button class="btn-dock-action" id="btnDockAction" onclick="handlePrimaryDockAction()">
-                    REACHED STORE [R]
-                </button>
+                <!-- GLOVE-FRIENDLY HORIZONTAL SWIPE SLIDER -->
+                <div class="dock-slider-wrapper" id="dockSliderWrapper">
+                    <div class="swipe-track dock-swipe-track" id="dockSwipeTrack" onclick="handlePrimaryDockAction()" title="Swipe handle or tap track">
+                        <div class="swipe-handle dock-swipe-handle" id="dockSwipeHandle">
+                            <svg class="handle-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" fill="#070B14"/></svg>
+                        </div>
+                        <div class="swipe-text-label" id="dockSwipeLabel">SWIPE TO REACH STORE [R]</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -135,13 +190,13 @@
                 <span class="dest-target" id="destName">Scanning Kolkata (Salt Lake, Newtown, Park St)...</span>
             </div>
             <div class="strip-right">
-                <button class="btn-strip-infiltrate" onclick="infiltrateOrder()" title="Infiltrate / Mock Incoming Order [I]">
+                <button class="btn-strip-infiltrate" onclick="infiltrateOrder()" title="Simulate Customer Placing New Order [I]">
                     <svg class="icon-svg" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    <span>Infiltrate</span>
+                    <span>+ Customer Order [I]</span>
                 </button>
                 <button class="btn-strip-refresh" onclick="refreshOffers()" title="Refresh Offers [O]">
                     <svg class="icon-svg" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-                    <span>Refresh</span>
+                    <span>Refresh [O]</span>
                 </button>
             </div>
         </div>
@@ -184,69 +239,105 @@
 
                 <!-- SWIPE TO ACCEPT SLIDER -->
                 <div class="swipe-track-container" id="swipeSliderContainer">
-                    <div class="swipe-track">
+                    <div class="swipe-track" onclick="triggerAcceptOrder()" style="cursor: pointer;" title="Swipe handle or click track to accept">
                         <div class="swipe-handle" id="swipeHandle">
                             <svg class="handle-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" fill="#0B132B"/></svg>
                         </div>
-                        <div class="swipe-text-label">SWIPE TO ACCEPT</div>
+                        <div class="swipe-text-label">SWIPE TO ACCEPT &bull; OR TAP TRACK</div>
                     </div>
                 </div>
 
-                <button class="btn-dialog-dismiss" onclick="closeOfferModal()">Dismiss Offer</button>
+                <div class="dialog-actions-row">
+                    <button class="btn-dialog-accept" onclick="triggerAcceptOrder()">ACCEPT OFFER [A]</button>
+                    <button class="btn-dialog-dismiss" onclick="closeOfferModal()">Dismiss Offer</button>
+                </div>
             </div>
         </div>
 
         <!-- 2. CUSTOMER HANDOVER 4-DIGIT OTP TOUCH DIALOG -->
         <div class="modal-backdrop" id="otpModal" style="display: none;">
             <div class="otp-dialog">
-                <div class="otp-dialog-title">VERIFY CUSTOMER DELIVERY OTP</div>
-                <div class="otp-dialog-sub">Enter the 4-digit code provided by customer</div>
-                <div class="otp-code-display" id="otpDisplay">----</div>
+                <div class="otp-dialog-header">
+                    <div class="otp-dialog-title">VERIFY CUSTOMER DELIVERY OTP</div>
+                    <button class="btn-dialog-close" onclick="closeOtpModal()">
+                        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="#94A3B8"/></svg>
+                    </button>
+                </div>
+                <div class="otp-dialog-sub">Enter customer's 4-digit handover code (<span id="otpCustomerHint" class="otp-hint-highlight" onclick="autoFillOtp()" title="Click to Auto-Fill">OTP: 4829</span>)</div>
+                <div class="otp-boxes-row" id="otpBoxesRow">
+                    <div class="otp-box active" id="otpBox0">-</div>
+                    <div class="otp-box" id="otpBox1">-</div>
+                    <div class="otp-box" id="otpBox2">-</div>
+                    <div class="otp-box" id="otpBox3">-</div>
+                </div>
                 <div class="otp-numpad">
-                    <button onclick="pressOtpKey('1')">1</button>
-                    <button onclick="pressOtpKey('2')">2</button>
-                    <button onclick="pressOtpKey('3')">3</button>
-                    <button onclick="pressOtpKey('4')">4</button>
-                    <button onclick="pressOtpKey('5')">5</button>
-                    <button onclick="pressOtpKey('6')">6</button>
-                    <button onclick="pressOtpKey('7')">7</button>
-                    <button onclick="pressOtpKey('8')">8</button>
-                    <button onclick="pressOtpKey('9')">9</button>
-                    <button onclick="clearOtp()" class="btn-pad-special">CLEAR</button>
-                    <button onclick="pressOtpKey('0')">0</button>
-                    <button onclick="submitOtp()" class="btn-pad-confirm">CONFIRM</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('1')">1</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('2')">2</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('3')">3</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('4')">4</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('5')">5</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('6')">6</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('7')">7</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('8')">8</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('9')">9</button>
+                    <button class="btn-numpad btn-pad-special" onclick="clearOtp()">CLEAR</button>
+                    <button class="btn-numpad" onclick="pressOtpKey('0')">0</button>
+                    <button class="btn-numpad btn-pad-confirm" onclick="submitOtp()">CONFIRM [U]</button>
+                </div>
+                <div class="otp-extra-actions">
+                    <button class="btn-otp-autofill" onclick="autoFillOtp()">
+                        <svg viewBox="0 0 24 24" width="14" height="14" class="btn-svg-inline"><path d="M7 2v11h3v9l7-12h-4l4-8z" fill="#00E676"/></svg>
+                        <span>Auto-Fill Customer OTP</span>
+                    </button>
+                    <button class="btn-otp-close" onclick="closeOtpModal()">
+                        <svg viewBox="0 0 24 24" width="14" height="14" class="btn-svg-inline"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="#94A3B8"/></svg>
+                        <span>Cancel</span>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- 3. FULLSCREEN RAZORPAY CASH-ON-DELIVERY (COD) MODAL -->
+        <!-- 3. PRE-DELIVERY RAZORPAY UPI HANDOVER & SETTLEMENT MODAL -->
         <div class="modal-backdrop" id="razorpayModal" style="display: none;">
             <div class="razorpay-dialog">
                 <div class="rzp-header">
-                    <span class="rzp-title">RAZORPAY UPI INSTANT QR</span>
-                    <button class="btn-dialog-close" onclick="closeRazorpayModal()">✕</button>
+                    <div class="rzp-title-group">
+                        <span class="rzp-title">RAZORPAY INSTANT QR</span>
+                        <span class="rzp-badge-test" id="rzpTestBadge">TEST MODE</span>
+                    </div>
+                    <button class="btn-dialog-close" onclick="closeRazorpayModal()">
+                        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="#94A3B8"/></svg>
+                    </button>
                 </div>
                 <div class="rzp-active-content" id="rzpBodyActive">
+                    <div class="rzp-credential-strip" id="rzpCredentialStrip">
+                        <span>MERCHANT VPA:</span> <strong id="rzpMerchantVpaText">razorpay.lastmile@icici</strong>
+                    </div>
                     <div class="rzp-qr-frame">
                         <img id="rzpQrImage" class="rzp-qr-asset" src="" alt="Payment QR"/>
                     </div>
                     <div class="rzp-bill-display">
-                        <span class="bill-label">COLLECT EXACT COD AMOUNT:</span>
+                        <span class="bill-label" id="rzpBillLabel">COLLECT COD AMOUNT:</span>
                         <span class="bill-amount" id="rzpAmountText">₹360.00</span>
                     </div>
                     <div class="rzp-status-pulse">
                         <span class="pulse-indicator"></span>
-                        <span>Awaiting customer scan (Auto-verifying payment)...</span>
+                        <span id="rzpStatusText">Awaiting customer scan (Auto-verifying in 6s)...</span>
                     </div>
+                    <button class="btn-rzp-instant-pay" onclick="simulatePaymentSuccess()">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <span>Mark Handover Paid / Instant Verify</span>
+                    </button>
                 </div>
                 <div class="rzp-paid-celebration" id="rzpSuccessView" style="display: none;">
                     <div class="celebration-circle">
                         <svg class="check-svg" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                     </div>
-                    <div class="celebration-title">PAYMENT SUCCESSFUL</div>
+                    <div class="celebration-title">PAYMENT & HANDOVER CONFIRMED</div>
                     <div class="celebration-amount" id="rzpSuccessSub">₹360.00 received via Razorpay UPI</div>
+                    <div class="celebration-tx" id="rzpSuccessTx">Tx ID: pay_rzp_test_94827103</div>
                     <div class="rider-credit-pill" id="rzpRiderCredit">+₹85.26 Credited to Wallet</div>
-                    <button class="btn-dialog-continue" onclick="finalizeDelivery()">CONTINUE TO NEXT ORDERS</button>
+                    <button class="btn-dialog-continue" onclick="finalizeDelivery()">COMPLETE DELIVERY & CONTINUE [Enter]</button>
                 </div>
             </div>
         </div>
@@ -255,14 +346,55 @@
         <div class="drawer-backdrop" id="profileDrawer" style="display: none;">
             <div class="profile-drawer-panel">
                 <div class="drawer-top">
-                    <h3>RIDER PROFILE</h3>
-                    <button class="btn-drawer-x" onclick="closeProfileDrawer()">✕</button>
+                    <h3>RIDER IDENTITY & AMENITIES</h3>
+                    <button class="btn-drawer-x" onclick="closeProfileDrawer()">
+                        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="#94A3B8"/></svg>
+                    </button>
                 </div>
-                <div class="drawer-auth-badge">
-                    <span class="auth-dot"></span>
-                    <span id="drawerAuthEmail">debanjan.rider@lastmile.io</span>
-                    <small>Firebase JWT Verified via Tauri</small>
+
+                <!-- GOOGLE SIGN-IN / FIREBASE AUTH CARD -->
+                <div class="google-auth-card" id="googleAuthSection">
+                    <div id="googleSignedOutBox">
+                        <div class="auth-card-title">GOOGLE DRIVER AUTH</div>
+                        <p class="auth-card-desc">Sign in with your Google account to sync live driver profile and daily targets.</p>
+                        <button class="btn-google-signin" onclick="signInWithGoogle()">
+                            <svg class="google-icon" viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                            </svg>
+                            <span>Sign in with Google</span>
+                        </button>
+                    </div>
+                    <div id="googleSignedInBox" style="display: none;">
+                        <div class="google-user-row">
+                            <img id="drawerAvatarImg" class="drawer-user-avatar" src="" alt="Avatar" />
+                            <div class="google-user-info">
+                                <div class="google-name-line">
+                                    <strong id="drawerGoogleName">Debanjan Mondal</strong>
+                                    <span class="badge-verified">VERIFIED</span>
+                                </div>
+                                <div class="google-email-line" id="drawerGoogleEmail">debanjan.rider@lastmile.io</div>
+                            </div>
+                        </div>
+                        <button class="btn-google-signout" onclick="signOutGoogle()">
+                            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                            <span>Sign Out</span>
+                        </button>
+                    </div>
                 </div>
+
+                <!-- RAZORPAY TEST ACCOUNT STATUS CARD -->
+                <div class="drawer-rzp-card">
+                    <div class="rzp-card-header">
+                        <span class="rzp-card-title">RAZORPAY TEST GATEWAY</span>
+                        <span class="rzp-card-mode">TEST MODE ACTIVE</span>
+                    </div>
+                    <div class="rzp-card-detail" id="drawerRzpKeyDetail">Key: rzp_test_5WqgY9Q2Z1X3lK</div>
+                    <div class="rzp-card-vpa" id="drawerRzpVpaDetail">VPA: razorpay.lastmile@icici</div>
+                </div>
+
                 <div class="drawer-field-group">
                     <label>Rider Name:
                         <input type="text" id="profInputName" value="Debanjan Mondal">
@@ -300,6 +432,14 @@
                 <div class="emergency-sub">RAM-Disk Circular Video Locked & Committed to Incident Vault</div>
                 <div class="emergency-coords" id="emergencyGps">GPS: 22.564300, 88.369300 | Speed: 0 km/h</div>
                 <button class="btn-emergency-dismiss" onclick="resetEmergency()">DISMISS & RESUME NAVIGATION</button>
+            </div>
+        </div>
+
+        <!-- AUTOMOTIVE HUD NOTIFICATION BANNER / TOAST -->
+        <div id="hudToast" class="hud-toast" style="display: none;">
+            <div class="toast-inner">
+                <span class="toast-dot"></span>
+                <span id="toastMessage" class="toast-text">Notification</span>
             </div>
         </div>
     </div>

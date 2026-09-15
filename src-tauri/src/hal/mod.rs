@@ -41,6 +41,7 @@ pub struct HalState {
     pub ram_video_buffer: VecDeque<VideoFrame>,
     pub buffer_duration: Duration,
     pub storage_dir: PathBuf,
+    pub ram_buffer_dir: PathBuf,
 }
 
 impl HalState {
@@ -58,7 +59,17 @@ impl HalState {
             timestamp: now,
         };
 
-        // Determine Level 2 buffer directory: /run/shm/ on Linux if exists, else memory queue
+        // Determine Level 2 buffer directory: /run/shm/ or /dev/shm/ on Linux if exists, else data/ram_buffer
+        let ram_candidates = [PathBuf::from("/run/shm/lastmile"), PathBuf::from("/dev/shm/lastmile")];
+        let mut ram_buffer_dir = PathBuf::from("data/ram_buffer");
+        for cand in &ram_candidates {
+            if cand.parent().map(|p| p.exists()).unwrap_or(false) {
+                ram_buffer_dir = cand.clone();
+                break;
+            }
+        }
+        let _ = std::fs::create_dir_all(&ram_buffer_dir);
+
         let storage_dir = PathBuf::from("evidence/incidents");
         let _ = std::fs::create_dir_all(&storage_dir);
 
@@ -72,6 +83,7 @@ impl HalState {
             ram_video_buffer: VecDeque::with_capacity(600), // 60s at 10fps
             buffer_duration: Duration::from_secs(60),
             storage_dir,
+            ram_buffer_dir,
         }
     }
 

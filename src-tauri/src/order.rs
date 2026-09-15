@@ -216,7 +216,7 @@ impl OrderManager {
 
     pub fn dismiss_offer(&mut self, order_id: &str) {
         self.active_offers.retain(|o| o.order_id != order_id);
-        if self.active_offers.is_empty() {
+        if self.active_offers.len() < 4 {
             self.seed_kolkata_offers();
         }
     }

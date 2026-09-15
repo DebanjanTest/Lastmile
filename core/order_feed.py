@@ -78,12 +78,13 @@ class OrderFeedManager:
             "cust_addr": "Salt Lake Sector V, Block EP, Flat 4B",
             "cust_offset": (0.0175, 0.0165),
             "items": "2x Special Mutton Biryani, 1x Firni Pot, 1x Extra Raita",
-            "instr": "🚪 Leave at door & do not ring bell (Baby sleeping)",
+            "instr": "Leave at door & do not ring bell (Baby sleeping)",
             "payout_base": 42.0,
             "prep_mins": 4,
             "payment": "PREPAID",
             "order_amt": 580.0,
-            "cod": 0.0
+            "cod": 0.0,
+            "otp": "4829"
         },
         {
             "id_tag": "ORD-SWG-94",
@@ -96,12 +97,13 @@ class OrderFeedManager:
             "cust_addr": "New Town Action Area 1, Tower 3",
             "cust_offset": (0.0192, 0.0210),
             "items": "2x Darjeeling Steamed Momos, 1x Chicken Pan-Fried, 2x Thums Up",
-            "instr": "👮 Hand over to building security guard at Gate 2",
+            "instr": "Hand over to building security guard at Gate 2",
             "payout_base": 38.0,
             "prep_mins": 3,
             "payment": "COD",
             "order_amt": 360.0,
-            "cod": 360.0
+            "cod": 360.0,
+            "otp": "5192"
         },
         {
             "id_tag": "ORD-ZEP-12",
@@ -114,12 +116,13 @@ class OrderFeedManager:
             "cust_addr": "Lake Town Block B, House 12",
             "cust_offset": (0.0110, 0.0125),
             "items": "2x Amul Taaza Milk (1L), 1x Brown Bread, 1x Amul Butter 500g",
-            "instr": "📞 Please call once you arrive near the gate",
+            "instr": "Please call once you arrive near the gate",
             "payout_base": 32.0,
             "prep_mins": 2,
             "payment": "PREPAID",
             "order_amt": 245.0,
-            "cod": 0.0
+            "cod": 0.0,
+            "otp": "3048"
         },
         {
             "id_tag": "ORD-AMZ-55",
@@ -132,12 +135,13 @@ class OrderFeedManager:
             "cust_addr": "Chinar Park Near City Centre 2",
             "cust_offset": (0.0230, 0.0240),
             "items": "3x Fresh Grocery Package Bins",
-            "instr": "🐕 Beware of pet dog; place package on veranda table",
+            "instr": "Beware of pet dog; place package on veranda table",
             "payout_base": 55.0,
             "prep_mins": 2,
             "payment": "COD",
             "order_amt": 890.0,
-            "cod": 890.0
+            "cod": 890.0,
+            "otp": "7714"
         },
         {
             "id_tag": "ORD-BLK-33",
@@ -150,12 +154,13 @@ class OrderFeedManager:
             "cust_addr": "Silver Spring Luxury Apts, Tower 4",
             "cust_offset": (-0.0150, 0.0280),
             "items": "1x Fortune Sunflower Oil 1L, 1x Aashirvaad Atta 5kg, 1x Maggi 12-Pack",
-            "instr": "🔔 Ring bell once & hand over to lobby concierge",
+            "instr": "Ring bell once & hand over to lobby concierge",
             "payout_base": 48.0,
             "prep_mins": 2,
             "payment": "PREPAID",
             "order_amt": 620.0,
-            "cod": 0.0
+            "cod": 0.0,
+            "otp": "6281"
         },
         {
             "id_tag": "ORD-ZOM-67",
@@ -168,12 +173,13 @@ class OrderFeedManager:
             "cust_addr": "Ballygunge Circular Road, Lane 3B",
             "cust_offset": (-0.0363, -0.0083),
             "items": "2x Chelo Kebab Platters, 1x Mixed Sizzler, 2x Cold Coffees",
-            "instr": "👶 Baby sleeping. Do NOT ring bell; call phone upon arrival",
+            "instr": "Baby sleeping. Do NOT ring bell; call phone upon arrival",
             "payout_base": 52.0,
             "prep_mins": 5,
             "payment": "COD",
             "order_amt": 1250.0,
-            "cod": 1250.0
+            "cod": 1250.0,
+            "otp": "9941"
         },
         {
             "id_tag": "ORD-SWG-42",
@@ -186,12 +192,13 @@ class OrderFeedManager:
             "cust_addr": "DLF New Town Action Area 1, Flat 802",
             "cust_offset": (0.0192, 0.0857),
             "items": "1x Daab Chingri, 1x Kosha Mangsho, 4x Luchi, 1x Mishti Doi",
-            "instr": "🏢 Request visitor entry pass at Gate 1",
+            "instr": "Request visitor entry pass at Gate 1",
             "payout_base": 68.0,
             "prep_mins": 6,
             "payment": "PREPAID",
             "order_amt": 980.0,
-            "cod": 0.0
+            "cod": 0.0,
+            "otp": "4210"
         },
         {
             "id_tag": "ORD-ZEP-88",
@@ -204,12 +211,51 @@ class OrderFeedManager:
             "cust_addr": "Karunamoyee Housing Complex, Block F",
             "cust_offset": (0.0180, 0.0520),
             "items": "1x Fresh Bread, 2x Eggs (6-pack), 1x Nescafe Classic 50g",
-            "instr": "📦 Leave with building security if unanswered on intercom",
+            "instr": "Leave with building security if unanswered on intercom",
             "payout_base": 34.0,
             "prep_mins": 2,
             "payment": "COD",
             "order_amt": 310.0,
-            "cod": 310.0
+            "cod": 310.0,
+            "otp": "8823"
+        },
+        {
+            "id_tag": "ORD-ZOM-99",
+            "platform": "zomato",
+            "color": "#E23744",
+            "store_name": "Aminia Heritage Dining",
+            "store_addr": "Chinar Park, Rajarhat Main Road",
+            "store_offset": (0.0120, 0.0150),
+            "cust_name": "Siddharth Sen",
+            "cust_addr": "City Centre 2 Residential Enclave",
+            "cust_offset": (0.0210, 0.0260),
+            "items": "2x Special Mutton Biryani, 1x Chicken Chaap, 2x Firni",
+            "instr": "Call once on arrival near building lift lobby",
+            "payout_base": 46.0,
+            "prep_mins": 4,
+            "payment": "PREPAID",
+            "order_amt": 670.0,
+            "cod": 0.0,
+            "otp": "1947"
+        },
+        {
+            "id_tag": "ORD-BLK-77",
+            "platform": "blinkit",
+            "color": "#F7D046",
+            "store_name": "Blinkit Micro-Depot #5",
+            "store_addr": "Ruby Hospital Connector Hub",
+            "store_offset": (-0.0110, 0.0140),
+            "cust_name": "Ishita Dutta",
+            "cust_addr": "Kasba New Market, Flat 3A",
+            "cust_offset": (-0.0060, 0.0190),
+            "items": "1x Organic Green Tea, 2x Tropicana Orange 1L, 1x Marie Gold",
+            "instr": "Ring doorbell twice, leave on shoe rack",
+            "payout_base": 36.0,
+            "prep_mins": 2,
+            "payment": "COD",
+            "order_amt": 420.0,
+            "cod": 420.0,
+            "otp": "5532"
         }
     ]
 
@@ -269,21 +315,64 @@ class OrderFeedManager:
             payment_mode=preset["payment"],
             order_amount_inr=preset.get("order_amt", 350.0),
             cod_amount=preset["cod"],
-            delivery_otp="4829",
+            delivery_otp=preset.get("otp", "4829"),
             prep_time_minutes=preset["prep_mins"],
             created_at=time.time()
         )
 
+    def _generate_fresh_offer(self, rider_lat: float, rider_lng: float) -> DeliveryOffer:
+        """Generates a unique, high-quality offer not currently present in the active pool."""
+        active_ids = {o.order_id for o in self.active_offers}
+        candidates = [p for p in self.RICH_ORDER_PRESETS if p.get("id_tag") not in active_ids]
+        if candidates:
+            preset = random.choice(candidates)
+            return self.build_offer_from_preset(preset, rider_lat, rider_lng)
+        
+        # If all presets currently present, synthesize a variation with distinct ID & OTP
+        base = random.choice(self.RICH_ORDER_PRESETS).copy()
+        tag_num = random.randint(100, 999)
+        base["id_tag"] = f"ORD-{base['platform'][:3].upper()}-{tag_num}"
+        base["otp"] = f"{random.randint(1000, 9999)}"
+        # Subtle coordinate offset to represent a neighboring customer/store
+        base["store_offset"] = (base["store_offset"][0] + random.uniform(-0.002, 0.002),
+                                base["store_offset"][1] + random.uniform(-0.002, 0.002))
+        base["cust_offset"] = (base["cust_offset"][0] + random.uniform(-0.003, 0.003),
+                               base["cust_offset"][1] + random.uniform(-0.003, 0.003))
+        return self.build_offer_from_preset(base, rider_lat, rider_lng)
+
+    def _backfill_offers(self, count: int) -> None:
+        """Appends fresh offers to maintain minimum pool size without blocking."""
+        for _ in range(count):
+            offer = self._generate_fresh_offer(self._last_rider_lat, self._last_rider_lng)
+            self.active_offers.append(offer)
+
     def refresh_order_pool(self, rider_lat: float, rider_lng: float) -> List[DeliveryOffer]:
-        """Pre-populates stable, rich mock orders."""
-        self.active_offers = [self.build_offer_from_preset(p, rider_lat, rider_lng) for p in self.RICH_ORDER_PRESETS[:4]]
+        """Pre-populates stable, rich, diverse mock orders across platforms."""
+        self._last_rider_lat = rider_lat
+        self._last_rider_lng = rider_lng
+        
+        # Pick 4 distinct platforms for diversity (e.g. Zomato, Swiggy, Zepto, Blinkit)
+        seen_platforms = set()
+        chosen_presets = []
+        for p in self.RICH_ORDER_PRESETS:
+            plat = p.get("platform")
+            if plat not in seen_platforms:
+                seen_platforms.add(plat)
+                chosen_presets.append(p)
+            if len(chosen_presets) >= 4:
+                break
+                
+        if len(chosen_presets) < 4:
+            chosen_presets = self.RICH_ORDER_PRESETS[:4]
+
+        self.active_offers = [self.build_offer_from_preset(p, rider_lat, rider_lng) for p in chosen_presets]
         print(f"[FEED] Refreshed order pool with {len(self.active_offers)} stable delivery gigs.")
         return self.active_offers
 
     def infiltrate_order(self, order_data: Optional[Dict[str, Any]] = None, rider_lat: Optional[float] = None, rider_lng: Optional[float] = None) -> DeliveryOffer:
         """
         Systematically infiltrates an incoming delivery order from Zomato, Swiggy, Zepto, or Blinkit
-        directly into the active driver HUD stack.
+        directly into the active driver HUD stack (simulating customer placing an order).
         """
         lat = rider_lat if rider_lat is not None else self._last_rider_lat
         lng = rider_lng if rider_lng is not None else self._last_rider_lng
@@ -331,16 +420,7 @@ class OrderFeedManager:
                 created_at=time.time()
             )
         else:
-            # Pick from unused presets or synthesize dynamically
-            active_ids = {o.order_id for o in self.active_offers}
-            candidate_presets = [p for p in self.RICH_ORDER_PRESETS if p.get("id_tag") not in active_ids]
-            if candidate_presets:
-                preset = random.choice(candidate_presets)
-                offer = self.build_offer_from_preset(preset, lat, lng)
-            else:
-                preset = random.choice(self.RICH_ORDER_PRESETS).copy()
-                preset["id_tag"] = f"ORD-{preset['platform'][:3].upper()}-{random.randint(100, 999)}"
-                offer = self.build_offer_from_preset(preset, lat, lng)
+            offer = self._generate_fresh_offer(lat, lng)
 
         # Prepend to active offers stack (instant infiltration)
         self.active_offers.insert(0, offer)
@@ -365,7 +445,7 @@ class OrderFeedManager:
             return None
 
         self.selected_order = chosen
-        self.active_offers = []  # Clear pending offers
+        self.active_offers = []  # Clear pending offers during active delivery
         self.order_phase = "ROUTE_TO_STORE"
         print(f"[ACCEPT] Rider opted into {chosen.order_id} ({chosen.platform.upper()})! Phase 1: Marking Blue Route to Shop: {chosen.store_name}")
         
@@ -453,16 +533,18 @@ class OrderFeedManager:
 
     def dismiss_offer(self, order_id: str) -> None:
         self.active_offers = [o for o in self.active_offers if o.order_id != order_id]
-        if not self.active_offers:
-            self.refresh_order_pool(self._last_rider_lat, self._last_rider_lng)
+        # Always maintain at least 4 available orders
+        if len(self.active_offers) < 4:
+            self._backfill_offers(count=4 - len(self.active_offers))
 
     def get_snapshot(self, rider_lat: float, rider_lng: float) -> Dict[str, Any]:
         self._last_rider_lat = rider_lat
         self._last_rider_lng = rider_lng
 
-        # Auto-seed mock orders if idle/delivered and empty
-        if self.order_phase in ("IDLE", "DELIVERED") and not self.active_offers:
-            self.refresh_order_pool(rider_lat, rider_lng)
+        # Always maintain at least 4 available offers in IDLE / DELIVERED
+        if self.order_phase in ("IDLE", "DELIVERED"):
+            if len(self.active_offers) < 4:
+                self._backfill_offers(count=4 - len(self.active_offers))
 
         return {
             "order_phase": self.order_phase,

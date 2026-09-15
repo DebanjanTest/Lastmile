@@ -177,9 +177,12 @@ class MockCamera(BaseCamera):
         with open(meta_file, 'w') as f:
             json.dump({
                 "reason": reason,
+                "incident_reason": reason,
                 "timestamp": datetime.now().isoformat(),
                 "frame_count": len(frames_to_save),
-                "metadata": metadata
+                "frames_preserved": len(frames_to_save),
+                "metadata": metadata,
+                "telemetry": metadata
             }, f, indent=2)
             
         with open(dest_file, 'wb') as f:

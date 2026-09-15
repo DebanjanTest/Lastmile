@@ -110,6 +110,16 @@ class RealPicamera2(BaseCamera):
         self.buffer_seconds = buffer_seconds
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Level 2 RAM-disk buffer: prefer /run/shm or /dev/shm to avoid SD card wear
+        shm_candidates = [Path("/run/shm/lastmile"), Path("/dev/shm/lastmile")]
+        self.ram_buffer_dir = Path("data/ram_buffer")
+        for cand in shm_candidates:
+            if cand.parent.exists():
+                self.ram_buffer_dir = cand
+                break
+        self.ram_buffer_dir.mkdir(parents=True, exist_ok=True)
+        
         self.picam2 = None
         self.circ_output = None
         self.running = False

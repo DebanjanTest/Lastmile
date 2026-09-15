@@ -207,6 +207,12 @@ class LastMileEngine:
                 print(f"[ENGINE BROADCAST ERROR] {e}")
 
     async def _telemetry_broadcast_loop(self) -> None:
+        ticks = 0
         while self._running:
+            ticks += 1
+            # Autonomous customer order stream: Every ~30s (150 ticks @ 5Hz) in idle/delivered state
+            if ticks % 150 == 0:
+                if self.feed.order_phase in ("IDLE", "DELIVERED") and len(self.feed.active_offers) < 5:
+                    self.feed.infiltrate_order(rider_lat=self.navigation.current_lat, rider_lng=self.navigation.current_lng)
             await self.broadcast_snapshot()
             await asyncio.sleep(0.2)

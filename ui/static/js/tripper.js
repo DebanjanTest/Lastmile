@@ -22,13 +22,26 @@ const tauriListen = (event, callback) => {
 };
 
 // Global Map & HUD Navigation State
+let activeMapType = "none"; // "leaflet" | "google" | "direct_google"
+let leafletMap = null;
+let leafletRouteGlow = null;
+let leafletRouteCore = null;
+let leafletDestMarker = null;
+
 let googleMap = null;
 let googleRiderMarker = null;
 let googleDestMarker = null;
 let googleBlueGlowPolyline = null;
 let googleBlueCorePolyline = null;
+
 let is3DMode = false;
-let currentRiderCoords = { lat: 22.5726, lng: 88.3639, heading: 45 };
+let currentRiderCoords = { lat: 22.5643, lng: 88.3693, heading: 45 };
+let targetRiderCoords = { lat: 22.5643, lng: 88.3693, heading: 45.0, speed: 0 };
+let currentDisplayCoords = { lat: 22.5643, lng: 88.3693, heading: 45.0, speed: 0 };
+let currentZoom = 15.0;
+let targetZoom = 15.0;
+let isLerpRunning = false;
+
 let activeDestCoords = null;
 let activeRoutePolyline = [];
 let audioCtx = null;
@@ -45,6 +58,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     initAudio();
     initKolkataMap();
     setupSwipeSlider();
+    setupDockSwipeSlider();
     setupTauriEventListeners();
 
     // Fetch initial Profile from SQLite / Backend
@@ -53,18 +67,41 @@ window.addEventListener("DOMContentLoaded", async () => {
         if (profile && profile.name) {
             document.getElementById("topBarRiderName").textContent = profile.name.split(" ")[0];
             document.getElementById("profInputName").value = profile.name;
-            document.getElementById("profInputVehicle").value = profile.vehicle_no;
-            document.getElementById("profInputPhone").value = profile.phone;
-            document.getElementById("profInputTarget").value = profile.daily_target_inr;
+            document.getElementById("profInputVehicle").value = profile.vehicle_no || "WB 02 AB 4591";
+            document.getElementById("profInputPhone").value = profile.phone || "+91 98765 43210";
+            document.getElementById("profInputTarget").value = profile.daily_target_inr || 800;
+            if (profile.photo_url) {
+                const topBarAvatar = document.getElementById("topBarAvatarImg");
+                if (topBarAvatar) {
+                    topBarAvatar.src = profile.photo_url;
+                    topBarAvatar.style.display = "block";
+                    const icon = document.getElementById("topBarDefaultIcon");
+                    if (icon) icon.style.display = "none";
+                }
+            }
         }
     } catch (e) {}
 
-    // Simulated session validation
-    try {
-        await tauriInvoke("validate_session", { token: "mock_firebase_jwt_kolkata" });
-    } catch (e) {}
+    // Initialize Razorpay drawer config indicators
+    if (window.RAZORPAY_CONFIG) {
+        const keyEl = document.getElementById("drawerRzpKeyDetail");
+        const vpaEl = document.getElementById("drawerRzpVpaDetail");
+        if (keyEl && window.RAZORPAY_CONFIG.key_id) keyEl.textContent = `Key: ${window.RAZORPAY_CONFIG.key_id}`;
+        if (vpaEl && window.RAZORPAY_CONFIG.merchant_vpa) vpaEl.textContent = `VPA: ${window.RAZORPAY_CONFIG.merchant_vpa}`;
+    }
 
-    // Dismiss Minimalist Boot Loader after 1.2s with smooth fade
+    // Initialize Firebase Auth / Google Sign-In
+    initFirebaseAuth();
+
+    // Minimalist Boot Loader status progression and smooth fadeout
+    const splashStatus = document.getElementById("splashStatus");
+    if (splashStatus) splashStatus.textContent = "Initializing Hardware & Navigation Engine...";
+    setTimeout(() => {
+        if (splashStatus) splashStatus.textContent = "Connecting HAL 5-Tier Pipeline & Kinematics...";
+    }, 400);
+    setTimeout(() => {
+        if (splashStatus) splashStatus.textContent = "HUD Navigation Engine Ready.";
+    }, 800);
     setTimeout(() => {
         const splash = document.getElementById("splashScreen");
         if (splash) {
@@ -113,34 +150,124 @@ function playChime(freq = 880, duration = 0.12) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. AUTOMOTIVE CARTOGRAPHY ENGINE (NATIVE GOOGLE MAPS PRIMARY & DRIVER HUD)
+// 2. AUTOMOTIVE CARTOGRAPHY ENGINE (UNMETERED DARK TILES & HEADING-UP LERP)
 // -----------------------------------------------------------------------------
-const GOOGLE_MAPS_DRIVER_NAVY_STYLE = [
-    { elementType: "geometry", stylers: [{ color: "#070B14" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#070B14" }, { weight: 3 }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#F8FAFC" }] },
-    { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#38BDF8" }] },
-    { featureType: "poi", stylers: [{ visibility: "off" }] },
-    { featureType: "transit", stylers: [{ visibility: "off" }] },
-    { featureType: "road", elementType: "geometry", stylers: [{ color: "#111A30" }] },
-    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1E293B" }, { weight: 1 }] },
-    { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#94A3B8" }] },
-    { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#1E293B" }] },
-    { featureType: "road.arterial", elementType: "geometry.stroke", stylers: [{ color: "#38BDF8" }, { weight: 1.5 }] },
-    { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#0284C7" }] },
-    { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#38BDF8" }, { weight: 2 }] },
-    { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#FFFFFF" }] },
-    { featureType: "water", elementType: "geometry", stylers: [{ color: "#0A1329" }] },
-    { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#0284C7" }] }
-];
 
-let activeMapType = "none"; // "google" | "canvas"
-let nativeCanvas = null;
-let nativeCtx = null;
+function lerp(start, end, factor) {
+    return start + (end - start) * factor;
+}
+
+function lerpAngle(start, end, factor) {
+    let diff = (end - start) % 360;
+    if (diff < -180) diff += 360;
+    if (diff > 180) diff -= 360;
+    return start + diff * factor;
+}
+
+function startKinematicsLerpLoop() {
+    if (isLerpRunning) return;
+    isLerpRunning = true;
+
+    function frame() {
+        const factor = 0.14; // Smooth 60fps convergence for 200ms ticks
+        currentDisplayCoords.lat = lerp(currentDisplayCoords.lat, targetRiderCoords.lat, factor);
+        currentDisplayCoords.lng = lerp(currentDisplayCoords.lng, targetRiderCoords.lng, factor);
+        currentDisplayCoords.heading = lerpAngle(currentDisplayCoords.heading, targetRiderCoords.heading, factor);
+        currentZoom = lerp(currentZoom, targetZoom, 0.08);
+
+        // Update Map Center
+        if (activeMapType === "leaflet" && leafletMap) {
+            leafletMap.setView([currentDisplayCoords.lat, currentDisplayCoords.lng], currentZoom, { animate: false });
+        } else if (activeMapType === "google" && googleMap) {
+            googleMap.setCenter({ lat: currentDisplayCoords.lat, lng: currentDisplayCoords.lng });
+        }
+
+        // Heading-Up Map Rotation around sticky lower-third rider puck
+        const wrapper = document.getElementById("mapRotationWrapper");
+        if (wrapper) {
+            const h = currentDisplayCoords.heading || 0;
+            if (is3DMode) {
+                wrapper.style.transform = `perspective(700px) rotateX(42deg) rotate(${-h}deg)`;
+            } else {
+                wrapper.style.transform = `rotate(${-h}deg)`;
+            }
+        }
+
+        // Counter-rotate destination pin so it stays vertically oriented on screen
+        if (leafletDestMarker && leafletDestMarker._icon) {
+            const h = currentDisplayCoords.heading || 0;
+            leafletDestMarker._icon.style.transform = `translate3d(-17px, -34px, 0px) rotate(${h}deg)`;
+        }
+
+        requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+}
+
+function initKolkataMap() {
+    if (typeof L !== 'undefined') {
+        initLeafletMap();
+        return;
+    }
+    if (window.google && window.google.maps && window.GOOGLE_MAPS_API_KEY && window.GOOGLE_MAPS_API_KEY.length > 10) {
+        initGoogleMap();
+        return;
+    }
+
+    let attempts = 0;
+    const checkMaps = setInterval(() => {
+        attempts++;
+        if (typeof L !== 'undefined') {
+            clearInterval(checkMaps);
+            initLeafletMap();
+        } else if (window.google && window.google.maps && window.GOOGLE_MAPS_API_KEY && window.GOOGLE_MAPS_API_KEY.length > 10) {
+            clearInterval(checkMaps);
+            initGoogleMap();
+        } else if (attempts > 15) {
+            clearInterval(checkMaps);
+            mountDirectGoogleMap();
+        }
+    }, 100);
+}
+
+function initLeafletMap() {
+    const mapEl = document.getElementById('mapView');
+    if (!mapEl || activeMapType === "leaflet") return;
+
+    activeMapType = "leaflet";
+    mapEl.innerHTML = "";
+
+    leafletMap = L.map('mapView', {
+        center: [currentDisplayCoords.lat, currentDisplayCoords.lng],
+        zoom: currentZoom,
+        minZoom: 12,
+        maxZoom: 19,
+        zoomControl: false,
+        attributionControl: false
+    });
+
+    // Unmetered CARTO Dark Matter raster tiles (zero watermark, zero API key requirement)
+    const cartoDarkUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png';
+    const osmUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+    const tileLayer = L.tileLayer(cartoDarkUrl, {
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(leafletMap);
+
+    tileLayer.on('tileerror', function() {
+        if (tileLayer._url !== osmUrl) {
+            tileLayer.setUrl(osmUrl);
+        }
+    });
+
+    startKinematicsLerpLoop();
+    console.log("[MAP] Leaflet Unmetered Automotive Engine Active (Zero Watermarks, Heading-Up Lerp)");
+}
 
 window.initGoogleMap = function() {
     if (typeof google === 'undefined' || !google.maps) {
-        mountDirectGoogleMap();
+        initLeafletMap();
         return;
     }
     const mapEl = document.getElementById('mapView');
@@ -149,132 +276,38 @@ window.initGoogleMap = function() {
     activeMapType = "google";
     mapEl.style.display = "block";
 
-    const kolkataCenter = { lat: 22.5726, lng: 88.3639 };
-
     googleMap = new google.maps.Map(mapEl, {
-        center: kolkataCenter,
-        zoom: 15,
+        center: { lat: currentDisplayCoords.lat, lng: currentDisplayCoords.lng },
+        zoom: currentZoom,
         minZoom: 12,
         maxZoom: 20,
         disableDefaultUI: true,
-        gestureHandling: "greedy",
-        mapTypeId: "google_roadmap"
+        gestureHandling: "greedy"
     });
 
-    // High-performance Google Maps Roadmap Tile Layer (Direct, Fast, Guaranteed View)
-    const googleRoadmapType = new google.maps.ImageMapType({
-        getTileUrl: function(coord, zoom) {
-            const sub = Math.abs((coord.x + coord.y) % 4);
-            return `https://mt${sub}.google.com/vt/lyrs=m&x=${coord.x}&y=${coord.y}&z=${zoom}`;
-        },
-        tileSize: new google.maps.Size(256, 256),
-        maxZoom: 20,
-        name: "Google Roadmap"
-    });
-    googleMap.mapTypes.set("google_roadmap", googleRoadmapType);
-    googleMap.setMapTypeId("google_roadmap");
-
-    // Custom High-Legibility Driver Rider Puck (Oversized 44px Glowing Cyan Arrow)
-    const riderSvg = {
-        path: "M12,2 L22,22 L12,18 L2,22 Z",
-        fillColor: "#0284C7",
-        fillOpacity: 1.0,
-        strokeColor: "#FFFFFF",
-        strokeWeight: 2.5,
-        scale: 1.6,
-        anchor: new google.maps.Point(12, 12),
-        rotation: currentRiderCoords.heading || 45
-    };
-
-    googleRiderMarker = new google.maps.Marker({
-        position: kolkataCenter,
-        map: googleMap,
-        icon: riderSvg,
-        title: "Driver Vehicle Marker",
-        zIndex: 999
-    });
-
-    // Custom Driver Destination Pin
-    const pinSvg = {
-        path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
-        fillColor: "#EF4444",
-        fillOpacity: 1.0,
-        strokeColor: "#FFFFFF",
-        strokeWeight: 2,
-        scale: 1.6,
-        anchor: new google.maps.Point(12, 24)
-    };
-
-    googleDestMarker = new google.maps.Marker({
-        position: kolkataCenter,
-        map: null,
-        icon: pinSvg,
-        title: "Destination Waypoint",
-        zIndex: 990
-    });
-
-    console.log("[MAP] Google Maps Engine Active (Kolkata Center)");
+    startKinematicsLerpLoop();
+    console.log("[MAP] Google Maps Automotive Driver Engine Initialized");
 };
 
-window.gm_authFailure = function() {
-    console.warn("[MAP] Google Maps authentication warning - maintaining direct Google tiles.");
-    mountDirectGoogleMap();
-};
-
-window.onGoogleMapsLoadError = function() {
-    console.warn("[MAP] Google Maps script delayed. Mounting direct Google Maps tiles.");
-    mountDirectGoogleMap();
-};
-
-function initKolkataMap() {
-    if (window.google && window.google.maps) {
-        initGoogleMap();
-    } else {
-        let attempts = 0;
-        const checkGoogle = setInterval(() => {
-            attempts++;
-            if (window.google && window.google.maps) {
-                clearInterval(checkGoogle);
-                initGoogleMap();
-            } else if (attempts > 20) {
-                clearInterval(checkGoogle);
-                mountDirectGoogleMap();
-            }
-        }, 100);
-    }
-}
-
-// -----------------------------------------------------------------------------
-// DIRECT GOOGLE MAPS TILE ENGINE (OFFLINE / ZERO CONFIG FALLBACK)
-// -----------------------------------------------------------------------------
 function mountDirectGoogleMap() {
     activeMapType = "direct_google";
     const mapEl = document.getElementById('mapView');
     if (!mapEl) return;
 
-    // Render Google Maps Roadmap via dynamic direct tile grid
     mapEl.innerHTML = `
-        <div id="directGoogleContainer" style="position:absolute;width:100%;height:100%;overflow:hidden;background:#0E1726;">
+        <div id="directGoogleContainer" style="position:absolute;width:100%;height:100%;overflow:hidden;background:#070B14;">
             <div id="directGoogleTiles" style="position:absolute;width:100%;height:100%;display:grid;grid-template-columns:repeat(4, 256px);grid-template-rows:repeat(3, 256px);pointer-events:none;"></div>
-            <div id="directRiderMarker" style="position:absolute;top:55%;left:50%;transform:translate(-50%,-50%);z-index:99;display:flex;align-items:center;justify-content:center;">
-                <div style="width:38px;height:38px;background:#0284C7;border:3px solid #FFF;border-radius:50%;box-shadow:0 0 16px rgba(2,132,199,0.9);display:flex;align-items:center;justify-content:center;transform:rotate(45deg);">
-                    <svg width="20" height="20" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,18 2,22" fill="#FFF"/></svg>
-                </div>
-            </div>
-            <div id="directDestMarker" style="position:absolute;top:30%;left:65%;z-index:90;display:none;">
-                <svg width="32" height="32" viewBox="0 0 24 24" style="filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#EF4444"/></svg>
-            </div>
         </div>
     `;
 
-    renderDirectGoogleTiles();
-    console.log("[MAP] Direct Google Maps Tile View Active");
+    renderDirectTiles();
+    startKinematicsLerpLoop();
+    console.log("[MAP] Direct Unmetered Raster Tile View Active");
 }
 
-function renderDirectGoogleTiles() {
+function renderDirectTiles() {
     const tilesEl = document.getElementById("directGoogleTiles");
     if (!tilesEl) return;
-    // Kolkata tile coordinates at zoom 15: x: 23954..23957, y: 14391..14393
     const startX = 23954;
     const startY = 14391;
     let html = "";
@@ -282,8 +315,7 @@ function renderDirectGoogleTiles() {
         for (let x = 0; x < 4; x++) {
             const tx = startX + x;
             const ty = startY + y;
-            const sub = (tx + ty) % 4;
-            html += `<img src="https://mt${sub}.google.com/vt/lyrs=m&x=${tx}&y=${ty}&z=15" style="width:256px;height:256px;display:block;" alt="Google Maps" draggable="false" />`;
+            html += `<img src="https://tile.openstreetmap.org/15/${tx}/${ty}.png" style="width:256px;height:256px;display:block;filter:invert(100%) hue-rotate(180deg) brightness(85%) contrast(120%);" alt="OSM Map" draggable="false" />`;
         }
     }
     tilesEl.innerHTML = html;
@@ -293,12 +325,14 @@ function renderDirectGoogleTiles() {
 // DRIVER-CENTRIC CAMERA & QUICK ACTIONS
 // -----------------------------------------------------------------------------
 function recenterMap() {
-    if (activeMapType === "google" && googleMap && googleRiderMarker) {
-        const pos = { lat: currentRiderCoords.lat, lng: currentRiderCoords.lng };
-        googleMap.panTo(pos);
+    targetZoom = 16.0;
+    targetRiderCoords.lat = currentRiderCoords.lat;
+    targetRiderCoords.lng = currentRiderCoords.lng;
+    if (activeMapType === "leaflet" && leafletMap) {
+        leafletMap.setView([currentRiderCoords.lat, currentRiderCoords.lng], 16, { animate: true });
+    } else if (activeMapType === "google" && googleMap) {
+        googleMap.panTo({ lat: currentRiderCoords.lat, lng: currentRiderCoords.lng });
         googleMap.setZoom(16);
-    } else {
-        renderDirectGoogleTiles();
     }
 }
 
@@ -306,38 +340,28 @@ function toggleMapTilt() {
     is3DMode = !is3DMode;
     const txt = document.getElementById("tiltModeText");
     if (txt) txt.textContent = is3DMode ? "2D" : "3D";
-
-    if (activeMapType === "google" && googleMap) {
-        googleMap.setTilt(is3DMode ? 45 : 0);
-        if (is3DMode && currentRiderCoords.heading) {
-            googleMap.setHeading(currentRiderCoords.heading);
-        }
-    }
 }
 
 function zoomInMap() {
-    if (activeMapType === "google" && googleMap) {
-        googleMap.setZoom(googleMap.getZoom() + 1);
-    }
+    targetZoom = Math.min(19, targetZoom + 1);
 }
 
 function zoomOutMap() {
-    if (activeMapType === "google" && googleMap) {
-        googleMap.setZoom(googleMap.getZoom() - 1);
-    }
+    targetZoom = Math.max(12, targetZoom - 1);
 }
 
 function clearMapRoute() {
     activeRoutePolyline = [];
     activeDestCoords = null;
 
-    if (activeMapType === "google" && googleMap) {
+    if (activeMapType === "leaflet" && leafletMap) {
+        if (leafletRouteGlow) { leafletMap.removeLayer(leafletRouteGlow); leafletRouteGlow = null; }
+        if (leafletRouteCore) { leafletMap.removeLayer(leafletRouteCore); leafletRouteCore = null; }
+        if (leafletDestMarker) { leafletMap.removeLayer(leafletDestMarker); leafletDestMarker = null; }
+    } else if (activeMapType === "google" && googleMap) {
         if (googleBlueGlowPolyline) { googleBlueGlowPolyline.setMap(null); googleBlueGlowPolyline = null; }
         if (googleBlueCorePolyline) { googleBlueCorePolyline.setMap(null); googleBlueCorePolyline = null; }
         if (googleDestMarker) { googleDestMarker.setMap(null); }
-    } else {
-        const dest = document.getElementById("directDestMarker");
-        if (dest) dest.style.display = "none";
     }
 }
 
@@ -348,7 +372,33 @@ function renderBlueRoute(polyline, destCoords) {
     activeRoutePolyline = polyline;
     activeDestCoords = destCoords;
 
-    if (activeMapType === "google" && googleMap) {
+    if (activeMapType === "leaflet" && leafletMap) {
+        leafletRouteGlow = L.polyline(polyline, {
+            color: '#075985',
+            weight: 10,
+            opacity: 0.6,
+            lineCap: 'round',
+            lineJoin: 'round'
+        }).addTo(leafletMap);
+
+        leafletRouteCore = L.polyline(polyline, {
+            color: '#0284C7',
+            weight: 6,
+            opacity: 0.98,
+            lineCap: 'round',
+            lineJoin: 'round'
+        }).addTo(leafletMap);
+
+        if (destCoords) {
+            const pinIcon = L.divIcon({
+                className: 'dest-pin-leaflet',
+                html: `<svg width="34" height="34" viewBox="0 0 24 24" style="filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#EF4444"/><circle cx="12" cy="9" r="2.5" fill="#FFFFFF"/></svg>`,
+                iconSize: [34, 34],
+                iconAnchor: [17, 34]
+            });
+            leafletDestMarker = L.marker([destCoords.lat, destCoords.lng], { icon: pinIcon }).addTo(leafletMap);
+        }
+    } else if (activeMapType === "google" && googleMap) {
         const gPath = polyline.map(pt => ({ lat: pt[0], lng: pt[1] }));
         googleBlueGlowPolyline = new google.maps.Polyline({
             path: gPath,
@@ -368,16 +418,56 @@ function renderBlueRoute(polyline, destCoords) {
             googleDestMarker.setPosition({ lat: destCoords.lat, lng: destCoords.lng });
             googleDestMarker.setMap(googleMap);
         }
-    } else {
-        const dest = document.getElementById("directDestMarker");
-        if (dest) dest.style.display = "block";
     }
 }
 
-function smoothFlyToDestination(lat, lng, targetZoom = 17) {
-    if (activeMapType === "google" && googleMap) {
+function smoothFlyToDestination(lat, lng, targetZoomLevel = 17) {
+    targetZoom = targetZoomLevel;
+    if (activeMapType === "leaflet" && leafletMap) {
+        leafletMap.flyTo([lat, lng], targetZoomLevel, { duration: 1.2 });
+    } else if (activeMapType === "google" && googleMap) {
         googleMap.panTo({ lat, lng });
-        googleMap.setZoom(targetZoom);
+        googleMap.setZoom(targetZoomLevel);
+    }
+}
+
+function computeHaversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function checkProgressiveGeofenceZoom(order, riderLat, riderLng) {
+    if (!order || !riderLat || !riderLng) {
+        targetZoom = 15.0;
+        return;
+    }
+    const p = (currentPhase || "").toUpperCase();
+    if (p === "ROUTETOSTORE" || p === "ROUTE_TO_STORE") {
+        const distToStore = computeHaversineKm(riderLat, riderLng, order.store_lat, order.store_lng);
+        if (distToStore < 0.15) {
+            targetZoom = 17.0; // Progressive zoom upon entering store geofence
+        } else {
+            targetZoom = 15.2;
+        }
+    } else if (p === "ATSTORE" || p === "AT_STORE") {
+        targetZoom = 17.5;
+    } else if (p === "ROUTETOCUSTOMER" || p === "ROUTE_TO_CUSTOMER") {
+        const distToCustomer = computeHaversineKm(riderLat, riderLng, order.customer_lat, order.customer_lng);
+        if (distToCustomer < 0.08) {
+            targetZoom = 18.5; // Progressive zoom upon entering customer doorstep geofence
+        } else {
+            targetZoom = 15.5;
+        }
+    } else if (p === "ATCUSTOMER" || p === "AT_CUSTOMER") {
+        targetZoom = 18.5;
+    } else {
+        targetZoom = 15.0;
     }
 }
 
@@ -396,39 +486,41 @@ async function syncTelemetrySnapshot() {
         const speedEl = document.getElementById("speedNum");
         if (speedEl) speedEl.textContent = Math.round(gps.speed_kmh || 0);
 
-        // 2. Update Map Position & Driver Forward Camera Tracking
+        // 2. Feed Kinematic Target & Camera Tracking
         if (gps.latitude && gps.longitude) {
             currentRiderCoords = {
                 lat: gps.latitude,
                 lng: gps.longitude,
                 heading: gps.heading_deg || 45
             };
-
-            if (activeMapType === "google" && googleMap && googleRiderMarker) {
-                const newPos = { lat: gps.latitude, lng: gps.longitude };
-                googleRiderMarker.setPosition(newPos);
-                if (isMoving) {
-                    googleMap.panTo(newPos);
-                    if (is3DMode) {
-                        googleMap.setHeading(gps.heading_deg || 0);
-                    }
-                }
-            } else if (activeMapType === "direct_google") {
-                const marker = document.getElementById("directRiderMarker");
-                if (marker) {
-                    const puck = marker.querySelector("div");
-                    if (puck) puck.style.transform = `rotate(${gps.heading_deg || 45}deg)`;
-                }
-            }
+            targetRiderCoords = {
+                lat: gps.latitude,
+                lng: gps.longitude,
+                heading: gps.heading_deg || 45,
+                speed: gps.speed_kmh || 0
+            };
         }
 
-        // 3. Phase Transition Evaluation
+        // 3. Progressive Zoom Transitions based on geofence proximity
+        checkProgressiveGeofenceZoom(snap.selected_order, gps.latitude, gps.longitude);
+
+        // 4. Phase Transition Evaluation
         currentPhase = snap.order_phase;
         activeSelectedOrder = snap.selected_order;
         updateUIPhase(currentPhase, activeSelectedOrder, snap.daily_summary);
 
-        // 4. Update Idle Offers Stack (Continuous Mock Order Feed)
-        if (currentPhase === "Idle" || currentPhase === "Delivered" || currentPhase === "IDLE") {
+        // 5. Automatic Doorstep OTP UI Presentation at AT_CUSTOMER
+        const pUpper = (currentPhase || "").toUpperCase();
+        if (pUpper === "ATCUSTOMER" || pUpper === "AT_CUSTOMER") {
+            const otpModal = document.getElementById("otpModal");
+            const rzpModal = document.getElementById("razorpayModal");
+            if (otpModal && otpModal.style.display !== "flex" && (!rzpModal || rzpModal.style.display !== "flex")) {
+                openOtpModal();
+            }
+        }
+
+        // 6. Update Idle Offers Stack (Continuous Mock Order Feed)
+        if (pUpper === "IDLE" || pUpper === "DELIVERED") {
             const offers = snap.active_offers || [];
             if (offers.length === 0) {
                 tauriInvoke("refresh_offers");
@@ -439,7 +531,7 @@ async function syncTelemetrySnapshot() {
             if (stack) stack.innerHTML = "";
         }
 
-        // 5. Emergency Screen
+        // 7. Emergency Screen
         const emerg = document.getElementById("emergencyOverlay");
         if (emerg) {
             if (snap.is_emergency) {
@@ -461,11 +553,12 @@ function updateUIPhase(phase, order, daily) {
 
     // Daily Summary updates
     if (daily) {
-        document.getElementById("drawerDailyText").textContent = `₹${daily.earnings_today_inr.toFixed(2)} / ₹${daily.daily_target_inr.toFixed(2)}`;
-        document.getElementById("drawerDailyBar").style.width = `${daily.progress_pct}%`;
+        document.getElementById("drawerDailyText").textContent = `₹${Number(daily.earnings_today_inr || 0).toFixed(2)} / ₹${Number(daily.daily_target_inr || 800).toFixed(2)}`;
+        document.getElementById("drawerDailyBar").style.width = `${daily.progress_pct || 0}%`;
     }
 
-    if (!order || phase === "Idle" || phase === "Delivered" || phase === "IDLE") {
+    const pUpper = (phase || "").toUpperCase();
+    if (!order || pUpper === "IDLE" || pUpper === "DELIVERED") {
         if (turnCard) turnCard.style.display = "none";
         if (activeDock) activeDock.style.display = "none";
         if (bottomDestName) bottomDestName.textContent = "Scanning Kolkata (Salt Lake, Newtown, Park St)...";
@@ -480,6 +573,8 @@ function updateUIPhase(phase, order, daily) {
     const dockTitle = document.getElementById("dockTitle");
     const dockSub = document.getElementById("dockSubtitle");
     const dockBtn = document.getElementById("btnDockAction");
+    const dockSwipeLabel = document.getElementById("dockSwipeLabel");
+    const dockSwipeHandle = document.getElementById("dockSwipeHandle");
 
     const phaseNormalized = (phase || "").toUpperCase();
 
@@ -489,9 +584,13 @@ function updateUIPhase(phase, order, daily) {
         dockBadge.style.color = "#38BDF8";
         dockTitle.textContent = order.store_name;
         dockSub.textContent = `${order.store_address} • ${order.store_dist_km} km`;
-        dockBtn.textContent = "REACHED STORE [R]";
-        dockBtn.style.background = "linear-gradient(135deg, #0284C7, #0369A1)";
-        dockBtn.style.color = "#FFF";
+        if (dockBtn) {
+            dockBtn.textContent = "REACHED STORE [R]";
+            dockBtn.style.background = "linear-gradient(135deg, #0284C7, #0369A1)";
+            dockBtn.style.color = "#FFF";
+        }
+        if (dockSwipeLabel) dockSwipeLabel.textContent = "SWIPE TO REACH STORE [R]";
+        if (dockSwipeHandle) dockSwipeHandle.className = "swipe-handle dock-swipe-handle";
 
         if (bottomDestName) bottomDestName.textContent = `Pickup: ${order.store_name}`;
         if (destHeader) destHeader.textContent = "PHASE 1:";
@@ -507,9 +606,13 @@ function updateUIPhase(phase, order, daily) {
         dockBadge.style.color = "#38BDF8";
         dockTitle.textContent = `Token #${order.order_id} • ${order.items_summary}`;
         dockSub.textContent = `Ready for collection at ${order.store_name}`;
-        dockBtn.textContent = "FOOD PICKED UP [K]";
-        dockBtn.style.background = "linear-gradient(135deg, #00E676, #00b248)";
-        dockBtn.style.color = "#070B14";
+        if (dockBtn) {
+            dockBtn.textContent = "FOOD PICKED UP [K]";
+            dockBtn.style.background = "linear-gradient(135deg, #00E676, #00b248)";
+            dockBtn.style.color = "#070B14";
+        }
+        if (dockSwipeLabel) dockSwipeLabel.textContent = "SWIPE TO CONFIRM PICKUP [K]";
+        if (dockSwipeHandle) dockSwipeHandle.className = "swipe-handle dock-swipe-handle pickup-mode";
 
         // Trigger progressive map zoom into store
         smoothFlyToDestination(order.store_lat, order.store_lng, 17);
@@ -520,9 +623,13 @@ function updateUIPhase(phase, order, daily) {
         dockBadge.style.color = "#00E676";
         dockTitle.textContent = `${order.customer_name} • ${order.customer_address}`;
         dockSub.textContent = `${order.customer_instructions} • ${order.drop_dist_km} km`;
-        dockBtn.textContent = "REACHED CUSTOMER [C]";
-        dockBtn.style.background = "linear-gradient(135deg, #0284C7, #0369A1)";
-        dockBtn.style.color = "#FFF";
+        if (dockBtn) {
+            dockBtn.textContent = "REACHED CUSTOMER [C]";
+            dockBtn.style.background = "linear-gradient(135deg, #0284C7, #0369A1)";
+            dockBtn.style.color = "#FFF";
+        }
+        if (dockSwipeLabel) dockSwipeLabel.textContent = "SWIPE TO REACH CUSTOMER [C]";
+        if (dockSwipeHandle) dockSwipeHandle.className = "swipe-handle dock-swipe-handle";
 
         if (bottomDestName) bottomDestName.textContent = `Drop: ${order.customer_name}`;
         if (destHeader) destHeader.textContent = "PHASE 2:";
@@ -538,9 +645,13 @@ function updateUIPhase(phase, order, daily) {
         dockBadge.style.color = "#FFD54F";
         dockTitle.textContent = `Verify Handover: ${order.customer_name}`;
         dockSub.textContent = `Customer Note: ${order.customer_instructions}`;
-        dockBtn.textContent = "COMPLETE DELIVERY [U]";
-        dockBtn.style.background = "linear-gradient(135deg, #00E676, #00b248)";
-        dockBtn.style.color = "#070B14";
+        if (dockBtn) {
+            dockBtn.textContent = "COMPLETE DELIVERY [U]";
+            dockBtn.style.background = "linear-gradient(135deg, #00E676, #00b248)";
+            dockBtn.style.color = "#070B14";
+        }
+        if (dockSwipeLabel) dockSwipeLabel.textContent = "SWIPE TO COMPLETE DELIVERY [U]";
+        if (dockSwipeHandle) dockSwipeHandle.className = "swipe-handle dock-swipe-handle deliver-mode";
 
         // Trigger progressive map zoom into customer doorstep
         smoothFlyToDestination(order.customer_lat, order.customer_lng, 18);
@@ -589,6 +700,7 @@ function renderOffersStack(offers) {
 function directAcceptOffer(orderId) {
     playChime(1200, 0.25);
     tauriInvoke("accept_order", { orderId }).then(() => {
+        showHUDToast(`Order #${orderId} accepted. Routing to store...`);
         syncTelemetrySnapshot();
     });
 }
@@ -605,15 +717,15 @@ function openOfferModalById(orderId) {
 
 function openOfferModal(offer) {
     currentPendingOffer = offer;
-    document.getElementById("offerModalPlatform").textContent = offer.platform.toUpperCase();
-    document.getElementById("offerModalPlatform").style.background = offer.platform_color;
-    document.getElementById("offerModalPayout").textContent = offer.payout_inr.toFixed(2);
-    document.getElementById("offerModalStore").textContent = offer.store_name;
-    document.getElementById("offerModalStoreDist").textContent = `${offer.store_dist_km} km travel to pickup`;
-    document.getElementById("offerModalCustomer").textContent = offer.customer_name;
-    document.getElementById("offerModalCustomerAddr").textContent = `${offer.customer_address} (${offer.drop_dist_km} km drop)`;
-    document.getElementById("offerModalItems").textContent = `Package: ${offer.items_summary}`;
-    document.getElementById("offerModalPrep").textContent = `${offer.prep_time_minutes} min prep`;
+    document.getElementById("offerModalPlatform").textContent = (offer.platform || "ORDER").toUpperCase();
+    document.getElementById("offerModalPlatform").style.background = offer.platform_color || "#0284C7";
+    document.getElementById("offerModalPayout").textContent = Number(offer.payout_inr || 0).toFixed(2);
+    document.getElementById("offerModalStore").textContent = offer.store_name || "Store";
+    document.getElementById("offerModalStoreDist").textContent = `${offer.store_dist_km || 1.0} km travel to pickup`;
+    document.getElementById("offerModalCustomer").textContent = offer.customer_name || "Customer";
+    document.getElementById("offerModalCustomerAddr").textContent = `${offer.customer_address || "Drop Address"} (${offer.drop_dist_km || 2.0} km drop)`;
+    document.getElementById("offerModalItems").textContent = `Package: ${offer.items_summary || "Food Pack"}`;
+    document.getElementById("offerModalPrep").textContent = `${offer.prep_time_minutes || 3} min prep`;
 
     // Reset slider handle
     const handle = document.getElementById("swipeHandle");
@@ -648,7 +760,7 @@ function setupSwipeSlider() {
         delta = Math.max(4, Math.min(delta, container.offsetWidth - 48));
         handle.style.left = `${delta}px`;
 
-        // If swiped past 80% threshold -> Trigger Instant Accept!
+        // If swiped past 75% threshold -> Trigger Instant Accept!
         if (delta >= (container.offsetWidth - 60)) {
             isDragging = false;
             triggerAcceptOrder();
@@ -669,12 +781,65 @@ function setupSwipeSlider() {
     window.addEventListener("touchend", onEnd);
 }
 
+function setupDockSwipeSlider() {
+    const handle = document.getElementById("dockSwipeHandle");
+    const track = document.getElementById("dockSwipeTrack");
+    if (!handle || !track) return;
+
+    let isDragging = false;
+    let startX = 0;
+
+    const onStart = (e) => {
+        isDragging = true;
+        startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    };
+
+    const onMove = (e) => {
+        if (!isDragging) return;
+        const currentX = (e.touches ? e.touches[0].clientX : e.clientX);
+        let delta = currentX - startX;
+        const maxDelta = track.offsetWidth - handle.offsetWidth - 8;
+        delta = Math.max(4, Math.min(delta, maxDelta));
+        handle.style.left = `${delta}px`;
+
+        // If swiped past 75% threshold -> Execute Dock Action!
+        if (delta >= (maxDelta * 0.75)) {
+            isDragging = false;
+            handle.style.left = "4px";
+            handlePrimaryDockAction();
+        }
+    };
+
+    const onEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        handle.style.left = "4px"; // Snap back if threshold not met
+    };
+
+    handle.addEventListener("mousedown", onStart);
+    handle.addEventListener("touchstart", onStart, { passive: true });
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("mouseup", onEnd);
+    window.addEventListener("touchend", onEnd);
+}
+
 async function triggerAcceptOrder() {
-    if (!currentPendingOffer) return;
+    let orderId = "";
+    if (currentPendingOffer) {
+        orderId = currentPendingOffer.order_id;
+    } else {
+        const snap = await tauriInvoke("get_telemetry_snapshot");
+        if (snap && snap.active_offers && snap.active_offers.length > 0) {
+            orderId = snap.active_offers[0].order_id;
+        }
+    }
+    if (!orderId) return;
+
     playChime(1200, 0.25);
-    const orderId = currentPendingOffer.order_id;
     closeOfferModal();
     await tauriInvoke("accept_order", { orderId });
+    showHUDToast(`Order #${orderId} accepted! Navigating to store...`);
     syncTelemetrySnapshot();
 }
 
@@ -686,74 +851,166 @@ async function handlePrimaryDockAction() {
     const p = (currentPhase || "").toUpperCase();
     if (p === "ROUTETOSTORE" || p === "ROUTE_TO_STORE") {
         await tauriInvoke("reach_store");
+        showHUDToast("Arrived at store. Verify order package.");
     } else if (p === "ATSTORE" || p === "AT_STORE") {
         await tauriInvoke("pickup_order");
+        showHUDToast("Food picked up! Navigating to customer drop-off...");
     } else if (p === "ROUTETOCUSTOMER" || p === "ROUTE_TO_CUSTOMER") {
         await tauriInvoke("reach_customer");
+        showHUDToast("Arrived at customer doorstep. Request handover OTP.");
     } else if (p === "ATCUSTOMER" || p === "AT_CUSTOMER") {
-        // Open OTP Handover Screen
         openOtpModal();
     }
     syncTelemetrySnapshot();
 }
 
+function renderOtpBoxes() {
+    for (let i = 0; i < 4; i++) {
+        const box = document.getElementById(`otpBox${i}`);
+        if (!box) continue;
+        if (i < enteredOtpString.length) {
+            box.textContent = enteredOtpString[i];
+            box.className = "otp-box filled";
+        } else if (i === enteredOtpString.length) {
+            box.textContent = "-";
+            box.className = "otp-box active";
+        } else {
+            box.textContent = "-";
+            box.className = "otp-box";
+        }
+    }
+    const legacy = document.getElementById("otpDisplay");
+    if (legacy) {
+        legacy.textContent = enteredOtpString ? enteredOtpString.padEnd(4, "-") : "----";
+    }
+}
+
 function openOtpModal() {
     enteredOtpString = "";
-    document.getElementById("otpDisplay").textContent = "----";
+    renderOtpBoxes();
+    const hint = document.getElementById("otpCustomerHint");
+    if (hint) {
+        const otpVal = (activeSelectedOrder && activeSelectedOrder.delivery_otp) ? activeSelectedOrder.delivery_otp : "4829";
+        hint.textContent = `OTP: ${otpVal}`;
+    }
     document.getElementById("otpModal").style.display = "flex";
+}
+
+function autoFillOtp() {
+    const otpVal = (activeSelectedOrder && activeSelectedOrder.delivery_otp) ? activeSelectedOrder.delivery_otp : "4829";
+    enteredOtpString = otpVal;
+    renderOtpBoxes();
+    playChime(1100, 0.08);
+}
+
+function closeOtpModal() {
+    document.getElementById("otpModal").style.display = "none";
 }
 
 function pressOtpKey(num) {
     if (enteredOtpString.length < 4) {
         enteredOtpString += num;
-        document.getElementById("otpDisplay").textContent = enteredOtpString.padEnd(4, "-");
+        renderOtpBoxes();
         playChime(950, 0.06);
+        if (enteredOtpString.length === 4) {
+            setTimeout(submitOtp, 250);
+        }
     }
 }
 
 function clearOtp() {
     enteredOtpString = "";
-    document.getElementById("otpDisplay").textContent = "----";
+    renderOtpBoxes();
 }
 
 async function submitOtp() {
+    // If not full 4 digits, auto-fill default so verification is never stuck
+    if (!enteredOtpString || enteredOtpString.length < 4) {
+        autoFillOtp();
+    }
     document.getElementById("otpModal").style.display = "none";
     
-    // Check if order is Cash on Delivery (COD)
-    if (activeSelectedOrder && activeSelectedOrder.payment_mode === "COD" && activeSelectedOrder.cod_amount > 0) {
-        openRazorpayCodModal(activeSelectedOrder.order_id, activeSelectedOrder.cod_amount);
-    } else {
-        // Prepaid order -> Complete immediately
-        await tauriInvoke("complete_delivery", { enteredOtp: enteredOtpString });
-        syncTelemetrySnapshot();
-    }
+    // MANDATORY PRE-DELIVERY RAZORPAY QR POP-UP (Universal for all deliveries)
+    const ordId = activeSelectedOrder ? activeSelectedOrder.order_id : "ORD-KOL-LIVE";
+    const isCod = activeSelectedOrder && activeSelectedOrder.payment_mode === "COD";
+    const amt = (activeSelectedOrder && isCod)
+        ? (activeSelectedOrder.cod_amount || 360)
+        : (activeSelectedOrder ? (activeSelectedOrder.order_amount_inr || activeSelectedOrder.payout_inr || 360) : 360);
+
+    openRazorpayDeliveryModal(ordId, amt, isCod);
 }
 
 // -----------------------------------------------------------------------------
-// 6. RAZORPAY COD INTEGRATION & PAYMENT LISTENER
+// 6. PRE-DELIVERY RAZORPAY QR INTEGRATION & SETTLEMENT LISTENER
 // -----------------------------------------------------------------------------
-async function openRazorpayCodModal(orderId, codAmount) {
-    document.getElementById("rzpAmountText").textContent = `₹${codAmount.toFixed(2)}`;
+let activeQrPollInterval = null;
+
+async function openRazorpayDeliveryModal(orderId, amount, isCod) {
+    playChime(1100, 0.2);
+    const billLabel = document.getElementById("rzpBillLabel");
+    if (billLabel) {
+        billLabel.textContent = isCod ? "COLLECT EXACT COD AMOUNT:" : "VERIFY HANDOVER & SETTLEMENT:";
+    }
+    document.getElementById("rzpAmountText").textContent = `₹${Number(amount || 0).toFixed(2)}`;
     document.getElementById("rzpBodyActive").style.display = "flex";
     document.getElementById("rzpSuccessView").style.display = "none";
     document.getElementById("razorpayModal").style.display = "flex";
 
+    const vpaEl = document.getElementById("rzpMerchantVpaText");
+    if (vpaEl && window.RAZORPAY_CONFIG && window.RAZORPAY_CONFIG.merchant_vpa) {
+        vpaEl.textContent = window.RAZORPAY_CONFIG.merchant_vpa;
+    }
+
     try {
-        const res = await tauriInvoke("generate_razorpay_qr", { orderId, codAmount });
+        const res = await tauriInvoke("generate_razorpay_qr", { orderId, codAmount: amount });
         if (res && res.image_url) {
             document.getElementById("rzpQrImage").src = res.image_url;
+            if (res.merchant_vpa && vpaEl) {
+                vpaEl.textContent = res.merchant_vpa;
+            }
         }
     } catch (e) {
         console.warn("[RAZORPAY ERROR]", e);
     }
 }
 
+// Alias for backwards compatibility
+const openRazorpayCodModal = openRazorpayDeliveryModal;
+
 function closeRazorpayModal() {
+    if (activeQrPollInterval) {
+        clearInterval(activeQrPollInterval);
+        activeQrPollInterval = null;
+    }
     document.getElementById("razorpayModal").style.display = "none";
 }
 
+function simulatePaymentSuccess() {
+    playChime(1300, 0.35);
+    const orderId = activeSelectedOrder ? activeSelectedOrder.order_id : "ORD-KOL-LIVE";
+    const amount = activeSelectedOrder ? (activeSelectedOrder.payment_mode === "COD" ? (activeSelectedOrder.cod_amount || 360.0) : 360.0) : 360.0;
+    const txId = "pay_rzp_test_" + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+    // Notify backend
+    fetch('/api/payment/verify-instant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, amount_inr: amount })
+    }).catch(() => {});
+
+    const event = new CustomEvent("tauri-payment_successful", {
+        detail: {
+            order_id: orderId,
+            amount_paid: amount,
+            payment_id: txId,
+            status: "SUCCESS"
+        }
+    });
+    window.dispatchEvent(event);
+}
+
 function setupTauriEventListeners() {
-    // Listens for Rust background task emitting "payment_successful"
+    // Listens for payment_successful (via Rust emit or mock event)
     tauriListen("payment_successful", (payload) => {
         console.log("[RAZORPAY PAYMENT EVENT RECEIVED]", payload);
         playChime(1300, 0.4);
@@ -761,20 +1018,173 @@ function setupTauriEventListeners() {
         // Shift to Green Celebration UI
         document.getElementById("rzpBodyActive").style.display = "none";
         document.getElementById("rzpSuccessView").style.display = "flex";
-        document.getElementById("rzpSuccessSub").textContent = `₹${payload.amount_paid.toFixed(2)} received via Razorpay UPI`;
-        document.getElementById("rzpRiderCredit").textContent = `+₹${(activeSelectedOrder ? activeSelectedOrder.payout_inr : 85.26).toFixed(2)} Credited to Wallet`;
+        document.getElementById("rzpSuccessSub").textContent = `₹${Number(payload.amount_paid || 0).toFixed(2)} received via Razorpay UPI`;
+        const txEl = document.getElementById("rzpSuccessTx");
+        if (txEl) {
+            txEl.textContent = `Tx ID: ${payload.payment_id || ("pay_rzp_" + Date.now().toString(36))}`;
+        }
+        const credit = activeSelectedOrder ? activeSelectedOrder.payout_inr : 85.26;
+        document.getElementById("rzpRiderCredit").textContent = `+₹${Number(credit).toFixed(2)} Credited to Wallet`;
     });
 }
 
 async function finalizeDelivery() {
     closeRazorpayModal();
+    playChime(1250, 0.2);
     await tauriInvoke("complete_delivery", { enteredOtp: enteredOtpString });
+    showHUDToast("Delivery Completed & Recorded to Ledger!");
     syncTelemetrySnapshot();
 }
 
 // -----------------------------------------------------------------------------
-// 7. RIDER PROFILE DRAWER (FIREBASE AUTH & SQLITE)
+// 7. RIDER PROFILE & FIREBASE GOOGLE AUTHENTICATION
 // -----------------------------------------------------------------------------
+let currentUserProfile = null;
+
+async function initFirebaseAuth() {
+    try {
+        let config = window.FIREBASE_CONFIG;
+        if (!config || !config.apiKey) {
+            const res = await fetch('/api/auth/config');
+            if (res.ok) {
+                config = await res.json();
+                window.FIREBASE_CONFIG = config;
+            }
+        }
+
+        if (window.firebase && config && config.apiKey && !firebase.apps.length) {
+            firebase.initializeApp(config);
+            firebase.auth().onAuthStateChanged(async (user) => {
+                if (user) {
+                    await handleGoogleAuthSuccess(user);
+                } else {
+                    handleGoogleAuthSignedOut();
+                }
+            });
+        }
+    } catch (e) {
+        console.warn("[FIREBASE INIT NOTICE]", e);
+    }
+}
+
+async function signInWithGoogle() {
+    playChime(1000, 0.15);
+    try {
+        if (window.firebase && firebase.apps.length && window.FIREBASE_CONFIG && !window.FIREBASE_CONFIG.apiKey.startsWith("AIzaSyDummy")) {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            const result = await firebase.auth().signInWithPopup(provider);
+            if (result && result.user) {
+                await handleGoogleAuthSuccess(result.user);
+                showHUDToast(`Welcome, ${result.user.displayName || "Rider"}!`);
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn("[GOOGLE POPUP NOTICE] Fallback to simulated test account:", e.message);
+    }
+
+    // High-Fidelity Test / Fallback Driver Account Simulation
+    const mockUser = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.mock_account) || {
+        uid: "google_test_rider_debanjan",
+        displayName: "Debanjan Mondal",
+        email: "debanjan.rider@lastmile.io",
+        photoURL: ""
+    };
+    await handleGoogleAuthSuccess(mockUser);
+    showHUDToast(`Connected as ${mockUser.displayName} (Google Test Mode)`);
+}
+
+async function handleGoogleAuthSuccess(user) {
+    const displayName = user.displayName || user.name || "Debanjan Mondal";
+    const email = user.email || "debanjan.rider@lastmile.io";
+    const photoURL = user.photoURL || user.picture || "";
+
+    currentUserProfile = {
+        name: displayName,
+        email: email,
+        photo_url: photoURL,
+        is_authenticated: true
+    };
+
+    // Update Top Bar
+    document.getElementById("topBarRiderName").textContent = displayName.split(" ")[0];
+    const topBarAvatar = document.getElementById("topBarAvatarImg");
+    const topBarDefaultIcon = document.getElementById("topBarDefaultIcon");
+    const topBarAuthDot = document.getElementById("topBarAuthDot");
+
+    if (photoURL && topBarAvatar) {
+        topBarAvatar.src = photoURL;
+        topBarAvatar.style.display = "block";
+        if (topBarDefaultIcon) topBarDefaultIcon.style.display = "none";
+    }
+    if (topBarAuthDot) {
+        topBarAuthDot.classList.remove("unlinked");
+        topBarAuthDot.classList.add("linked");
+        topBarAuthDot.title = "Google Auth: Connected (" + email + ")";
+    }
+
+    // Update Drawer Elements
+    const signedOutBox = document.getElementById("googleSignedOutBox");
+    const signedInBox = document.getElementById("googleSignedInBox");
+    if (signedOutBox && signedInBox) {
+        signedOutBox.style.display = "none";
+        signedInBox.style.display = "block";
+        document.getElementById("drawerGoogleName").textContent = displayName;
+        document.getElementById("drawerGoogleEmail").textContent = email;
+        const drawerAvatar = document.getElementById("drawerAvatarImg");
+        if (drawerAvatar) {
+            drawerAvatar.src = photoURL || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300F0FF'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-4-4z'/%3E%3C/svg%3E";
+        }
+    }
+
+    // Sync with backend / SQLite
+    try {
+        await tauriInvoke("firebase_verify", {
+            id_token: "mock_jwt_token",
+            user_info: {
+                uid: user.uid,
+                displayName: displayName,
+                email: email,
+                photoURL: photoURL
+            }
+        });
+    } catch(e) {}
+}
+
+async function signOutGoogle() {
+    playChime(800, 0.1);
+    try {
+        if (window.firebase && firebase.apps.length && firebase.auth) {
+            await firebase.auth().signOut();
+        }
+    } catch (e) {}
+
+    handleGoogleAuthSignedOut();
+    showHUDToast("Signed out of Google account.");
+}
+
+function handleGoogleAuthSignedOut() {
+    currentUserProfile = null;
+    const topBarAvatar = document.getElementById("topBarAvatarImg");
+    const topBarDefaultIcon = document.getElementById("topBarDefaultIcon");
+    const topBarAuthDot = document.getElementById("topBarAuthDot");
+
+    if (topBarAvatar) topBarAvatar.style.display = "none";
+    if (topBarDefaultIcon) topBarDefaultIcon.style.display = "block";
+    if (topBarAuthDot) {
+        topBarAuthDot.classList.remove("linked");
+        topBarAuthDot.classList.add("unlinked");
+        topBarAuthDot.title = "Google Auth: Offline / Guest Mode";
+    }
+
+    const signedOutBox = document.getElementById("googleSignedOutBox");
+    const signedInBox = document.getElementById("googleSignedInBox");
+    if (signedOutBox && signedInBox) {
+        signedOutBox.style.display = "block";
+        signedInBox.style.display = "none";
+    }
+}
+
 function openProfileDrawer() {
     document.getElementById("profileDrawer").style.display = "flex";
 }
@@ -793,42 +1203,121 @@ async function saveProfileChanges() {
         profile: {
             id: "RIDER-KOL-01",
             name,
-            email: "debanjan.rider@lastmile.io",
+            email: currentUserProfile ? currentUserProfile.email : "debanjan.rider@lastmile.io",
             phone,
             vehicle_no: vehicle,
             daily_target_inr: target,
             daily_target_orders: 8,
+            photo_url: currentUserProfile ? currentUserProfile.photo_url : "",
             updated_at: new Date().toISOString()
         }
     });
 
     document.getElementById("topBarRiderName").textContent = name.split(" ")[0];
     closeProfileDrawer();
+    showHUDToast("Rider Profile updated.");
     syncTelemetrySnapshot();
 }
 
 // -----------------------------------------------------------------------------
 // 8. GLOBAL HOTKEYS & UTILITIES
 // -----------------------------------------------------------------------------
-function refreshOffers() { tauriInvoke("refresh_offers"); }
-async function infiltrateOrder() {
-    playChime(1400, 0.3);
-    await tauriInvoke("infiltrate_order");
+let toastTimer = null;
+function showHUDToast(msg) {
+    const toast = document.getElementById("hudToast");
+    const msgEl = document.getElementById("toastMessage");
+    if (!toast || !msgEl) return;
+    
+    msgEl.textContent = msg;
+    toast.style.display = "block";
+    
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        toast.style.display = "none";
+    }, 3200);
+}
+
+async function refreshOffers() {
+    playChime(900, 0.15);
+    await tauriInvoke("refresh_offers");
+    showHUDToast("Nearby order feed refreshed.");
     syncTelemetrySnapshot();
 }
-function dismissOffer(orderId) { tauriInvoke("dismiss_offer", { orderId }); }
-function triggerSos() { tauriInvoke("trigger_sos"); }
-function triggerTilt() { tauriInvoke("trigger_tilt"); }
-function resetEmergency() { tauriInvoke("reset_emergency"); }
+
+async function infiltrateOrder() {
+    playChime(1400, 0.3);
+    const order = await tauriInvoke("infiltrate_order");
+    if (order && order.order_id) {
+        openOfferModal(order);
+        showHUDToast(`New Customer Order: ${order.platform ? order.platform.toUpperCase() : "Platform"} • ${order.store_name || "Restaurant"} (₹${Number(order.payout_inr || 0).toFixed(2)})`);
+    } else {
+        showHUDToast("New Customer Order dispatched into driver feed!");
+    }
+    syncTelemetrySnapshot();
+}
+
+async function dismissOffer(orderId) {
+    playChime(600, 0.1);
+    await tauriInvoke("dismiss_offer", { orderId });
+    showHUDToast("Offer dismissed. Replenishing feed...");
+    syncTelemetrySnapshot();
+}
+
+function triggerSos() {
+    tauriInvoke("trigger_sos");
+    showHUDToast("SOS EMERGENCY PROTOCOL ACTIVATED");
+}
+
+function triggerTilt() {
+    tauriInvoke("trigger_tilt");
+    showHUDToast("VEHICLE TILT / CRASH DETECTED");
+}
+
+function resetEmergency() {
+    tauriInvoke("reset_emergency");
+    showHUDToast("Emergency protocol cleared.");
+}
+
 function callCustomer() {
-    alert("Calling Customer via Bluetooth Hands-Free Helmet Audio Link...");
+    playChime(1000, 0.15);
+    const name = activeSelectedOrder ? activeSelectedOrder.customer_name : "Customer";
+    showHUDToast(`Calling ${name} via Bluetooth Helmet Audio Link...`);
 }
 
 document.addEventListener("keydown", (e) => {
+    // If OTP modal is open, intercept digit keys
+    const otpModal = document.getElementById("otpModal");
+    if (otpModal && otpModal.style.display === "flex") {
+        if (/^[0-9]$/.test(e.key)) {
+            pressOtpKey(e.key);
+            return;
+        } else if (e.key === "Backspace") {
+            if (enteredOtpString.length > 0) {
+                enteredOtpString = enteredOtpString.slice(0, -1);
+                renderOtpBoxes();
+            }
+            return;
+        } else if (e.key === "Enter") {
+            submitOtp();
+            return;
+        } else if (e.key === "Escape") {
+            closeOtpModal();
+            return;
+        }
+    }
+
     const key = e.key.toUpperCase();
     const p = (currentPhase || "").toUpperCase();
     if (key === "O") refreshOffers();
     else if (key === "I") infiltrateOrder();
+    else if (key === "A") {
+        const modal = document.getElementById("newOfferModal");
+        if (modal && modal.style.display === "flex") {
+            triggerAcceptOrder();
+        } else if (p === "IDLE" || p === "DELIVERED") {
+            triggerAcceptOrder();
+        }
+    }
     else if (key === "R") { if (p === "ROUTETOSTORE" || p === "ROUTE_TO_STORE") handlePrimaryDockAction(); }
     else if (key === "K") { if (p === "ATSTORE" || p === "AT_STORE") handlePrimaryDockAction(); }
     else if (key === "C") { if (p === "ROUTETOCUSTOMER" || p === "ROUTE_TO_CUSTOMER") handlePrimaryDockAction(); }
@@ -837,6 +1326,7 @@ document.addEventListener("keydown", (e) => {
     else if (key === "T") triggerTilt();
     else if (e.key === "Escape") {
         closeOfferModal();
+        closeOtpModal();
         closeProfileDrawer();
         closeRazorpayModal();
         resetEmergency();
@@ -847,7 +1337,44 @@ document.addEventListener("keydown", (e) => {
 async function mockTauriBridge(cmd, args) {
     try {
         if (cmd === "get_profile") {
+            try {
+                const res = await fetch('/api/rider/profile');
+                if (res.ok) {
+                    const prof = await res.json();
+                    try { localStorage.setItem("lastmile_rider_profile", JSON.stringify(prof)); } catch(e) {}
+                    return prof;
+                }
+            } catch(e) {}
+            try {
+                const saved = localStorage.getItem("lastmile_rider_profile");
+                if (saved) return JSON.parse(saved);
+            } catch(e) {}
             return { name: "Debanjan Mondal", vehicle_no: "WB 02 AB 4591", phone: "+91 98765 43210", daily_target_inr: 800 };
+        } else if (cmd === "update_profile") {
+            if (args && args.profile) {
+                try {
+                    await fetch('/api/rider/profile', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(args.profile)
+                    });
+                    localStorage.setItem("lastmile_rider_profile", JSON.stringify(args.profile));
+                } catch(e) {}
+            }
+            return true;
+        } else if (cmd === "firebase_verify" || cmd === "validate_session") {
+            try {
+                const res = await fetch('/api/auth/firebase-verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id_token: (args && args.token) || (args && args.id_token) || "mock_token",
+                        user_info: (args && args.user_info) || null
+                    })
+                });
+                if (res.ok) return await res.json();
+            } catch(e) {}
+            return { status: "Verified" };
         } else if (cmd === "get_telemetry_snapshot") {
             const res = await fetch('/api/telemetry');
             if (res.ok) {
@@ -871,7 +1398,7 @@ async function mockTauriBridge(cmd, args) {
             const res = await fetch('/api/feed/accept', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order_id: args.orderId || "" })
+                body: JSON.stringify({ order_id: (args && args.orderId) || "" })
             });
             const d = await res.json();
             return d.order;
@@ -899,7 +1426,7 @@ async function mockTauriBridge(cmd, args) {
             const res = await fetch('/api/feed/infiltrate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order_data: args.orderData || null })
+                body: JSON.stringify({ order_data: (args && args.orderData) || null })
             });
             const d = await res.json();
             return d.order;
@@ -907,7 +1434,7 @@ async function mockTauriBridge(cmd, args) {
             await fetch('/api/feed/dismiss', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order_id: args.orderId || "" })
+                body: JSON.stringify({ order_id: (args && args.orderId) || "" })
             });
             return {};
         } else if (cmd === "trigger_sos") {
@@ -920,13 +1447,52 @@ async function mockTauriBridge(cmd, args) {
             await fetch('/api/test/reset-emergency', { method: 'POST' });
             return {};
         } else if (cmd === "generate_razorpay_qr") {
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=razorpay.lastmile@icici%26pn=DeliveryPartner%26am=${args.codAmount || 360}%26cu=INR%26tn=COD_${args.orderId || 'ORD'}`;
+            const codAmt = (args && args.codAmount) || 360;
+            const ordId = (args && args.orderId) || 'ORD';
+            try {
+                const res = await fetch('/api/payment/razorpay-qr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_id: ordId, amount_inr: codAmt })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // Poll for test completion or timeout
+                    if (activeQrPollInterval) clearInterval(activeQrPollInterval);
+                    activeQrPollInterval = setInterval(async () => {
+                        try {
+                            const sRes = await fetch(`/api/payment/status/${data.qr_id}`);
+                            if (sRes.ok) {
+                                const sData = await sRes.json();
+                                if (sData.status === "PAID" || sData.status === "SUCCESS") {
+                                    clearInterval(activeQrPollInterval);
+                                    activeQrPollInterval = null;
+                                    const event = new CustomEvent("tauri-payment_successful", {
+                                        detail: {
+                                            order_id: ordId,
+                                            amount_paid: codAmt,
+                                            payment_id: sData.payment_id || ("pay_rzp_live_" + Math.random().toString(36).substring(7)),
+                                            status: "SUCCESS"
+                                        }
+                                    });
+                                    window.dispatchEvent(event);
+                                }
+                            }
+                        } catch(e) {}
+                    }, 2000);
+
+                    return data;
+                }
+            } catch(e) {}
+
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=razorpay.lastmile@icici%26pn=DeliveryPartner%26am=${codAmt}%26cu=INR%26tn=COD_${ordId}`;
             
             setTimeout(() => {
                 const event = new CustomEvent("tauri-payment_successful", {
                     detail: {
-                        order_id: args.orderId,
-                        amount_paid: args.codAmount || 360.0,
+                        order_id: ordId,
+                        amount_paid: codAmt,
                         payment_id: "pay_rzp_live_" + Math.random().toString(36).substring(7),
                         status: "SUCCESS"
                     }
