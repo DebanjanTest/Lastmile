@@ -3,12 +3,14 @@
 mod auth;
 mod db;
 mod hal;
+mod mock_engine;
 mod order;
 mod razorpay;
 
 use auth::{validate_firebase_jwt, SessionClaims};
 use db::{get_daily_summary, get_rider_profile, init_db, record_completed_order, update_rider_profile, CompletedOrderRecord, DailySummary, RiderProfile};
 use hal::{GpsData, HalState};
+use mock_engine::{MockEngine, MockEvent};
 use order::{DeliveryOffer, OrderManager, OrderPhase};
 use razorpay::{request_razorpay_qr, spawn_payment_listener, RazorpayQrResponse};
 
@@ -234,6 +236,36 @@ fn reset_emergency(state: State<AppState>) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn inject_mock_offer(seed: usize, state: State<AppState>, app: AppHandle) -> Result<DeliveryOffer, String> {
+    let mut orders = state.orders.lock().map_err(|e| e.to_string())?;
+    let offer = MockEngine::generate_synthetic_offer(seed);
+    orders.active_offers.insert(0, offer.clone());
+    let _ = app.emit("mock_delivery_offer", &offer);
+    Ok(offer)
+}
+
+#[tauri::command]
+fn inject_mock_event(event_type: String, title: String, description: String, app: AppHandle) -> Result<MockEvent, String> {
+    let mock_type = match event_type.as_str() {
+        "CustomerTip" => mock_engine::MockEventType::CustomerTip,
+        "OrderCancelled" => mock_engine::MockEventType::OrderCancelled,
+        "SpeedSurge" => mock_engine::MockEventType::SpeedSurge,
+        "RainAlert" => mock_engine::MockEventType::RainAlert,
+        _ => mock_engine::MockEventType::CustomerMessage,
+    };
+    let event = MockEvent {
+        id: format!("EVT-{}", uuid::Uuid::new_v4().to_string()[..8].to_string()),
+        event_type: mock_type,
+        title,
+        description,
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        metadata: serde_json::json!({"source": "mock_injection_engine"}),
+    };
+    let _ = app.emit("mock_customer_event", &event);
+    Ok(event)
+}
+
 // -----------------------------------------------------------------------------
 // APPLICATION BOOTSTRAP
 // -----------------------------------------------------------------------------
@@ -266,6 +298,10 @@ fn main() {
             hal: Arc::clone(&hal_state),
             orders: Arc::clone(&order_manager),
         })
+        .setup(|app| {
+            MockEngine::spawn_autonomous_engine(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_telemetry_snapshot,
             accept_order,
@@ -281,7 +317,9 @@ fn main() {
             update_profile,
             trigger_sos,
             trigger_tilt,
-            reset_emergency
+            reset_emergency,
+            inject_mock_offer,
+            inject_mock_event
         ])
         .run(tauri::generate_context!())
         .expect("Error while running LastMile Guard Tauri application");

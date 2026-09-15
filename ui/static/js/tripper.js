@@ -1,6 +1,6 @@
 // ==============================================================================
-// LastMile Guard - High-Performance Tauri v2 + Rust Delivery HUD Client
-// Pure Native ES6 • CartoDB Voyager • Swipe to Accept • Razorpay COD QR
+// LastMile Guard - Automotive HUD Client Controller (Tauri v2 + Rust)
+// Strict Navy Blue Theme • Zero Emojis • Pure SVG Icons • Kolkata Bounds
 // ==============================================================================
 
 // Safe Tauri v2 IPC Resolver with Standalone Browser Fallback
@@ -10,7 +10,6 @@ const tauriInvoke = (cmd, args = {}) => {
     } else if (window.__TAURI__ && window.__TAURI__.invoke) {
         return window.__TAURI__.invoke(cmd, args);
     }
-    // Browser fallback / mock execution
     return mockTauriBridge(cmd, args);
 };
 
@@ -22,13 +21,12 @@ const tauriListen = (event, callback) => {
     return Promise.resolve(() => {});
 };
 
-// Global HUD State
+// Global State
 let mapInstance = null;
 let riderMarker = null;
 let destMarker = null;
 let blueGlowPolyline = null;
 let blueCorePolyline = null;
-let trafficOverlays = [];
 let audioCtx = null;
 
 let currentPhase = "Idle"; // Idle, RouteToStore, AtStore, RouteToCustomer, AtCustomer, Delivered
@@ -37,7 +35,7 @@ let currentPendingOffer = null;
 let enteredOtpString = "";
 
 // -----------------------------------------------------------------------------
-// 1. APPLICATION BOOTSTRAP & SWIGGY/ZOMATO SPLASH SEQUENCE
+// 1. APPLICATION BOOTSTRAP & MINIMALIST NAVY LOADER SEQUENCE
 // -----------------------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", async () => {
     initAudio();
@@ -45,7 +43,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupSwipeSlider();
     setupTauriEventListeners();
 
-    // Fetch initial Profile & Telemetry from SQLite
+    // Fetch initial Profile from SQLite / Backend
     try {
         const profile = await tauriInvoke("get_profile");
         if (profile && profile.name) {
@@ -57,21 +55,21 @@ window.addEventListener("DOMContentLoaded", async () => {
         }
     } catch (e) {}
 
-    // Simulated / real session validation
+    // Simulated session validation
     try {
         await tauriInvoke("validate_session", { token: "mock_firebase_jwt_kolkata" });
     } catch (e) {}
 
-    // Dismiss Splash Screen after 1.4s with smooth fade
+    // Dismiss Minimalist Boot Loader after 1.2s with smooth fade
     setTimeout(() => {
         const splash = document.getElementById("splashScreen");
         if (splash) {
             splash.style.opacity = "0";
             setTimeout(() => { splash.style.display = "none"; }, 500);
         }
-    }, 1400);
+    }, 1200);
 
-    // Polling Loop: 5 Hz Telemetry Synchronization with Rust Backend
+    // 5 Hz Telemetry Synchronization with Rust / FastAPI Backend
     setInterval(syncTelemetrySnapshot, 200);
 
     // Clock
@@ -93,7 +91,7 @@ function initAudio() {
     } catch (e) {}
 }
 
-function playChime(freq = 880, duration = 0.15) {
+function playChime(freq = 880, duration = 0.12) {
     try {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -101,7 +99,7 @@ function playChime(freq = 880, duration = 0.15) {
         const gain = audioCtx.createGain();
         osc.type = "sine";
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
@@ -111,47 +109,56 @@ function playChime(freq = 880, duration = 0.15) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. CARTOGRAPHY & PROGRESSIVE ZOOM ANIMATIONS (KOLKATA REGION)
+// 2. CARTOGRAPHY & PROGRESSIVE ZOOM ANIMATIONS (STRICTLY BOUNDED TO KOLKATA)
 // -----------------------------------------------------------------------------
 function initKolkataMap() {
     if (mapInstance || typeof L === 'undefined') return;
 
-    // Kolkata bounds: Baranagar (North: 22.65), Salt Lake & New Town (East: 88.46), Park Street (South: 22.54)
+    // Strict Kolkata bounds: Baranagar (North: 22.68), Salt Lake & New Town (East: 88.48), Park Street (South: 22.50)
     const kolkataCenter = [22.5726, 88.3639];
+    const kolkataBounds = [
+        [22.4200, 88.2200], // Southwest
+        [22.7200, 88.5200]  // Northeast
+    ];
 
     mapInstance = L.map('mapView', {
         center: kolkataCenter,
         zoom: 15,
+        minZoom: 12,
+        maxZoom: 18,
+        maxBounds: kolkataBounds,
+        maxBoundsViscosity: 1.0,
         zoomControl: false,
         attributionControl: false
     });
 
-    // CartoDB Voyager High-Contrast Tiles
+    // CartoDB Voyager Tiles (Clean, reliable, no third-party watermark)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
-        subdomains: 'abcd'
+        subdomains: 'abcd',
+        attribution: '&copy; CARTO'
     }).addTo(mapInstance);
 
-    // Rider Icon Puck
+    // Rider Icon Puck (Clean SVG directional arrow, zero emojis)
     const riderIcon = L.divIcon({
         className: 'rider-puck-container',
-        html: `<div id="riderPuck" style="width:36px;height:36px;background:#1A73E8;border:3px solid #FFF;border-radius:50%;box-shadow:0 0 16px #1A73E8;display:flex;align-items:center;justify-content:center;transform:rotate(45deg);"><svg width="20" height="20" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,18 2,22" fill="#FFF"/></svg></div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
+        html: `<div id="riderPuck" style="width:34px;height:34px;background:#0284C7;border:3px solid #FFF;border-radius:50%;box-shadow:0 0 14px rgba(2,132,199,0.8);display:flex;align-items:center;justify-content:center;transform:rotate(45deg);"><svg width="18" height="18" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,18 2,22" fill="#FFF"/></svg></div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
     });
 
     riderMarker = L.marker(kolkataCenter, { icon: riderIcon }).addTo(mapInstance);
 
-    // Destination Pin
+    // Destination Pin (Clean SVG Pin, zero emojis)
     const destIcon = L.divIcon({
         className: 'dest-pin-container',
-        html: `<div id="destPinIcon" style="font-size:32px;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.8));">🏁</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 30]
+        html: `<div id="destPinIcon" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#E23744"/></svg></div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28]
     });
 
     destMarker = L.marker(kolkataCenter, { icon: destIcon });
-    console.log("[MAP] Leaflet Map Initialized with Kolkata Bounds");
+    console.log("[MAP] Leaflet Map Initialized (Strict Kolkata Bounds)");
 }
 
 function clearMapRoute() {
@@ -166,16 +173,16 @@ function renderBlueRoute(polyline, destCoords) {
     clearMapRoute();
 
     blueGlowPolyline = L.polyline(polyline, {
-        color: '#0D47A1',
-        weight: 12,
+        color: '#075985',
+        weight: 10,
         opacity: 0.5,
         lineCap: 'round',
         lineJoin: 'round'
     }).addTo(mapInstance);
 
     blueCorePolyline = L.polyline(polyline, {
-        color: '#1A73E8',
-        weight: 7,
+        color: '#0284C7',
+        weight: 6,
         opacity: 0.98,
         lineCap: 'round',
         lineJoin: 'round'
@@ -186,7 +193,7 @@ function renderBlueRoute(polyline, destCoords) {
     }
 }
 
-// Smooth Progressive Map-Zoom Animation (Panning and scaling slowly into destination)
+// Smooth Progressive Map-Zoom Animation (Leaflet panning and scaling slowly into destination)
 function smoothFlyToDestination(lat, lng, targetZoom = 17) {
     if (!mapInstance) return;
     mapInstance.flyTo([lat, lng], targetZoom, {
@@ -234,7 +241,7 @@ async function syncTelemetrySnapshot() {
         updateUIPhase(currentPhase, activeSelectedOrder, snap.daily_summary);
 
         // 4. Update Idle Offers Stack
-        if (currentPhase === "Idle" || currentPhase === "Delivered") {
+        if (currentPhase === "Idle" || currentPhase === "Delivered" || currentPhase === "IDLE") {
             renderOffersStack(snap.active_offers || []);
         } else {
             const stack = document.getElementById("orderNotificationStack");
@@ -246,7 +253,7 @@ async function syncTelemetrySnapshot() {
         if (emerg) {
             if (snap.is_emergency) {
                 emerg.style.display = "flex";
-                document.getElementById("emergencyTitle").textContent = snap.emergency_reason || "EMERGENCY SOS ACTIVE";
+                document.getElementById("emergencyTitle").textContent = snap.emergency_reason || "EMERGENCY PROTOCOL ACTIVE";
                 document.getElementById("emergencyGps").textContent = `GPS: ${gps.latitude.toFixed(6)}, ${gps.longitude.toFixed(6)} | Speed: ${gps.speed_kmh || 0} km/h`;
             } else {
                 emerg.style.display = "none";
@@ -267,7 +274,7 @@ function updateUIPhase(phase, order, daily) {
         document.getElementById("drawerDailyBar").style.width = `${daily.progress_pct}%`;
     }
 
-    if (!order || phase === "Idle" || phase === "Delivered") {
+    if (!order || phase === "Idle" || phase === "Delivered" || phase === "IDLE") {
         if (turnCard) turnCard.style.display = "none";
         if (activeDock) activeDock.style.display = "none";
         if (bottomDestName) bottomDestName.textContent = "Scanning Kolkata (Salt Lake, Newtown, Park St)...";
@@ -283,16 +290,19 @@ function updateUIPhase(phase, order, daily) {
     const dockSub = document.getElementById("dockSubtitle");
     const dockBtn = document.getElementById("btnDockAction");
 
-    if (phase === "RouteToStore") {
+    const phaseNormalized = (phase || "").toUpperCase();
+
+    if (phaseNormalized === "ROUTETOSTORE" || phaseNormalized === "ROUTE_TO_STORE") {
         if (turnCard) turnCard.style.display = "flex";
-        dockBadge.textContent = "📍 PHASE 1: ROUTE TO PICKUP";
-        dockBadge.style.color = "#FC8019";
+        dockBadge.textContent = "PHASE 1: ROUTE TO STORE";
+        dockBadge.style.color = "#38BDF8";
         dockTitle.textContent = order.store_name;
         dockSub.textContent = `${order.store_address} • ${order.store_dist_km} km`;
-        dockBtn.textContent = "🏪 REACHED STORE [R]";
-        dockBtn.style.background = "#F59E0B";
+        dockBtn.textContent = "REACHED STORE [R]";
+        dockBtn.style.background = "linear-gradient(135deg, #0284C7, #0369A1)";
+        dockBtn.style.color = "#FFF";
 
-        if (bottomDestName) bottomDestName.textContent = `Shop: ${order.store_name}`;
+        if (bottomDestName) bottomDestName.textContent = `Pickup: ${order.store_name}`;
         if (destHeader) destHeader.textContent = "PHASE 1:";
 
         renderBlueRoute([
@@ -300,29 +310,30 @@ function updateUIPhase(phase, order, daily) {
             [order.store_lat, order.store_lng]
         ], { lat: order.store_lat, lng: order.store_lng });
 
-    } else if (phase === "AtStore") {
+    } else if (phaseNormalized === "ATSTORE" || phaseNormalized === "AT_STORE") {
         if (turnCard) turnCard.style.display = "none";
-        dockBadge.textContent = "🏪 AT STORE: PACKAGING CHECKLIST";
-        dockBadge.style.color = "#00B0FF";
+        dockBadge.textContent = "AT STORE: PACKAGING CHECKLIST";
+        dockBadge.style.color = "#38BDF8";
         dockTitle.textContent = `Token #${order.order_id} • ${order.items_summary}`;
         dockSub.textContent = `Ready for collection at ${order.store_name}`;
-        dockBtn.textContent = "🍴 FOOD PICKED UP [K]";
-        dockBtn.style.background = "#00B0FF";
+        dockBtn.textContent = "FOOD PICKED UP [K]";
+        dockBtn.style.background = "linear-gradient(135deg, #00E676, #00b248)";
+        dockBtn.style.color = "#070B14";
 
         // Trigger progressive map zoom into store
         smoothFlyToDestination(order.store_lat, order.store_lng, 17);
 
-    } else if (phase === "RouteToCustomer") {
+    } else if (phaseNormalized === "ROUTETOCUSTOMER" || phaseNormalized === "ROUTE_TO_CUSTOMER") {
         if (turnCard) turnCard.style.display = "flex";
-        dockBadge.textContent = "📦 PHASE 2: ROUTE TO CUSTOMER";
+        dockBadge.textContent = "PHASE 2: ROUTE TO CUSTOMER";
         dockBadge.style.color = "#00E676";
         dockTitle.textContent = `${order.customer_name} • ${order.customer_address}`;
         dockSub.textContent = `${order.customer_instructions} • ${order.drop_dist_km} km`;
-        dockBtn.textContent = "📦 REACHED CUSTOMER [C]";
-        dockBtn.style.background = "#7C4DFF";
+        dockBtn.textContent = "REACHED CUSTOMER [C]";
+        dockBtn.style.background = "linear-gradient(135deg, #0284C7, #0369A1)";
         dockBtn.style.color = "#FFF";
 
-        if (bottomDestName) bottomDestName.textContent = `Customer: ${order.customer_name}`;
+        if (bottomDestName) bottomDestName.textContent = `Drop: ${order.customer_name}`;
         if (destHeader) destHeader.textContent = "PHASE 2:";
 
         renderBlueRoute([
@@ -330,15 +341,15 @@ function updateUIPhase(phase, order, daily) {
             [order.customer_lat, order.customer_lng]
         ], { lat: order.customer_lat, lng: order.customer_lng });
 
-    } else if (phase === "AtCustomer") {
+    } else if (phaseNormalized === "ATCUSTOMER" || phaseNormalized === "AT_CUSTOMER") {
         if (turnCard) turnCard.style.display = "none";
-        dockBadge.textContent = "🚪 AT CUSTOMER DOORSTEP";
+        dockBadge.textContent = "AT CUSTOMER DOORSTEP";
         dockBadge.style.color = "#FFD54F";
         dockTitle.textContent = `Verify Handover: ${order.customer_name}`;
         dockSub.textContent = `Customer Note: ${order.customer_instructions}`;
-        dockBtn.textContent = "✅ COMPLETE DELIVERY [U]";
-        dockBtn.style.background = "#00E676";
-        dockBtn.style.color = "#000";
+        dockBtn.textContent = "COMPLETE DELIVERY [U]";
+        dockBtn.style.background = "linear-gradient(135deg, #00E676, #00b248)";
+        dockBtn.style.color = "#070B14";
 
         // Trigger progressive map zoom into customer doorstep
         smoothFlyToDestination(order.customer_lat, order.customer_lng, 18);
@@ -361,22 +372,22 @@ function renderOffersStack(offers) {
                 <span class="card-payout">₹${o.payout_inr.toFixed(2)}</span>
             </div>
             <div class="card-store-row">
-                <span>🏪</span>
+                <svg class="icon-svg" viewBox="0 0 24 24"><path d="M4 4h16v3H4zM3 8l1 9h16l1-9H3zm7 7H8v-4h2v4zm6 0h-2v-4h2v4z"/></svg>
                 <div>
                     <strong>${o.store_name}</strong>
-                    <small style="display:block;color:#94A3B8;font-size:10px;">${o.items_summary}</small>
+                    <small style="display:block;color:#8E9FB8;font-size:10px;">${o.items_summary}</small>
                 </div>
                 <span class="card-dist-pill">${o.store_dist_km} km</span>
             </div>
             <div class="card-drop-row">
-                <span>🏠</span>
+                <svg class="icon-svg" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
                 <span>${o.customer_address} (${o.drop_dist_km} km drop)</span>
             </div>
             <div class="card-actions-row">
-                <span class="total-dist-tag">📍 ${o.total_dist_km} km total</span>
+                <span class="total-dist-tag">Dist: ${o.total_dist_km} km total</span>
                 <div class="card-buttons">
-                    <button class="btn-card-dismiss" onclick="dismissOffer('${o.order_id}')">✕ Dismiss</button>
-                    <button class="btn-card-accept" onclick="openOfferModalById('${o.order_id}')">✅ View & Accept</button>
+                    <button class="btn-card-dismiss" onclick="dismissOffer('${o.order_id}')">Dismiss</button>
+                    <button class="btn-card-accept" onclick="openOfferModalById('${o.order_id}')">View & Accept</button>
                 </div>
             </div>
         </div>
@@ -402,10 +413,10 @@ function openOfferModal(offer) {
     document.getElementById("offerModalStoreDist").textContent = `${offer.store_dist_km} km travel to pickup`;
     document.getElementById("offerModalCustomer").textContent = offer.customer_name;
     document.getElementById("offerModalCustomerAddr").textContent = `${offer.customer_address} (${offer.drop_dist_km} km drop)`;
-    document.getElementById("offerModalItems").textContent = `📦 ${offer.items_summary}`;
-    document.getElementById("offerModalPrep").textContent = `⚡ ${offer.prep_time_minutes} min prep`;
+    document.getElementById("offerModalItems").textContent = `Package: ${offer.items_summary}`;
+    document.getElementById("offerModalPrep").textContent = `${offer.prep_time_minutes} min prep`;
 
-    // Reset slider
+    // Reset slider handle
     const handle = document.getElementById("swipeHandle");
     if (handle) handle.style.left = "4px";
 
@@ -425,7 +436,6 @@ function setupSwipeSlider() {
 
     let isDragging = false;
     let startX = 0;
-    const maxSlide = 500; // pixels
 
     const onStart = (e) => {
         isDragging = true;
@@ -436,11 +446,11 @@ function setupSwipeSlider() {
         if (!isDragging) return;
         const currentX = (e.touches ? e.touches[0].clientX : e.clientX);
         let delta = currentX - startX;
-        delta = Math.max(4, Math.min(delta, container.offsetWidth - 56));
+        delta = Math.max(4, Math.min(delta, container.offsetWidth - 48));
         handle.style.left = `${delta}px`;
 
         // If swiped past 80% threshold -> Trigger Instant Accept!
-        if (delta >= (container.offsetWidth - 70)) {
+        if (delta >= (container.offsetWidth - 60)) {
             isDragging = false;
             triggerAcceptOrder();
         }
@@ -449,7 +459,7 @@ function setupSwipeSlider() {
     const onEnd = () => {
         if (!isDragging) return;
         isDragging = false;
-        handle.style.left = "4px"; // snap back
+        handle.style.left = "4px"; // Snap back if threshold not met
     };
 
     handle.addEventListener("mousedown", onStart);
@@ -474,13 +484,14 @@ async function triggerAcceptOrder() {
 // -----------------------------------------------------------------------------
 async function handlePrimaryDockAction() {
     playChime(850, 0.1);
-    if (currentPhase === "RouteToStore") {
+    const p = (currentPhase || "").toUpperCase();
+    if (p === "ROUTETOSTORE" || p === "ROUTE_TO_STORE") {
         await tauriInvoke("reach_store");
-    } else if (currentPhase === "AtStore") {
+    } else if (p === "ATSTORE" || p === "AT_STORE") {
         await tauriInvoke("pickup_order");
-    } else if (currentPhase === "RouteToCustomer") {
+    } else if (p === "ROUTETOCUSTOMER" || p === "ROUTE_TO_CUSTOMER") {
         await tauriInvoke("reach_customer");
-    } else if (currentPhase === "AtCustomer") {
+    } else if (p === "ATCUSTOMER" || p === "AT_CUSTOMER") {
         // Open OTP Handover Screen
         openOtpModal();
     }
@@ -545,10 +556,10 @@ function closeRazorpayModal() {
 function setupTauriEventListeners() {
     // Listens for Rust background task emitting "payment_successful"
     tauriListen("payment_successful", (payload) => {
-        console.log("[RAZORPAY EVENT RECEIVED]", payload);
+        console.log("[RAZORPAY PAYMENT EVENT RECEIVED]", payload);
         playChime(1300, 0.4);
 
-        // Shift to Green Success UI
+        // Shift to Green Celebration UI
         document.getElementById("rzpBodyActive").style.display = "none";
         document.getElementById("rzpSuccessView").style.display = "flex";
         document.getElementById("rzpSuccessSub").textContent = `₹${payload.amount_paid.toFixed(2)} received via Razorpay UPI`;
@@ -611,11 +622,12 @@ function callCustomer() {
 
 document.addEventListener("keydown", (e) => {
     const key = e.key.toUpperCase();
+    const p = (currentPhase || "").toUpperCase();
     if (key === "O") refreshOffers();
-    else if (key === "R") { if (currentPhase === "RouteToStore") handlePrimaryDockAction(); }
-    else if (key === "K") { if (currentPhase === "AtStore") handlePrimaryDockAction(); }
-    else if (key === "C") { if (currentPhase === "RouteToCustomer") handlePrimaryDockAction(); }
-    else if (key === "U") { if (currentPhase === "AtCustomer") handlePrimaryDockAction(); }
+    else if (key === "R") { if (p === "ROUTETOSTORE" || p === "ROUTE_TO_STORE") handlePrimaryDockAction(); }
+    else if (key === "K") { if (p === "ATSTORE" || p === "AT_STORE") handlePrimaryDockAction(); }
+    else if (key === "C") { if (p === "ROUTETOCUSTOMER" || p === "ROUTE_TO_CUSTOMER") handlePrimaryDockAction(); }
+    else if (key === "U") { if (p === "ATCUSTOMER" || p === "AT_CUSTOMER") handlePrimaryDockAction(); }
     else if (key === "S") triggerSos();
     else if (key === "T") triggerTilt();
     else if (e.key === "Escape") {
@@ -626,7 +638,7 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
-// Standalone Web Browser Fallback: bridges to live FastAPI backend when run via run.bat or browser
+// Standalone Web Browser Fallback (Bridging directly to FastAPI endpoints)
 async function mockTauriBridge(cmd, args) {
     try {
         if (cmd === "get_profile") {
@@ -697,7 +709,6 @@ async function mockTauriBridge(cmd, args) {
         } else if (cmd === "generate_razorpay_qr") {
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=razorpay.lastmile@icici%26pn=DeliveryPartner%26am=${args.codAmount || 360}%26cu=INR%26tn=COD_${args.orderId || 'ORD'}`;
             
-            // Auto-simulate payment verification after 6 seconds in browser mode
             setTimeout(() => {
                 const event = new CustomEvent("tauri-payment_successful", {
                     detail: {
