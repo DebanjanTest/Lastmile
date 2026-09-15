@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LastMile Guard",
+  "version": "2.2.0",
+  "identifier": "com.lastmile.guard",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "../ui",
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LastMile Guard HUD",
+        "width": 800,
+        "height": 480,
+        "minWidth": 800,
+        "minHeight": 480,
+        "maxWidth": 800,
+        "maxHeight": 480,
+        "resizable": false,
+        "fullscreen": false,
+        "decorations": true,
+        "center": true,
+        "focus": true,
+        "backgroundColor": "#0A0E17"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob: ws:; connect-src 'self' https: http: ws:;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
