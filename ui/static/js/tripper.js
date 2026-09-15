@@ -473,9 +473,13 @@ async function syncTelemetrySnapshot() {
         activeSelectedOrder = snap.selected_order;
         updateUIPhase(currentPhase, activeSelectedOrder, snap.daily_summary);
 
-        // 4. Update Idle Offers Stack
+        // 4. Update Idle Offers Stack (Continuous Mock Order Feed)
         if (currentPhase === "Idle" || currentPhase === "Delivered" || currentPhase === "IDLE") {
-            renderOffersStack(snap.active_offers || []);
+            const offers = snap.active_offers || [];
+            if (offers.length === 0) {
+                tauriInvoke("refresh_offers");
+            }
+            renderOffersStack(offers);
         } else {
             const stack = document.getElementById("orderNotificationStack");
             if (stack) stack.innerHTML = "";
@@ -539,7 +543,7 @@ function updateUIPhase(phase, order, daily) {
         if (destHeader) destHeader.textContent = "PHASE 1:";
 
         renderBlueRoute([
-            [riderMarker.getLatLng().lat, riderMarker.getLatLng().lng],
+            [currentRiderCoords.lat, currentRiderCoords.lng],
             [order.store_lat, order.store_lng]
         ], { lat: order.store_lat, lng: order.store_lng });
 
@@ -620,11 +624,19 @@ function renderOffersStack(offers) {
                 <span class="total-dist-tag">Dist: ${o.total_dist_km} km total</span>
                 <div class="card-buttons">
                     <button class="btn-card-dismiss" onclick="dismissOffer('${o.order_id}')">Dismiss</button>
-                    <button class="btn-card-accept" onclick="openOfferModalById('${o.order_id}')">View & Accept</button>
+                    <button class="btn-card-accept" style="background:linear-gradient(135deg, #0284C7, #0369A1);" onclick="directAcceptOffer('${o.order_id}')">Accept Order</button>
+                    <button class="btn-card-dismiss" style="border-color:#38BDF8;color:#38BDF8;" onclick="openOfferModalById('${o.order_id}')">Details</button>
                 </div>
             </div>
         </div>
     `).join("");
+}
+
+function directAcceptOffer(orderId) {
+    playChime(1200, 0.25);
+    tauriInvoke("accept_order", { orderId }).then(() => {
+        syncTelemetrySnapshot();
+    });
 }
 
 // -----------------------------------------------------------------------------
