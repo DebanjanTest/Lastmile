@@ -246,6 +246,12 @@ fn inject_mock_offer(seed: usize, state: State<AppState>, app: AppHandle) -> Res
 }
 
 #[tauri::command]
+fn infiltrate_order(state: State<AppState>, app: AppHandle) -> Result<DeliveryOffer, String> {
+    let seed = rand::random::<usize>() % 10000;
+    inject_mock_offer(seed, state, app)
+}
+
+#[tauri::command]
 fn inject_mock_event(event_type: String, title: String, description: String, app: AppHandle) -> Result<MockEvent, String> {
     let mock_type = match event_type.as_str() {
         "CustomerTip" => mock_engine::MockEventType::CustomerTip,
@@ -318,6 +324,7 @@ fn main() {
             trigger_sos,
             trigger_tilt,
             reset_emergency,
+            infiltrate_order,
             inject_mock_offer,
             inject_mock_event
         ])

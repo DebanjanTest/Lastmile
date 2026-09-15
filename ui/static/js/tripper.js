@@ -811,6 +811,11 @@ async function saveProfileChanges() {
 // 8. GLOBAL HOTKEYS & UTILITIES
 // -----------------------------------------------------------------------------
 function refreshOffers() { tauriInvoke("refresh_offers"); }
+async function infiltrateOrder() {
+    playChime(1400, 0.3);
+    await tauriInvoke("infiltrate_order");
+    syncTelemetrySnapshot();
+}
 function dismissOffer(orderId) { tauriInvoke("dismiss_offer", { orderId }); }
 function triggerSos() { tauriInvoke("trigger_sos"); }
 function triggerTilt() { tauriInvoke("trigger_tilt"); }
@@ -823,6 +828,7 @@ document.addEventListener("keydown", (e) => {
     const key = e.key.toUpperCase();
     const p = (currentPhase || "").toUpperCase();
     if (key === "O") refreshOffers();
+    else if (key === "I") infiltrateOrder();
     else if (key === "R") { if (p === "ROUTETOSTORE" || p === "ROUTE_TO_STORE") handlePrimaryDockAction(); }
     else if (key === "K") { if (p === "ATSTORE" || p === "AT_STORE") handlePrimaryDockAction(); }
     else if (key === "C") { if (p === "ROUTETOCUSTOMER" || p === "ROUTE_TO_CUSTOMER") handlePrimaryDockAction(); }
@@ -889,6 +895,14 @@ async function mockTauriBridge(cmd, args) {
             const res = await fetch('/api/feed/refresh', { method: 'POST' });
             const d = await res.json();
             return d.snapshot ? d.snapshot.active_offers : [];
+        } else if (cmd === "infiltrate_order") {
+            const res = await fetch('/api/feed/infiltrate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_data: args.orderData || null })
+            });
+            const d = await res.json();
+            return d.order;
         } else if (cmd === "dismiss_offer") {
             await fetch('/api/feed/dismiss', {
                 method: 'POST',

@@ -108,6 +108,9 @@ class LastMileEngine:
     def refresh_orders(self) -> List[DeliveryOffer]:
         return self.feed.refresh_order_pool(self.navigation.current_lat, self.navigation.current_lng)
 
+    def infiltrate_order(self, order_data: Optional[Dict[str, Any]] = None) -> DeliveryOffer:
+        return self.feed.infiltrate_order(order_data, self.navigation.current_lat, self.navigation.current_lng)
+
     def select_and_accept_order(self, order_id: str) -> Optional[DeliveryOffer]:
         order = self.feed.select_and_accept_order(order_id)
         # Enable vehicle motion along the route to the restaurant

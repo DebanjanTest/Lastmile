@@ -6,7 +6,7 @@ Serves Google Maps Navigation HUD, Multi-App Delivery Notification Feed & 2-Phas
 import json
 import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Response, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +25,9 @@ class AcceptOrderRequest(BaseModel):
 
 class DismissOrderRequest(BaseModel):
     order_id: str
+
+class InfiltrateOrderRequest(BaseModel):
+    order_data: Optional[Dict[str, Any]] = None
 
 def create_app(engine: LastMileEngine) -> FastAPI:
     app = FastAPI(title="LastMile Guard - Multi-App Delivery Feed HUD", version="2.1.0")
@@ -112,6 +115,13 @@ def create_app(engine: LastMileEngine) -> FastAPI:
         engine.refresh_orders()
         await engine.broadcast_snapshot()
         return {"status": "Refreshed", "snapshot": engine.get_latest_telemetry_snapshot()}
+
+    @app.post("/api/feed/infiltrate")
+    async def api_infiltrate_order(req: Optional[InfiltrateOrderRequest] = None):
+        data = req.order_data if req else None
+        order = engine.infiltrate_order(data)
+        await engine.broadcast_snapshot()
+        return {"status": "Infiltrated", "order": order.to_dict(), "snapshot": engine.get_latest_telemetry_snapshot()}
 
     @app.post("/api/feed/accept")
     async def api_accept_order(req: AcceptOrderRequest):

@@ -138,6 +138,78 @@ class OrderFeedManager:
             "payment": "COD",
             "order_amt": 890.0,
             "cod": 890.0
+        },
+        {
+            "id_tag": "ORD-BLK-33",
+            "platform": "blinkit",
+            "color": "#F7D046",
+            "store_name": "Blinkit Instant Hub #12",
+            "store_addr": "Kasba Connector Quick Warehouse",
+            "store_offset": (-0.0070, 0.0060),
+            "cust_name": "Priyanka Roy",
+            "cust_addr": "Silver Spring Luxury Apts, Tower 4",
+            "cust_offset": (-0.0150, 0.0280),
+            "items": "1x Fortune Sunflower Oil 1L, 1x Aashirvaad Atta 5kg, 1x Maggi 12-Pack",
+            "instr": "🔔 Ring bell once & hand over to lobby concierge",
+            "payout_base": 48.0,
+            "prep_mins": 2,
+            "payment": "PREPAID",
+            "order_amt": 620.0,
+            "cod": 0.0
+        },
+        {
+            "id_tag": "ORD-ZOM-67",
+            "platform": "zomato",
+            "color": "#E23744",
+            "store_name": "Peter Cat Restaurant",
+            "store_addr": "18A Park Street, Kolkata",
+            "store_offset": (-0.0108, -0.0167),
+            "cust_name": "Rhea Chatterjee",
+            "cust_addr": "Ballygunge Circular Road, Lane 3B",
+            "cust_offset": (-0.0363, -0.0083),
+            "items": "2x Chelo Kebab Platters, 1x Mixed Sizzler, 2x Cold Coffees",
+            "instr": "👶 Baby sleeping. Do NOT ring bell; call phone upon arrival",
+            "payout_base": 52.0,
+            "prep_mins": 5,
+            "payment": "COD",
+            "order_amt": 1250.0,
+            "cod": 1250.0
+        },
+        {
+            "id_tag": "ORD-SWG-42",
+            "platform": "swiggy",
+            "color": "#FC8019",
+            "store_name": "6 Ballygunge Place Authentic Kitchen",
+            "store_addr": "Ballygunge Circular Road, Kolkata",
+            "store_offset": (-0.0360, -0.0080),
+            "cust_name": "Subhashis Ghosh",
+            "cust_addr": "DLF New Town Action Area 1, Flat 802",
+            "cust_offset": (0.0192, 0.0857),
+            "items": "1x Daab Chingri, 1x Kosha Mangsho, 4x Luchi, 1x Mishti Doi",
+            "instr": "🏢 Request visitor entry pass at Gate 1",
+            "payout_base": 68.0,
+            "prep_mins": 6,
+            "payment": "PREPAID",
+            "order_amt": 980.0,
+            "cod": 0.0
+        },
+        {
+            "id_tag": "ORD-ZEP-88",
+            "platform": "zepto",
+            "color": "#7C4DFF",
+            "store_name": "Zepto Dark Store #208",
+            "store_addr": "Salt Lake Tank 9 Logistics Hub",
+            "store_offset": (0.0090, 0.0450),
+            "cust_name": "Tanmoy Das",
+            "cust_addr": "Karunamoyee Housing Complex, Block F",
+            "cust_offset": (0.0180, 0.0520),
+            "items": "1x Fresh Bread, 2x Eggs (6-pack), 1x Nescafe Classic 50g",
+            "instr": "📦 Leave with building security if unanswered on intercom",
+            "payout_base": 34.0,
+            "prep_mins": 2,
+            "payment": "COD",
+            "order_amt": 310.0,
+            "cod": 310.0
         }
     ]
 
@@ -204,9 +276,79 @@ class OrderFeedManager:
 
     def refresh_order_pool(self, rider_lat: float, rider_lng: float) -> List[DeliveryOffer]:
         """Pre-populates stable, rich mock orders."""
-        self.active_offers = [self.build_offer_from_preset(p, rider_lat, rider_lng) for p in self.RICH_ORDER_PRESETS]
+        self.active_offers = [self.build_offer_from_preset(p, rider_lat, rider_lng) for p in self.RICH_ORDER_PRESETS[:4]]
         print(f"[FEED] Refreshed order pool with {len(self.active_offers)} stable delivery gigs.")
         return self.active_offers
+
+    def infiltrate_order(self, order_data: Optional[Dict[str, Any]] = None, rider_lat: Optional[float] = None, rider_lng: Optional[float] = None) -> DeliveryOffer:
+        """
+        Systematically infiltrates an incoming delivery order from Zomato, Swiggy, Zepto, or Blinkit
+        directly into the active driver HUD stack.
+        """
+        lat = rider_lat if rider_lat is not None else self._last_rider_lat
+        lng = rider_lng if rider_lng is not None else self._last_rider_lng
+
+        if order_data:
+            order_id = order_data.get("order_id", f"ORD-INF-{random.randint(1000, 9999)}")
+            platform = order_data.get("platform", "zomato").lower()
+            colors = {"zomato": "#E23744", "swiggy": "#FC8019", "zepto": "#7C4DFF", "blinkit": "#F7D046", "amazon": "#FF9900"}
+            color = order_data.get("platform_color", colors.get(platform, "#0284C7"))
+            store_lat = float(order_data.get("store_lat", lat + 0.006))
+            store_lng = float(order_data.get("store_lng", lng + 0.005))
+            cust_lat = float(order_data.get("customer_lat", lat + 0.015))
+            cust_lng = float(order_data.get("customer_lng", lng + 0.018))
+            store_dist = self._haversine_km(lat, lng, store_lat, store_lng)
+            drop_dist = self._haversine_km(store_lat, store_lng, cust_lat, cust_lng)
+            total_dist = store_dist + drop_dist
+            payout = float(order_data.get("payout_inr", 40.0 + total_dist * 11.5))
+            payment_mode = order_data.get("payment_mode", "PREPAID")
+            order_amt = float(order_data.get("order_amount_inr", 450.0))
+            cod_amt = float(order_data.get("cod_amount", order_amt if payment_mode == "COD" else 0.0))
+
+            offer = DeliveryOffer(
+                order_id=order_id,
+                platform=platform,
+                platform_color=color,
+                store_name=order_data.get("store_name", "Infiltrated Quick Store"),
+                store_address=order_data.get("store_address", "Park Street Food Hub, Kolkata"),
+                store_lat=store_lat,
+                store_lng=store_lng,
+                store_dist_km=round(store_dist, 1),
+                customer_name=order_data.get("customer_name", "Debanjan Mondal"),
+                customer_address=order_data.get("customer_address", "Salt Lake Sector V, Kolkata"),
+                customer_lat=cust_lat,
+                customer_lng=cust_lng,
+                drop_dist_km=round(drop_dist, 1),
+                total_dist_km=round(total_dist, 1),
+                payout_inr=round(payout, 2),
+                items_summary=order_data.get("items_summary", "Chef Special Combo Meal"),
+                customer_instructions=order_data.get("customer_instructions", "Leave at door"),
+                payment_mode=payment_mode,
+                order_amount_inr=round(order_amt, 2),
+                cod_amount=round(cod_amt, 2),
+                delivery_otp=str(order_data.get("delivery_otp", f"{random.randint(1000, 9999)}")),
+                prep_time_minutes=int(order_data.get("prep_time_minutes", 3)),
+                created_at=time.time()
+            )
+        else:
+            # Pick from unused presets or synthesize dynamically
+            active_ids = {o.order_id for o in self.active_offers}
+            candidate_presets = [p for p in self.RICH_ORDER_PRESETS if p.get("id_tag") not in active_ids]
+            if candidate_presets:
+                preset = random.choice(candidate_presets)
+                offer = self.build_offer_from_preset(preset, lat, lng)
+            else:
+                preset = random.choice(self.RICH_ORDER_PRESETS).copy()
+                preset["id_tag"] = f"ORD-{preset['platform'][:3].upper()}-{random.randint(100, 999)}"
+                offer = self.build_offer_from_preset(preset, lat, lng)
+
+        # Prepend to active offers stack (instant infiltration)
+        self.active_offers.insert(0, offer)
+        if len(self.active_offers) > 6:
+            self.active_offers = self.active_offers[:6]
+
+        print(f"[INFILTRATE] Infiltrated live order {offer.order_id} ({offer.platform.upper()}) payout Rs.{offer.payout_inr:.2f} into driver feed.")
+        return offer
 
     def select_and_accept_order(self, order_id: str) -> Optional[DeliveryOffer]:
         """Rider selects an order. Immediately transitions to Phase 1: Route to Restaurant."""

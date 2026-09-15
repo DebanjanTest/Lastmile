@@ -575,6 +575,26 @@ body.hud-body {
 .dest-prefix { font-size: 10px; font-weight: 800; color: var(--text-dim); }
 .dest-target { font-size: 11px; font-weight: 700; color: #E2E8F0; }
 
+.btn-strip-infiltrate {
+    background: rgba(2, 132, 199, 0.2);
+    border: 1px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-strip-infiltrate:active {
+    background: var(--accent-blue);
+    color: #FFF;
+    transform: scale(0.95);
+}
+
 .btn-strip-refresh {
     background: var(--bg-surface-elevated);
     border: 1px solid var(--border-navy);
