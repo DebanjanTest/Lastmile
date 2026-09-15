@@ -626,28 +626,97 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
-// Standalone Web Browser Fallback for Testing without Rust Compiled
-function mockTauriBridge(cmd, args) {
-    if (cmd === "get_profile") {
-        return Promise.resolve({ name: "Debanjan Mondal", vehicle_no: "WB 02 AB 4591", phone: "+91 98765 43210", daily_target_inr: 800 });
-    } else if (cmd === "get_telemetry_snapshot") {
-        return Promise.resolve({
-            timestamp: new Date().toISOString(),
-            gps: { latitude: 22.5726, longitude: 88.3639, speed_kmh: 0.0, heading_deg: 45, is_fixed: true },
-            order_phase: currentPhase,
-            selected_order: activeSelectedOrder,
-            active_offers: [
-                { order_id: "ORD-SWG-94", platform: "swiggy", platform_color: "#FC8019", store_name: "Wow! Momo Express", store_dist_km: 0.8, customer_name: "Ananya Sen", customer_address: "New Town Tower 3", drop_dist_km: 3.0, total_dist_km: 3.8, payout_inr: 85.26, items_summary: "2x Steamed Momos", customer_instructions: "Gate 2", payment_mode: "COD", cod_amount: 360, prep_time_minutes: 3, store_lat: 22.5698, store_lng: 88.3648, customer_lat: 22.5835, customer_lng: 88.4550 }
-            ],
-            daily_summary: { earnings_today_inr: 570.26, daily_target_inr: 800, progress_pct: 71 },
-            is_emergency: false,
-            emergency_reason: ""
-        });
-    } else if (cmd === "generate_razorpay_qr") {
-        return Promise.resolve({
-            qr_id: "qr_test_123",
-            image_url: "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=razorpay@icici"
-        });
+// Standalone Web Browser Fallback: bridges to live FastAPI backend when run via run.bat or browser
+async function mockTauriBridge(cmd, args) {
+    try {
+        if (cmd === "get_profile") {
+            return { name: "Debanjan Mondal", vehicle_no: "WB 02 AB 4591", phone: "+91 98765 43210", daily_target_inr: 800 };
+        } else if (cmd === "get_telemetry_snapshot") {
+            const res = await fetch('/api/telemetry');
+            if (res.ok) {
+                const data = await res.json();
+                return {
+                    timestamp: data.timestamp,
+                    gps: data.gps,
+                    order_phase: data.order_phase,
+                    selected_order: data.selected_order,
+                    active_offers: data.active_offers,
+                    daily_summary: {
+                        earnings_today_inr: data.earnings_today_inr || 570.26,
+                        daily_target_inr: data.daily_target || 800,
+                        progress_pct: Math.min(100, Math.round(((data.earnings_today_inr || 570) / (data.daily_target || 800)) * 100))
+                    },
+                    is_emergency: data.is_emergency,
+                    emergency_reason: data.emergency_reason
+                };
+            }
+        } else if (cmd === "accept_order") {
+            const res = await fetch('/api/feed/accept', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_id: args.orderId || "" })
+            });
+            const d = await res.json();
+            return d.order;
+        } else if (cmd === "reach_store") {
+            const res = await fetch('/api/feed/reach-store', { method: 'POST' });
+            const d = await res.json();
+            return d.order;
+        } else if (cmd === "pickup_order") {
+            const res = await fetch('/api/feed/pickup', { method: 'POST' });
+            const d = await res.json();
+            return d.order;
+        } else if (cmd === "reach_customer") {
+            const res = await fetch('/api/feed/reach-customer', { method: 'POST' });
+            const d = await res.json();
+            return d.order;
+        } else if (cmd === "complete_delivery") {
+            const res = await fetch('/api/feed/deliver', { method: 'POST' });
+            const d = await res.json();
+            return d.result;
+        } else if (cmd === "refresh_offers") {
+            const res = await fetch('/api/feed/refresh', { method: 'POST' });
+            const d = await res.json();
+            return d.snapshot ? d.snapshot.active_offers : [];
+        } else if (cmd === "dismiss_offer") {
+            await fetch('/api/feed/dismiss', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_id: args.orderId || "" })
+            });
+            return {};
+        } else if (cmd === "trigger_sos") {
+            await fetch('/api/test/sos', { method: 'POST' });
+            return "evidence/incidents/incident_sos.mp4";
+        } else if (cmd === "trigger_tilt") {
+            await fetch('/api/test/tilt', { method: 'POST' });
+            return "evidence/incidents/incident_tilt.mp4";
+        } else if (cmd === "reset_emergency") {
+            await fetch('/api/test/reset-emergency', { method: 'POST' });
+            return {};
+        } else if (cmd === "generate_razorpay_qr") {
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=razorpay.lastmile@icici%26pn=DeliveryPartner%26am=${args.codAmount || 360}%26cu=INR%26tn=COD_${args.orderId || 'ORD'}`;
+            
+            // Auto-simulate payment verification after 6 seconds in browser mode
+            setTimeout(() => {
+                const event = new CustomEvent("tauri-payment_successful", {
+                    detail: {
+                        order_id: args.orderId,
+                        amount_paid: args.codAmount || 360.0,
+                        payment_id: "pay_rzp_live_" + Math.random().toString(36).substring(7),
+                        status: "SUCCESS"
+                    }
+                });
+                window.dispatchEvent(event);
+            }, 6000);
+
+            return {
+                qr_id: "qr_test_" + Date.now(),
+                image_url: qrUrl
+            };
+        }
+    } catch (e) {
+        console.warn("[MOCK BRIDGE ERROR]", e);
     }
-    return Promise.resolve({});
+    return {};
 }

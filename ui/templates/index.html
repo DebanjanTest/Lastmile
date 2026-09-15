@@ -2,367 +2,288 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LastMile Guard - 5.0" Multi-App Delivery HUD & 2-Phase Routing</title>
-    <!-- Leaflet CSS for high-contrast vector road & traffic maps -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <link rel="stylesheet" href="/static/css/tripper.css">
-    
-    {% if google_maps_api_key %}
-    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry"></script>
-    {% endif %}
+    <meta name="viewport" content="width=800, height=480, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LastMile Guard - 5.0" Delivery HUD (Tauri v2 + Rust)</title>
     <!-- High-Performance Leaflet Engine -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="static/css/tripper.css">
 </head>
 <body class="workbench-theme">
-    <div class="workbench-layout">
-        <!-- 5-INCH HARDWARE DEVICE CHASSIS (800x480 ACTIVE DISPLAY) -->
-        <div class="device-chassis">
-            <div class="chassis-top-bar">
-                <div class="chassis-lens-dot" title="Front Dashcam Lens"></div>
-                <div class="chassis-title">LASTMILE GUARD • 5.0" MULTI-APP DELIVERY HUD (800×480)</div>
-                <div class="chassis-leds">
-                    <span class="status-led led-green" title="System Live"></span>
-                    <span class="status-led led-blue" title="GPS Locked"></span>
-                    <span class="status-led led-orange" title="RAM-Disk Buffer OK"></span>
-                </div>
+    <!-- SWIGGY / ZOMATO INSPIRED BRANDED BOOT SPLASH LOADER -->
+    <div id="splashScreen" class="splash-screen">
+        <div class="splash-content">
+            <div class="splash-pulse-circle">
+                <span class="splash-icon">🛵</span>
             </div>
-
-            <!-- EXACT 800x480 ACTIVE SCREEN VIEWPORT -->
-            <div class="screen-viewport" id="screenViewport">
-                <!-- FULLSCREEN ROAD & TRAFFIC MAP CANVAS -->
-                <div id="mapView" class="map-view"></div>
-
-                <!-- TOP-LEFT: GOOGLE MAPS NAVIGATION TURN CARD (ACTIVE ONLY IN TRANSIT) -->
-                <div class="gmaps-turn-card" id="turnCard" style="display: none;">
-                    <div class="turn-icon-box">
-                        <svg class="turn-svg" id="turnSvg" viewBox="0 0 100 100">
-                            <path id="turnPath" d="M25 80 L25 55 Q25 35 45 35 L60 35 L60 20 L85 45 L60 70 L60 55 L45 55 Q38 55 38 65 L38 80 Z" fill="#FFFFFF"/>
-                        </svg>
-                    </div>
-                    <div class="turn-text-content">
-                        <div class="turn-dist-row">
-                            <span class="turn-dist-num" id="turnDistNum">150</span>
-                            <span class="turn-dist-unit" id="turnDistUnit">m</span>
-                            <span class="traffic-condition-badge" id="trafficConditionBadge">🟢 Flowing</span>
-                        </div>
-                        <div class="turn-road-name" id="turnRoadName">Mahatma Gandhi Road</div>
-                        <div class="turn-next-preview" id="turnNextPreview">Then: Bear left onto Beliaghata Main Rd</div>
-                    </div>
-                </div>
-
-                <!-- TOP-RIGHT: MULTI-APP POP-UP NOTIFICATION STACK -->
-                <div class="order-notification-stack" id="orderNotificationStack">
-                    <div class="notification-card" style="border-left-color: #E23744">
-                        <div class="card-top-row">
-                            <span class="card-platform-badge" style="background: #E23744">ZOMATO</span>
-                            <span class="card-payout">₹78.99</span>
-                        </div>
-                        <div class="card-store-row">
-                            <span>🏪</span>
-                            <div>
-                                <strong>Arsalan Mughlai Restaurant</strong>
-                                <small style="display:block;color:#94A3B8;font-size:10px;">2x Special Mutton Biryani, 1x Firni Pot, 1x Extra Raita</small>
-                            </div>
-                            <span class="card-dist-pill">1.4 km to store</span>
-                        </div>
-                        <div class="card-drop-row">
-                            <span>🏠</span>
-                            <span>Salt Lake Sector V, Block EP, Flat 4B (3.2 km drop)</span>
-                        </div>
-                        <div class="card-actions-row">
-                            <span class="total-dist-tag">📍 4.6 km total</span>
-                            <div class="card-buttons">
-                                <button class="btn-card-dismiss" onclick="dismissOffer('ORD-ZOM-81')">✕ Dismiss</button>
-                                <button class="btn-card-accept" onclick="acceptSpecificOrder('ORD-ZOM-81')">✅ Opt In</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="notification-card" style="border-left-color: #FC8019">
-                        <div class="card-top-row">
-                            <span class="card-platform-badge" style="background: #FC8019">SWIGGY</span>
-                            <span class="card-payout">₹85.26</span>
-                        </div>
-                        <div class="card-store-row">
-                            <span>🏪</span>
-                            <div>
-                                <strong>Wow! Momo Express</strong>
-                                <small style="display:block;color:#94A3B8;font-size:10px;">2x Darjeeling Steamed Momos, 1x Chicken Pan-Fried, 2x Thums Up</small>
-                            </div>
-                            <span class="card-dist-pill">0.8 km to store</span>
-                        </div>
-                        <div class="card-drop-row">
-                            <span>🏠</span>
-                            <span>New Town Action Area 1, Tower 3 (3.0 km drop)</span>
-                        </div>
-                        <div class="card-actions-row">
-                            <span class="total-dist-tag">📍 3.8 km total</span>
-                            <div class="card-buttons">
-                                <button class="btn-card-dismiss" onclick="dismissOffer('ORD-SWG-94')">✕ Dismiss</button>
-                                <button class="btn-card-accept" onclick="acceptSpecificOrder('ORD-SWG-94')">✅ Opt In</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="notification-card" style="border-left-color: #7C4DFF">
-                        <div class="card-top-row">
-                            <span class="card-platform-badge" style="background: #7C4DFF">ZEPTO</span>
-                            <span class="card-payout">₹65.14</span>
-                        </div>
-                        <div class="card-store-row">
-                            <span>🏪</span>
-                            <div>
-                                <strong>Zepto 10-Min Dark Store #104</strong>
-                                <small style="display:block;color:#94A3B8;font-size:10px;">2x Amul Taaza Milk (1L), 1x Brown Bread, 1x Amul Butter 500g</small>
-                            </div>
-                            <span class="card-dist-pill">0.9 km to store</span>
-                        </div>
-                        <div class="card-drop-row">
-                            <span>🏠</span>
-                            <span>Lake Town Block B, House 12 (1.2 km drop)</span>
-                        </div>
-                        <div class="card-actions-row">
-                            <span class="total-dist-tag">📍 2.1 km total</span>
-                            <div class="card-buttons">
-                                <button class="btn-card-dismiss" onclick="dismissOffer('ORD-ZEP-12')">✕ Dismiss</button>
-                                <button class="btn-card-accept" onclick="acceptSpecificOrder('ORD-ZEP-12')">✅ Opt In</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="notification-card" style="border-left-color: #FF9900">
-                        <div class="card-top-row">
-                            <span class="card-platform-badge" style="background: #FF9900">AMAZON</span>
-                            <span class="card-payout">₹112.75</span>
-                        </div>
-                        <div class="card-store-row">
-                            <span>🏪</span>
-                            <div>
-                                <strong>Amazon Fresh Fulfillment Depot</strong>
-                                <small style="display:block;color:#94A3B8;font-size:10px;">3x Fresh Grocery Package Bins</small>
-                            </div>
-                            <span class="card-dist-pill">1.4 km to store</span>
-                        </div>
-                        <div class="card-drop-row">
-                            <span>🏠</span>
-                            <span>Chinar Park Near City Centre 2 (3.7 km drop)</span>
-                        </div>
-                        <div class="card-actions-row">
-                            <span class="total-dist-tag">📍 5.1 km total</span>
-                            <div class="card-buttons">
-                                <button class="btn-card-dismiss" onclick="dismissOffer('ORD-AMZ-55')">✕ Dismiss</button>
-                                <button class="btn-card-accept" onclick="acceptSpecificOrder('ORD-AMZ-55')">✅ Opt In</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- FLOATING SPEEDOMETER BUBBLE -->
-                <div class="gmaps-speed-bubble">
-                    <span class="speed-num" id="speedNum">0</span>
-                    <span class="speed-label">km/h</span>
-                </div>
-
-                <!-- ACTIVE 2-PHASE ROUTE BANNER (PHASE 1: STORE / PHASE 2: CUSTOMER) -->
-                <div class="active-route-banner" id="activeRouteBanner" style="display: none;">
-                    <div class="route-phase-info">
-                        <span class="route-phase-badge" id="routePhaseBadge">📍 PHASE 1: BLUE ROUTE TO STORE</span>
-                        <h4 class="route-target-title" id="routeTargetTitle">Wow! Momo Express</h4>
-                        <small class="route-target-sub" id="routeTargetSub">1.2 km travel distance from current location</small>
-                    </div>
-                    <div class="route-actions" id="routeActions">
-                        <!-- Action buttons dynamically injected -->
-                    </div>
-                </div>
-
-                <!-- ORDER DELIVERED CELEBRATION TOAST -->
-                <div class="order-delivered-toast" id="deliveredToast" style="display: none;">
-                    <span class="toast-icon">🎉</span>
-                    <div class="toast-text">
-                        <strong>Order Successfully Delivered!</strong>
-                        <small id="toastPayoutText">+₹85.00 Credited to Rider Wallet</small>
-                    </div>
-                </div>
-
-                <!-- FLOATING DASHCAM PIP -->
-                <div class="gmaps-dashcam-pip" id="dashcamPip" style="display: none;">
-                    <div class="dashcam-pip-bar">
-                        <span>WITNESS DASHCAM [LIVE]</span>
-                        <button class="pip-close" onclick="toggleDashcam()">✕</button>
-                    </div>
-                    <img id="dashcamFeed" src="/api/camera/stream" alt="Dashcam Stream">
-                </div>
-
-                <!-- BOTTOM: GOOGLE MAPS TRIP SUMMARY CARD -->
-                <div class="gmaps-bottom-card">
-                    <div class="trip-time-box">
-                        <div class="trip-time-row">
-                            <span class="trip-time-val" id="tripTimeVal">0 min</span>
-                            <span class="traffic-delay-text" id="trafficDelayText">Standing by</span>
-                        </div>
-                        <div class="trip-sub-row">
-                            <span class="trip-dist-val" id="tripDistVal">0.0 km</span>
-                            <span class="trip-dot">•</span>
-                            <span class="trip-eta-val" id="tripEtaVal">--:--</span>
-                        </div>
-                    </div>
-
-                    <div class="destination-preview-box">
-                        <span class="dest-label" id="destHeaderLabel">STATUS:</span>
-                        <span class="dest-name" id="destName">Scanning for orders nearby...</span>
-                    </div>
-
-                    <div class="trip-actions">
-                        <button class="btn-import-dest" onclick="refreshOrders()" title="Refresh Orders">🔄 Refresh</button>
-                        <button class="btn-end-route" onclick="triggerSos()" title="Emergency SOS">🚨 SOS</button>
-                    </div>
-                </div>
-
-                <!-- DELIVERY COMPLETED: PAYMENT QR & DAILY INCOME SUMMARY MODAL -->
-                <div class="delivery-complete-modal-overlay" id="deliveryCompleteModal" style="display: none;">
-                    <div class="delivery-complete-card">
-                        <div class="modal-header-row">
-                            <div class="modal-title-box">
-                                <span class="modal-check-badge">🎉 DELIVERY COMPLETED</span>
-                                <h3 class="modal-order-title" id="modalOrderTitle">Order #ORD-SWG-94 (Swiggy)</h3>
-                            </div>
-                            <button class="modal-close-btn" onclick="closeDeliveryModal()" title="Close">✕</button>
-                        </div>
-
-                        <div class="modal-body-grid">
-                            <!-- LEFT: CUSTOMER PAYMENT SECTION (QR CODE FOR PENDING COD / UPI) -->
-                            <div class="modal-payment-panel">
-                                <div class="panel-section-title">CUSTOMER PAYMENT COLLECTION</div>
-                                
-                                <div class="payment-qr-box" id="paymentQrBox">
-                                    <div class="qr-tag">⚡ SCAN TO PAY VIA ANY UPI APP</div>
-                                    <div class="qr-canvas-container" id="qrCanvasContainer">
-                                        <!-- Dynamic QR Code SVG rendered here -->
-                                    </div>
-                                    <div class="qr-collect-row">
-                                        <span class="collect-lbl">COLLECT:</span>
-                                        <span class="collect-amt" id="modalCollectAmt">₹360.00</span>
-                                    </div>
-                                    <div class="qr-badge-status" id="modalPaymentStatusBadge">⚠️ CASH ON DELIVERY (COD) PENDING</div>
-                                </div>
-
-                                <div class="prepaid-success-box" id="prepaidSuccessBox" style="display: none;">
-                                    <div class="prepaid-icon">✅</div>
-                                    <div class="prepaid-title">ONLINE PREPAID ORDER</div>
-                                    <div class="prepaid-sub">No cash collection required. Customer paid online.</div>
-                                    <div class="prepaid-collect-amt">COLLECT: ₹0.00</div>
-                                </div>
-                            </div>
-
-                            <!-- RIGHT: RIDER DAILY EARNINGS & TARGET STATUS -->
-                            <div class="modal-income-panel">
-                                <div class="panel-section-title">RIDER EARNINGS & STATUS</div>
-                                
-                                <div class="trip-payout-highlight">
-                                    <span class="payout-label">TRIP EARNINGS CREDITED</span>
-                                    <span class="payout-value" id="modalTripPayout">+₹85.26</span>
-                                </div>
-
-                                <div class="payout-breakdown-list">
-                                    <div class="breakdown-row">
-                                        <span>Base Gig Pay:</span>
-                                        <span id="modalBasePay">₹38.00</span>
-                                    </div>
-                                    <div class="breakdown-row">
-                                        <span>Distance Pay:</span>
-                                        <span id="modalDistPay">₹32.26</span>
-                                    </div>
-                                    <div class="breakdown-row">
-                                        <span>Surge / Incentive:</span>
-                                        <span id="modalSurgePay">+₹15.00</span>
-                                    </div>
-                                </div>
-
-                                <!-- DAILY INCOME PROGRESS -->
-                                <div class="daily-status-container">
-                                    <div class="daily-status-header">
-                                        <span>DAILY INCOME TARGET</span>
-                                        <strong id="modalDailyEarnings">₹570.26 / ₹800.00</strong>
-                                    </div>
-                                    <div class="daily-progress-bar-bg">
-                                        <div class="daily-progress-bar-fill" id="modalProgressBar" style="width: 71%;"></div>
-                                    </div>
-                                    <div class="daily-stats-row">
-                                        <span id="modalOrdersCount">7 of 8 Orders Completed</span>
-                                        <span class="target-pct" id="modalTargetPct">71% Goal</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="modal-footer-row">
-                            <button class="modal-btn-confirm" onclick="closeDeliveryModal()">
-                                🚀 CONFIRM PAYMENT & SCAN FOR NEXT ORDERS
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- EMERGENCY SOS & CRASH OVERLAY -->
-                <div class="emergency-overlay" id="emergencyOverlay" style="display: none;">
-                    <div class="emergency-card">
-                        <div class="emergency-icon">🚨</div>
-                        <div class="emergency-title" id="emergencyTitle">EMERGENCY SOS ACTIVE</div>
-                        <div class="emergency-sub">Video Evidence Locked to /evidence/incidents/</div>
-                        <div class="emergency-gps" id="emergencyGps">GPS: 22.564300, 88.369300 | Speed: 0 km/h</div>
-                        <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME NAVIGATION</button>
-                    </div>
-                </div>
+            <h1 class="splash-title">LASTMILE <span class="highlight">GUARD</span></h1>
+            <p class="splash-sub">Automotive Delivery HUD • High-Performance Tauri + Rust</p>
+            <div class="splash-loader-bar">
+                <div class="splash-loader-progress"></div>
             </div>
+            <div class="splash-status" id="splashStatus">Initializing Hardware & SQLite Engine...</div>
         </div>
+    </div>
 
-        <!-- ==============================================================================
-             REAL-TIME TEST BENCH CONTROLS (UNDERNEATH 5-INCH DISPLAY)
-             ============================================================================== -->
-        <div class="bench-control-panel">
-            <div class="panel-header">
-                <span class="panel-tag">⚡ MULTI-APP DISPATCH TEST RIG</span>
-                <span class="panel-hint">Select any order to mark the blue route to the restaurant, then to the drop-off location:</span>
+    <!-- MAIN 800x480 WVGA HARDWARE HUD CHASSIS -->
+    <div class="device-chassis">
+        <div class="screen-viewport" id="screenViewport">
+            <!-- FULLSCREEN ROAD & TRAFFIC MAP CANVAS -->
+            <div id="mapView" class="map-view"></div>
+
+            <!-- TOP HUD BAR: BRAND & RIDER PROFILE STATUS -->
+            <div class="top-hud-bar">
+                <div class="hud-brand-pill">
+                    <span class="hud-logo-dot"></span>
+                    <strong id="hudBrandTitle">LASTMILE GUARD</strong>
+                    <span class="badge-system" id="badgeSystemMode">TAURI • RUST</span>
+                </div>
+                <div class="hud-center-clock" id="hudClock">12:00 PM</div>
+                <div class="hud-right-actions">
+                    <button class="btn-hud-profile" onclick="openProfileDrawer()" title="Rider Profile">
+                        <span class="profile-avatar">👤</span>
+                        <span class="profile-name" id="topBarRiderName">Debanjan</span>
+                    </button>
+                    <button class="btn-hud-sos" onclick="triggerSos()" title="Emergency SOS">🚨 SOS</button>
+                </div>
             </div>
-            <div class="bench-buttons-row">
-                <button class="bench-btn btn-refresh" id="btnBenchRefresh" onclick="refreshOrders()">
-                    <span class="btn-icon">🔄</span>
-                    <span class="btn-text">1. Refresh Orders <kbd>[O]</kbd></span>
-                </button>
-                <button class="bench-btn btn-accept" id="btnBenchAccept" onclick="acceptTopOrder()">
-                    <span class="btn-icon">✅</span>
-                    <span class="btn-text">2. Opt In / Accept <kbd>[A]</kbd></span>
-                </button>
-                <button class="bench-btn btn-store" id="btnBenchStore" onclick="reachStore()">
-                    <span class="btn-icon">🏪</span>
-                    <span class="btn-text">3. Reached Store <kbd>[R]</kbd></span>
-                </button>
-                <button class="bench-btn btn-pickup" id="btnBenchPickup" onclick="confirmPickup()">
-                    <span class="btn-icon">🍴</span>
-                    <span class="btn-text">4. Picked Up (To Cust) <kbd>[K]</kbd></span>
-                </button>
-                <button class="bench-btn btn-deliver" id="btnBenchDeliver" onclick="completeDelivery()">
-                    <span class="btn-icon">📦</span>
-                    <span class="btn-text">5. Complete Delivery <kbd>[U]</kbd></span>
-                </button>
-                <button class="bench-btn btn-sos" onclick="triggerSos()">
-                    <span class="btn-icon">🚨</span>
-                    <span class="btn-text">Manual SOS <kbd>[S]</kbd></span>
-                </button>
-                <button class="bench-btn btn-crash" onclick="triggerTilt()">
-                    <span class="btn-icon">💥</span>
-                    <span class="btn-text">Tilt Crash <kbd>[T]</kbd></span>
-                </button>
-                <button class="bench-btn btn-cam" onclick="toggleDashcam()">
-                    <span class="btn-icon">📷</span>
-                    <span class="btn-text">Dashcam <kbd>[D]</kbd></span>
-                </button>
+
+            <!-- TOP-LEFT: GOOGLE MAPS NAVIGATION TURN CARD -->
+            <div class="gmaps-turn-card" id="turnCard" style="display: none;">
+                <div class="turn-icon-box">
+                    <svg class="turn-svg" id="turnSvg" viewBox="0 0 100 100">
+                        <path id="turnPath" d="M25 80 L25 55 Q25 35 45 35 L60 35 L60 20 L85 45 L60 70 L60 55 L45 55 Q38 55 38 65 L38 80 Z" fill="#FFFFFF"/>
+                    </svg>
+                </div>
+                <div class="turn-text-content">
+                    <div class="turn-dist-row">
+                        <span class="turn-dist-num" id="turnDistNum">150</span>
+                        <span class="turn-dist-unit" id="turnDistUnit">m</span>
+                        <span class="traffic-condition-badge" id="trafficConditionBadge">🟢 Flowing</span>
+                    </div>
+                    <div class="turn-road-name" id="turnRoadName">Mahatma Gandhi Road</div>
+                    <div class="turn-next-preview" id="turnNextPreview">Then: Bear left onto Beliaghata Main Rd</div>
+                </div>
+            </div>
+
+            <!-- FLOATING SPEEDOMETER BUBBLE -->
+            <div class="gmaps-speed-bubble">
+                <span class="speed-num" id="speedNum">0</span>
+                <span class="speed-label">km/h</span>
+            </div>
+
+            <!-- SPLIT-SCREEN ACTIVE ROUTE ACTION DOCK (LARGE GLOVE-FRIENDLY CONTROLS) -->
+            <div class="active-route-dock" id="activeRouteDock" style="display: none;">
+                <div class="dock-header-row">
+                    <span class="dock-badge" id="dockPhaseBadge">📍 PHASE 1: ROUTE TO PICKUP</span>
+                    <span class="dock-eta" id="dockEta">ETA 8 min</span>
+                </div>
+                <div class="dock-details">
+                    <h3 class="dock-title" id="dockTitle">Wow! Momo Express</h3>
+                    <p class="dock-subtitle" id="dockSubtitle">Central Avenue Quick Hub, Kolkata • 0.8 km</p>
+                </div>
+                <div class="dock-actions-row">
+                    <button class="btn-dock-util" onclick="recenterMap()" title="Recenter Map">🗺️ Map</button>
+                    <button class="btn-dock-util" onclick="callCustomer()" title="Call Customer">📞 Call</button>
+                    <button class="btn-dock-primary" id="btnDockAction" onclick="handlePrimaryDockAction()">
+                        🏪 REACHED STORE [R]
+                    </button>
+                </div>
+            </div>
+
+            <!-- INCOMING GIG NOTIFICATION STACK (IDLE STATE) -->
+            <div class="order-notification-stack" id="orderNotificationStack">
+                <!-- Dynamically rendered or preloaded delivery offers -->
+            </div>
+
+            <!-- BOTTOM TRIP HUD BAR -->
+            <div class="gmaps-bottom-card" id="bottomCard">
+                <div class="trip-summary-box">
+                    <div class="trip-duration-line">
+                        <span class="trip-time-val" id="tripTimeVal">-- min</span>
+                        <span class="traffic-delay-text" id="trafficDelayText">Standing by</span>
+                    </div>
+                    <div class="trip-details-line">
+                        <span class="trip-dist-val" id="tripDistVal">-- km</span>
+                        <span class="trip-eta-val" id="tripEtaVal">--:--</span>
+                    </div>
+                </div>
+                <div class="destination-preview-box">
+                    <span class="dest-label" id="destHeaderLabel">STATUS:</span>
+                    <span class="dest-name" id="destName">Scanning Kolkata (Salt Lake, Newtown, Park St)...</span>
+                </div>
+                <div class="trip-actions">
+                    <button class="btn-import-dest" onclick="refreshOffers()" title="Refresh Gigs">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- ==============================================================================
+                 MODALS & OVERLAYS
+                 ============================================================================== -->
+
+            <!-- 1. NEW DELIVERY OFFER MODAL WITH GLOVE-FRIENDLY "SWIPE TO ACCEPT" SLIDER -->
+            <div class="modal-overlay" id="newOfferModal" style="display: none;">
+                <div class="offer-modal-card">
+                    <div class="offer-modal-top">
+                        <span class="offer-platform-tag" id="offerModalPlatform" style="background:#FC8019;">SWIGGY</span>
+                        <div class="offer-payout-highlight">
+                            <span class="currency">₹</span>
+                            <span class="payout-amount" id="offerModalPayout">85.26</span>
+                            <small class="guaranteed">GUARANTEED</small>
+                        </div>
+                    </div>
+                    <div class="offer-locations-list">
+                        <div class="loc-item">
+                            <span class="loc-icon">🏪</span>
+                            <div>
+                                <strong id="offerModalStore">Wow! Momo Express</strong>
+                                <small id="offerModalStoreDist">0.8 km pickup travel</small>
+                            </div>
+                        </div>
+                        <div class="loc-item">
+                            <span class="loc-icon">🏠</span>
+                            <div>
+                                <strong id="offerModalCustomer">Ananya Sen</strong>
+                                <small id="offerModalCustomerAddr">New Town Action Area 1, Tower 3 (3.0 km drop)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="offer-meta-row">
+                        <span id="offerModalItems">📦 2x Darjeeling Steamed Momos</span>
+                        <span class="badge-prep" id="offerModalPrep">⚡ 3 min prep</span>
+                    </div>
+
+                    <!-- GLOVE-FRIENDLY SWIPE TO ACCEPT SLIDER -->
+                    <div class="swipe-slider-container" id="swipeSliderContainer">
+                        <div class="swipe-slider-track">
+                            <div class="swipe-slider-handle" id="swipeHandle">
+                                <span>👉</span>
+                            </div>
+                            <div class="swipe-slider-label">SWIPE TO ACCEPT ORDER</div>
+                        </div>
+                    </div>
+
+                    <div class="offer-dismiss-row">
+                        <button class="btn-offer-dismiss" onclick="closeOfferModal()">✕ Dismiss Offer</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. CUSTOMER HANDOVER 4-DIGIT OTP MODAL -->
+            <div class="modal-overlay" id="otpModal" style="display: none;">
+                <div class="otp-modal-card">
+                    <div class="otp-header">
+                        <span class="otp-icon">🔐</span>
+                        <h3>VERIFY CUSTOMER DELIVERY OTP</h3>
+                        <p>Ask customer for their 4-digit handover OTP</p>
+                    </div>
+                    <div class="otp-display-box" id="otpDisplay">----</div>
+                    <div class="otp-keypad">
+                        <button onclick="pressOtpKey('1')">1</button>
+                        <button onclick="pressOtpKey('2')">2</button>
+                        <button onclick="pressOtpKey('3')">3</button>
+                        <button onclick="pressOtpKey('4')">4</button>
+                        <button onclick="pressOtpKey('5')">5</button>
+                        <button onclick="pressOtpKey('6')">6</button>
+                        <button onclick="pressOtpKey('7')">7</button>
+                        <button onclick="pressOtpKey('8')">8</button>
+                        <button onclick="pressOtpKey('9')">9</button>
+                        <button onclick="clearOtp()" class="btn-otp-action">C</button>
+                        <button onclick="pressOtpKey('0')">0</button>
+                        <button onclick="submitOtp()" class="btn-otp-confirm">OK</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. FULLSCREEN RAZORPAY CASH-ON-DELIVERY (COD) QR MODAL -->
+            <div class="modal-overlay" id="razorpayModal" style="display: none;">
+                <div class="razorpay-card">
+                    <div class="razorpay-top-bar">
+                        <div class="rzp-logo">💳 RAZORPAY UPI INSTANT QR</div>
+                        <button class="btn-close-rzp" onclick="closeRazorpayModal()">✕</button>
+                    </div>
+                    <div class="rzp-body" id="rzpBodyActive">
+                        <div class="rzp-qr-wrapper">
+                            <img id="rzpQrImage" class="rzp-qr-img" src="" alt="Razorpay Payment QR"/>
+                            <div class="rzp-scan-pulse"></div>
+                        </div>
+                        <div class="rzp-amount-box">
+                            <span class="rzp-label">COLLECT EXACT COD AMOUNT:</span>
+                            <span class="rzp-amount" id="rzpAmountText">₹360.00</span>
+                        </div>
+                        <div class="rzp-listening-badge">
+                            <span class="listening-dot"></span>
+                            <span>Awaiting customer UPI scan (Auto-verifying via Razorpay)...</span>
+                        </div>
+                    </div>
+                    <!-- PAYMENT SUCCESS CELEBRATION VIEW -->
+                    <div class="rzp-success-view" id="rzpSuccessView" style="display: none;">
+                        <div class="rzp-success-icon">🎉</div>
+                        <h2>PAYMENT SUCCESSFUL!</h2>
+                        <p id="rzpSuccessSub">₹360.00 received via Razorpay UPI</p>
+                        <div class="rzp-payout-credit" id="rzpRiderCredit">+₹85.26 Credited to Wallet</div>
+                        <button class="btn-finish-delivery" onclick="finalizeDelivery()">🚀 CONTINUE TO NEXT ORDERS</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. RIDER PROFILE & IDENTITY DRAWER (FIREBASE AUTH) -->
+            <div class="drawer-overlay" id="profileDrawer" style="display: none;">
+                <div class="profile-drawer-card">
+                    <div class="drawer-header">
+                        <h3>RIDER PROFILE</h3>
+                        <button class="drawer-close-btn" onclick="closeProfileDrawer()">✕</button>
+                    </div>
+                    <div class="profile-auth-status">
+                        <div class="auth-pill-active">
+                            <span>🟢</span>
+                            <span id="drawerAuthEmail">debanjan.rider@lastmile.io</span>
+                        </div>
+                        <small>Firebase JWT Session Verified via Tauri Bridge</small>
+                    </div>
+                    <div class="profile-form-grid">
+                        <label>Rider Full Name:
+                            <input type="text" id="profInputName" value="Debanjan Mondal">
+                        </label>
+                        <label>Vehicle Reg Number:
+                            <input type="text" id="profInputVehicle" value="WB 02 AB 4591">
+                        </label>
+                        <label>Phone Contact:
+                            <input type="text" id="profInputPhone" value="+91 98765 43210">
+                        </label>
+                        <label>Daily Income Target (₹):
+                            <input type="number" id="profInputTarget" value="800">
+                        </label>
+                    </div>
+                    <div class="daily-progress-section">
+                        <div class="progress-header">
+                            <span>TODAY'S EARNINGS:</span>
+                            <strong id="drawerDailyText">₹570.26 / ₹800.00</strong>
+                        </div>
+                        <div class="daily-bar-bg">
+                            <div class="daily-bar-fill" id="drawerDailyBar" style="width: 71%;"></div>
+                        </div>
+                    </div>
+                    <div class="drawer-actions">
+                        <button class="btn-save-profile" onclick="saveProfileChanges()">💾 Save Profile & Target</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. EMERGENCY SOS & CRASH OVERLAY -->
+            <div class="emergency-overlay" id="emergencyOverlay" style="display: none;">
+                <div class="emergency-card">
+                    <div class="emergency-icon">🚨</div>
+                    <div class="emergency-title" id="emergencyTitle">EMERGENCY SOS ACTIVE</div>
+                    <div class="emergency-sub">Level 2 RAM Buffer Locked & Exported to Level 3 Incident Vault</div>
+                    <div class="emergency-gps" id="emergencyGps">GPS: 22.564300, 88.369300 | Speed: 0 km/h</div>
+                    <button class="btn-reset" onclick="resetEmergency()">DISMISS & RESUME NAVIGATION</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- PURE ES6 HIGH-PERFORMANCE CLIENT (ZERO IN-BROWSER BABEL COMPILER OVERHEAD) -->
-    <script src="/static/js/tripper.js"></script>
+    <!-- NATIVE TAURI V2 CLIENT SCRIPTS -->
+    <script src="static/js/tripper.js"></script>
 </body>
 </html>
