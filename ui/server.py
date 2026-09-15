@@ -185,4 +185,20 @@ def create_app(engine: LastMileEngine) -> FastAPI:
         await engine.broadcast_snapshot()
         return {"status": "Emergency reset", "snapshot": engine.get_latest_telemetry_snapshot()}
 
+    @app.post("/api/mock/inject-offer")
+    async def api_inject_mock_offer(seed: Optional[int] = None):
+        from core.mock_engine import MockDataEngine
+        offer_dict = MockDataEngine.generate_synthetic_offer(seed)
+        return {"status": "Injected", "offer": offer_dict}
+
+    @app.post("/api/mock/inject-event")
+    async def api_inject_mock_event(title: str = "Customer Update", description: str = "Please ring doorbell twice"):
+        import time
+        payload = {
+            "title": title,
+            "description": description,
+            "timestamp": time.time()
+        }
+        return {"status": "Event Injected", "event": payload}
+
     return app
