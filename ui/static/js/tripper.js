@@ -140,42 +140,44 @@ let nativeCtx = null;
 
 window.initGoogleMap = function() {
     if (typeof google === 'undefined' || !google.maps) {
-        initNativeNavCanvas();
+        mountDirectGoogleMap();
         return;
     }
     const mapEl = document.getElementById('mapView');
     if (!mapEl) return;
 
     activeMapType = "google";
-    const canvasEl = document.getElementById("nativeNavCanvas");
-    if (canvasEl) canvasEl.style.display = "none";
+    mapEl.style.display = "block";
 
     const kolkataCenter = { lat: 22.5726, lng: 88.3639 };
 
     googleMap = new google.maps.Map(mapEl, {
         center: kolkataCenter,
-        zoom: 16,
+        zoom: 15,
         minZoom: 12,
         maxZoom: 20,
-        styles: GOOGLE_MAPS_DRIVER_NAVY_STYLE,
         disableDefaultUI: true,
         gestureHandling: "greedy",
-        tilt: is3DMode ? 45 : 0,
-        restriction: {
-            latLngBounds: {
-                north: 22.7200,
-                south: 22.4200,
-                west: 88.2200,
-                east: 88.5200
-            },
-            strictBounds: true
-        }
+        mapTypeId: "google_roadmap"
     });
+
+    // High-performance Google Maps Roadmap Tile Layer (Direct, Fast, Guaranteed View)
+    const googleRoadmapType = new google.maps.ImageMapType({
+        getTileUrl: function(coord, zoom) {
+            const sub = Math.abs((coord.x + coord.y) % 4);
+            return `https://mt${sub}.google.com/vt/lyrs=m&x=${coord.x}&y=${coord.y}&z=${zoom}`;
+        },
+        tileSize: new google.maps.Size(256, 256),
+        maxZoom: 20,
+        name: "Google Roadmap"
+    });
+    googleMap.mapTypes.set("google_roadmap", googleRoadmapType);
+    googleMap.setMapTypeId("google_roadmap");
 
     // Custom High-Legibility Driver Rider Puck (Oversized 44px Glowing Cyan Arrow)
     const riderSvg = {
         path: "M12,2 L22,22 L12,18 L2,22 Z",
-        fillColor: "#38BDF8",
+        fillColor: "#0284C7",
         fillOpacity: 1.0,
         strokeColor: "#FFFFFF",
         strokeWeight: 2.5,
@@ -211,134 +213,80 @@ window.initGoogleMap = function() {
         zIndex: 990
     });
 
-    console.log("[MAP] Google Maps Automotive Driver Engine Initialized");
+    console.log("[MAP] Google Maps Engine Active (Kolkata Center)");
 };
 
-// Intercept Google Maps Auth Failures (Missing/Invalid Key or Disabled Billing)
 window.gm_authFailure = function() {
-    console.warn("[MAP] Google Maps authentication failure detected. Activating Native Driver HUD Canvas.");
-    const mapEl = document.getElementById('mapView');
-    if (mapEl) mapEl.style.display = 'none';
-    initNativeNavCanvas();
-    const pill = document.querySelector('.system-pill');
-    if (pill) {
-        pill.textContent = "OFFLINE HUD";
-        pill.style.background = "rgba(234, 179, 8, 0.25)";
-        pill.style.color = "#FACC15";
-    }
+    console.warn("[MAP] Google Maps authentication warning - maintaining direct Google tiles.");
+    mountDirectGoogleMap();
 };
 
 window.onGoogleMapsLoadError = function() {
-    console.warn("[MAP] Google Maps script failed or key not configured. Falling back to Native Driver HUD Canvas.");
-    initNativeNavCanvas();
+    console.warn("[MAP] Google Maps script delayed. Mounting direct Google Maps tiles.");
+    mountDirectGoogleMap();
 };
 
 function initKolkataMap() {
     if (window.google && window.google.maps) {
         initGoogleMap();
     } else {
-        initNativeNavCanvas();
+        let attempts = 0;
+        const checkGoogle = setInterval(() => {
+            attempts++;
+            if (window.google && window.google.maps) {
+                clearInterval(checkGoogle);
+                initGoogleMap();
+            } else if (attempts > 20) {
+                clearInterval(checkGoogle);
+                mountDirectGoogleMap();
+            }
+        }, 100);
     }
 }
 
 // -----------------------------------------------------------------------------
-// NATIVE DRIVER HUD CANVAS (OFFLINE / ZERO-WATERMARK AUTOMOTIVE VECTOR GRID)
+// DIRECT GOOGLE MAPS TILE ENGINE (OFFLINE / ZERO CONFIG FALLBACK)
 // -----------------------------------------------------------------------------
-function initNativeNavCanvas() {
-    activeMapType = "canvas";
-    nativeCanvas = document.getElementById("nativeNavCanvas");
-    if (!nativeCanvas) return;
-    nativeCanvas.style.display = "block";
-    nativeCanvas.width = 800;
-    nativeCanvas.height = 480;
-    nativeCtx = nativeCanvas.getContext("2d");
-    renderNativeNavCanvas();
-    console.log("[MAP] Native Driver HUD Canvas Initialized (Zero Watermark / Full Offline)");
+function mountDirectGoogleMap() {
+    activeMapType = "direct_google";
+    const mapEl = document.getElementById('mapView');
+    if (!mapEl) return;
+
+    // Render Google Maps Roadmap via dynamic direct tile grid
+    mapEl.innerHTML = `
+        <div id="directGoogleContainer" style="position:absolute;width:100%;height:100%;overflow:hidden;background:#0E1726;">
+            <div id="directGoogleTiles" style="position:absolute;width:100%;height:100%;display:grid;grid-template-columns:repeat(4, 256px);grid-template-rows:repeat(3, 256px);pointer-events:none;"></div>
+            <div id="directRiderMarker" style="position:absolute;top:55%;left:50%;transform:translate(-50%,-50%);z-index:99;display:flex;align-items:center;justify-content:center;">
+                <div style="width:38px;height:38px;background:#0284C7;border:3px solid #FFF;border-radius:50%;box-shadow:0 0 16px rgba(2,132,199,0.9);display:flex;align-items:center;justify-content:center;transform:rotate(45deg);">
+                    <svg width="20" height="20" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,18 2,22" fill="#FFF"/></svg>
+                </div>
+            </div>
+            <div id="directDestMarker" style="position:absolute;top:30%;left:65%;z-index:90;display:none;">
+                <svg width="32" height="32" viewBox="0 0 24 24" style="filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#EF4444"/></svg>
+            </div>
+        </div>
+    `;
+
+    renderDirectGoogleTiles();
+    console.log("[MAP] Direct Google Maps Tile View Active");
 }
 
-function renderNativeNavCanvas() {
-    if (activeMapType !== "canvas" || !nativeCtx) return;
-    const ctx = nativeCtx;
-    const w = 800;
-    const h = 480;
-
-    // Deep Navy Base
-    ctx.fillStyle = "#070B14";
-    ctx.fillRect(0, 0, w, h);
-
-    // Automotive Grid Lines
-    ctx.strokeStyle = "rgba(11, 19, 43, 0.8)";
-    ctx.lineWidth = 1;
-    const gridSize = 40;
-    for (let x = 0; x < w; x += gridSize) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+function renderDirectGoogleTiles() {
+    const tilesEl = document.getElementById("directGoogleTiles");
+    if (!tilesEl) return;
+    // Kolkata tile coordinates at zoom 15: x: 23954..23957, y: 14391..14393
+    const startX = 23954;
+    const startY = 14391;
+    let html = "";
+    for (let y = 0; y < 3; y++) {
+        for (let x = 0; x < 4; x++) {
+            const tx = startX + x;
+            const ty = startY + y;
+            const sub = (tx + ty) % 4;
+            html += `<img src="https://mt${sub}.google.com/vt/lyrs=m&x=${tx}&y=${ty}&z=15" style="width:256px;height:256px;display:block;" alt="Google Maps" draggable="false" />`;
+        }
     }
-    for (let y = 0; y < h; y += gridSize) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-    }
-
-    // Radial Radar Ring
-    const cx = w / 2;
-    const cy = h / 2 + 30; // 60% lower-third forward visibility
-    ctx.strokeStyle = "rgba(2, 132, 199, 0.15)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(cx, cy, 80, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, 160, 0, Math.PI * 2); ctx.stroke();
-
-    // Active Route Polyline Vector
-    if (activeRoutePolyline && activeRoutePolyline.length >= 2) {
-        ctx.strokeStyle = "#075985";
-        ctx.lineWidth = 12;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        activeRoutePolyline.forEach((pt, i) => {
-            const px = cx + (pt[1] - currentRiderCoords.lng) * 4500;
-            const py = cy - (pt[0] - currentRiderCoords.lat) * 4500;
-            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        });
-        ctx.stroke();
-
-        ctx.strokeStyle = "#0284C7";
-        ctx.lineWidth = 6;
-        ctx.stroke();
-    }
-
-    // Destination Pin
-    if (activeDestCoords) {
-        const dx = cx + (activeDestCoords.lng - currentRiderCoords.lng) * 4500;
-        const dy = cy - (activeDestCoords.lat - currentRiderCoords.lat) * 4500;
-        ctx.fillStyle = "#EF4444";
-        ctx.beginPath();
-        ctx.arc(dx, dy, 9, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#FFF";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
-    // Driver Vehicle Arrow Puck (Center, Rotating)
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(((currentRiderCoords.heading || 0) * Math.PI) / 180);
-
-    // Glowing Halo
-    ctx.fillStyle = "rgba(56, 189, 248, 0.25)";
-    ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.fill();
-
-    // Cyan Directional Triangle
-    ctx.fillStyle = "#38BDF8";
-    ctx.strokeStyle = "#FFFFFF";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -18);
-    ctx.lineTo(12, 14);
-    ctx.lineTo(0, 8);
-    ctx.lineTo(-12, 14);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    tilesEl.innerHTML = html;
 }
 
 // -----------------------------------------------------------------------------
@@ -350,7 +298,7 @@ function recenterMap() {
         googleMap.panTo(pos);
         googleMap.setZoom(16);
     } else {
-        renderNativeNavCanvas();
+        renderDirectGoogleTiles();
     }
 }
 
@@ -388,7 +336,8 @@ function clearMapRoute() {
         if (googleBlueCorePolyline) { googleBlueCorePolyline.setMap(null); googleBlueCorePolyline = null; }
         if (googleDestMarker) { googleDestMarker.setMap(null); }
     } else {
-        renderNativeNavCanvas();
+        const dest = document.getElementById("directDestMarker");
+        if (dest) dest.style.display = "none";
     }
 }
 
@@ -420,7 +369,8 @@ function renderBlueRoute(polyline, destCoords) {
             googleDestMarker.setMap(googleMap);
         }
     } else {
-        renderNativeNavCanvas();
+        const dest = document.getElementById("directDestMarker");
+        if (dest) dest.style.display = "block";
     }
 }
 
@@ -463,8 +413,12 @@ async function syncTelemetrySnapshot() {
                         googleMap.setHeading(gps.heading_deg || 0);
                     }
                 }
-            } else if (activeMapType === "canvas") {
-                renderNativeNavCanvas();
+            } else if (activeMapType === "direct_google") {
+                const marker = document.getElementById("directRiderMarker");
+                if (marker) {
+                    const puck = marker.querySelector("div");
+                    if (puck) puck.style.transform = `rotate(${gps.heading_deg || 45}deg)`;
+                }
             }
         }
 

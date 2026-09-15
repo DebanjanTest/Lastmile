@@ -4,17 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=800, height=480, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LastMile Guard - Automotive HUD (Tauri v2 + Rust)</title>
-    <!-- Native Google Maps JavaScript API (Loads dynamically if valid key present) -->
+    <!-- Native Google Maps JavaScript API -->
     <script>
         window.GOOGLE_MAPS_API_KEY = window.GOOGLE_MAPS_API_KEY || "";
-        if (window.GOOGLE_MAPS_API_KEY && window.GOOGLE_MAPS_API_KEY.length > 10) {
-            const s = document.createElement("script");
-            s.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY}&libraries=geometry&callback=initGoogleMap`;
-            s.async = true;
-            s.defer = true;
-            document.head.appendChild(s);
-        }
     </script>
+    <script src="https://maps.googleapis.com/maps/api/js?libraries=geometry&callback=initGoogleMap" async defer></script>
     <link rel="stylesheet" href="static/css/tripper.css">
 </head>
 <body class="hud-body">
@@ -32,9 +26,8 @@
 
     <!-- 800x480 WVGA AUTOMOTIVE HUD CHASSIS -->
     <div class="hud-viewport" id="screenViewport">
-        <!-- FULLSCREEN GOOGLE MAP CANVAS & NATIVE HUD GRID -->
+        <!-- FULLSCREEN GOOGLE MAP CANVAS -->
         <div id="mapView" class="map-view"></div>
-        <canvas id="nativeNavCanvas" class="native-nav-canvas"></canvas>
 
         <!-- DRIVER-CENTRIC MAP QUICK CONTROLS (HIGH-TARGET GLOVE FRIENDLY) -->
         <div class="driver-map-controls">
