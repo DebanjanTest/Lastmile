@@ -27,12 +27,17 @@ let leafletMap = null;
 let leafletRouteGlow = null;
 let leafletRouteCore = null;
 let leafletDestMarker = null;
+let leafletRiderMarker = null;
 
 let googleMap = null;
 let googleRiderMarker = null;
 let googleDestMarker = null;
 let googleBlueGlowPolyline = null;
 let googleBlueCorePolyline = null;
+
+let isUserPanning = false;
+let userPanResetTimer = null;
+let lastHandledPhase = "";
 
 let is3DMode = false;
 let currentRiderCoords = { lat: 22.5643, lng: 88.3693, heading: 45 };
@@ -164,6 +169,78 @@ function lerpAngle(start, end, factor) {
     return start + diff * factor;
 }
 
+function markUserPanning() {
+    isUserPanning = true;
+    const btn = document.getElementById("btnRecenter");
+    if (btn) btn.classList.add("panning-active");
+
+    if (userPanResetTimer) clearTimeout(userPanResetTimer);
+    userPanResetTimer = setTimeout(() => {
+        recenterMap();
+    }, 6000);
+}
+
+function clearUserPanning() {
+    isUserPanning = false;
+    const btn = document.getElementById("btnRecenter");
+    if (btn) btn.classList.remove("panning-active");
+    if (userPanResetTimer) {
+        clearTimeout(userPanResetTimer);
+        userPanResetTimer = null;
+    }
+}
+
+function updateRiderMarkerOnMap(lat, lng, heading) {
+    if (activeMapType === "leaflet" && leafletMap) {
+        if (!leafletRiderMarker) {
+            const riderHtml = `
+                <div class="leaflet-rider-puck" id="leafletPuckContainer" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;transform:rotate(${heading || 0}deg);transition:transform 0.1s linear;">
+                    <div style="position:absolute;width:56px;height:56px;border-radius:50%;background:rgba(2,132,199,0.25);animation:puck-radar-pulse 2s infinite ease-out;"></div>
+                    <div style="width:34px;height:34px;background:#0284C7;border:2.5px solid #FFFFFF;border-radius:50%;box-shadow:0 0 14px rgba(2,132,199,0.9);display:flex;align-items:center;justify-content:center;">
+                        <svg width="18" height="18" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,18 2,22" fill="#FFFFFF"/></svg>
+                    </div>
+                </div>
+            `;
+            const icon = L.divIcon({
+                className: 'leaflet-rider-marker-wrap',
+                html: riderHtml,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            });
+            leafletRiderMarker = L.marker([lat, lng], { icon: icon, zIndexOffset: 2000 }).addTo(leafletMap);
+        } else {
+            leafletRiderMarker.setLatLng([lat, lng]);
+            const puck = document.getElementById("leafletPuckContainer");
+            if (puck) {
+                puck.style.transform = `rotate(${heading || 0}deg)`;
+            }
+        }
+    } else if (activeMapType === "google" && googleMap) {
+        const riderSvg = {
+            path: "M12,2 L22,22 L12,18 L2,22 Z",
+            fillColor: "#0284C7",
+            fillOpacity: 1.0,
+            strokeColor: "#FFFFFF",
+            strokeWeight: 2.5,
+            scale: 1.5,
+            anchor: new google.maps.Point(12, 12),
+            rotation: heading || 0
+        };
+        if (!googleRiderMarker) {
+            googleRiderMarker = new google.maps.Marker({
+                position: { lat, lng },
+                map: googleMap,
+                icon: riderSvg,
+                title: "Driver Vehicle Position",
+                zIndex: 999
+            });
+        } else {
+            googleRiderMarker.setPosition({ lat, lng });
+            googleRiderMarker.setIcon(riderSvg);
+        }
+    }
+}
+
 function startKinematicsLerpLoop() {
     if (isLerpRunning) return;
     isLerpRunning = true;
@@ -175,28 +252,26 @@ function startKinematicsLerpLoop() {
         currentDisplayCoords.heading = lerpAngle(currentDisplayCoords.heading, targetRiderCoords.heading, factor);
         currentZoom = lerp(currentZoom, targetZoom, 0.08);
 
-        // Update Map Center
-        if (activeMapType === "leaflet" && leafletMap) {
-            leafletMap.setView([currentDisplayCoords.lat, currentDisplayCoords.lng], currentZoom, { animate: false });
-        } else if (activeMapType === "google" && googleMap) {
-            googleMap.setCenter({ lat: currentDisplayCoords.lat, lng: currentDisplayCoords.lng });
-        }
+        // Always update the rider vehicle position & heading on the map
+        updateRiderMarkerOnMap(currentDisplayCoords.lat, currentDisplayCoords.lng, currentDisplayCoords.heading);
 
-        // Heading-Up Map Rotation around sticky lower-third rider puck
-        const wrapper = document.getElementById("mapRotationWrapper");
-        if (wrapper) {
-            const h = currentDisplayCoords.heading || 0;
-            if (is3DMode) {
-                wrapper.style.transform = `perspective(700px) rotateX(42deg) rotate(${-h}deg)`;
-            } else {
-                wrapper.style.transform = `rotate(${-h}deg)`;
+        // ONLY force-center camera if user is NOT pushing/panning the map around
+        if (!isUserPanning) {
+            if (activeMapType === "leaflet" && leafletMap) {
+                leafletMap.setView([currentDisplayCoords.lat, currentDisplayCoords.lng], currentZoom, { animate: false });
+            } else if (activeMapType === "google" && googleMap) {
+                googleMap.setCenter({ lat: currentDisplayCoords.lat, lng: currentDisplayCoords.lng });
             }
         }
 
-        // Counter-rotate destination pin so it stays vertically oriented on screen
-        if (leafletDestMarker && leafletDestMarker._icon) {
-            const h = currentDisplayCoords.heading || 0;
-            leafletDestMarker._icon.style.transform = `translate3d(-17px, -34px, 0px) rotate(${h}deg)`;
+        // Perspective 3D tilt mode (only tilt when in 3D and not free-panning)
+        const wrapper = document.getElementById("mapRotationWrapper");
+        if (wrapper) {
+            if (is3DMode && !isUserPanning) {
+                wrapper.style.transform = `perspective(700px) rotateX(36deg)`;
+            } else {
+                wrapper.style.transform = "none";
+            }
         }
 
         requestAnimationFrame(frame);
@@ -261,6 +336,18 @@ function initLeafletMap() {
         }
     });
 
+    // Wire interaction listeners so pushing the map enters free-pan browse mode
+    leafletMap.on('dragstart', markUserPanning);
+    leafletMap.on('movestart', function(e) {
+        if (e && e.originalEvent) markUserPanning();
+    });
+    leafletMap.on('zoomstart', function(e) {
+        if (e && e.originalEvent) markUserPanning();
+    });
+
+    mapEl.addEventListener('mousedown', markUserPanning, { passive: true });
+    mapEl.addEventListener('touchstart', markUserPanning, { passive: true });
+
     startKinematicsLerpLoop();
     console.log("[MAP] Leaflet Unmetered Automotive Engine Active (Zero Watermarks, Heading-Up Lerp)");
 }
@@ -284,6 +371,10 @@ window.initGoogleMap = function() {
         disableDefaultUI: true,
         gestureHandling: "greedy"
     });
+
+    googleMap.addListener('dragstart', markUserPanning);
+    mapEl.addEventListener('mousedown', markUserPanning, { passive: true });
+    mapEl.addEventListener('touchstart', markUserPanning, { passive: true });
 
     startKinematicsLerpLoop();
     console.log("[MAP] Google Maps Automotive Driver Engine Initialized");
@@ -325,15 +416,20 @@ function renderDirectTiles() {
 // DRIVER-CENTRIC CAMERA & QUICK ACTIONS
 // -----------------------------------------------------------------------------
 function recenterMap() {
+    clearUserPanning();
     targetZoom = 16.0;
     targetRiderCoords.lat = currentRiderCoords.lat;
     targetRiderCoords.lng = currentRiderCoords.lng;
+    currentDisplayCoords.lat = currentRiderCoords.lat;
+    currentDisplayCoords.lng = currentRiderCoords.lng;
+
     if (activeMapType === "leaflet" && leafletMap) {
         leafletMap.setView([currentRiderCoords.lat, currentRiderCoords.lng], 16, { animate: true });
     } else if (activeMapType === "google" && googleMap) {
         googleMap.panTo({ lat: currentRiderCoords.lat, lng: currentRiderCoords.lng });
         googleMap.setZoom(16);
     }
+    showHUDToast("Map Centered to Vehicle");
 }
 
 function toggleMapTilt() {
@@ -422,6 +518,7 @@ function renderBlueRoute(polyline, destCoords) {
 }
 
 function smoothFlyToDestination(lat, lng, targetZoomLevel = 17) {
+    if (isUserPanning) return;
     targetZoom = targetZoomLevel;
     if (activeMapType === "leaflet" && leafletMap) {
         leafletMap.flyTo([lat, lng], targetZoomLevel, { duration: 1.2 });
@@ -558,7 +655,8 @@ function updateUIPhase(phase, order, daily) {
     }
 
     const pUpper = (phase || "").toUpperCase();
-    if (!order || pUpper === "IDLE" || pUpper === "DELIVERED") {
+    if (!order || pUpper === "IDLE" || pUpper === "DELIVERED" || pUpper === "SEARCHING" || pUpper === "SEARCHING_FOR_ORDERS") {
+        lastHandledPhase = "";
         if (turnCard) turnCard.style.display = "none";
         if (activeDock) activeDock.style.display = "none";
         if (bottomDestName) bottomDestName.textContent = "Scanning Kolkata (Salt Lake, Newtown, Park St)...";
@@ -614,8 +712,10 @@ function updateUIPhase(phase, order, daily) {
         if (dockSwipeLabel) dockSwipeLabel.textContent = "SWIPE TO CONFIRM PICKUP [K]";
         if (dockSwipeHandle) dockSwipeHandle.className = "swipe-handle dock-swipe-handle pickup-mode";
 
-        // Trigger progressive map zoom into store
-        smoothFlyToDestination(order.store_lat, order.store_lng, 17);
+        // Trigger progressive map zoom into store once upon phase entry
+        if (lastHandledPhase !== phaseNormalized && !isUserPanning) {
+            smoothFlyToDestination(order.store_lat, order.store_lng, 17);
+        }
 
     } else if (phaseNormalized === "ROUTETOCUSTOMER" || phaseNormalized === "ROUTE_TO_CUSTOMER") {
         if (turnCard) turnCard.style.display = "flex";
@@ -653,9 +753,12 @@ function updateUIPhase(phase, order, daily) {
         if (dockSwipeLabel) dockSwipeLabel.textContent = "SWIPE TO COMPLETE DELIVERY [U]";
         if (dockSwipeHandle) dockSwipeHandle.className = "swipe-handle dock-swipe-handle deliver-mode";
 
-        // Trigger progressive map zoom into customer doorstep
-        smoothFlyToDestination(order.customer_lat, order.customer_lng, 18);
+        // Trigger progressive map zoom into customer doorstep once upon phase entry
+        if (lastHandledPhase !== phaseNormalized && !isUserPanning) {
+            smoothFlyToDestination(order.customer_lat, order.customer_lng, 18);
+        }
     }
+    lastHandledPhase = phaseNormalized;
 }
 
 function renderOffersStack(offers) {

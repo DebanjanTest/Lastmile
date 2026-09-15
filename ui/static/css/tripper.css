@@ -150,11 +150,11 @@ body.hud-body {
 
 .map-rotation-wrapper {
     position: absolute;
-    width: 1400px;
-    height: 1400px;
-    left: -300px;
-    top: -355px;
-    transform-origin: 700px 700px;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    transform-origin: 50% 50%;
     transition: transform 0.08s linear;
     will-change: transform;
 }
@@ -176,17 +176,9 @@ body.hud-body {
     display: none !important;
 }
 
-/* STICKY LOWER-THIRD RIDER PUCK (400px, 345px) */
+/* Static rider puck overlay hidden in favor of road-anchored map markers */
 .rider-puck-anchor {
-    position: absolute;
-    left: 400px;
-    top: 345px;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 40;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: none !important;
 }
 
 .rider-puck-pulse {
@@ -265,6 +257,13 @@ body.hud-body {
     transform: scale(0.92);
     border-color: var(--accent-cyan);
     background: #0284C7;
+}
+
+.btn-driver-map.panning-active {
+    border-color: #38BDF8;
+    background: rgba(2, 132, 199, 0.4);
+    color: #38BDF8;
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.7);
 }
 
 .icon-driver {
