@@ -21,12 +21,16 @@ const tauriListen = (event, callback) => {
     return Promise.resolve(() => {});
 };
 
-// Global State
-let mapInstance = null;
-let riderMarker = null;
-let destMarker = null;
-let blueGlowPolyline = null;
-let blueCorePolyline = null;
+// Global Map & HUD Navigation State
+let googleMap = null;
+let googleRiderMarker = null;
+let googleDestMarker = null;
+let googleBlueGlowPolyline = null;
+let googleBlueCorePolyline = null;
+let is3DMode = false;
+let currentRiderCoords = { lat: 22.5726, lng: 88.3639, heading: 45 };
+let activeDestCoords = null;
+let activeRoutePolyline = [];
 let audioCtx = null;
 
 let currentPhase = "Idle"; // Idle, RouteToStore, AtStore, RouteToCustomer, AtCustomer, Delivered
@@ -109,51 +113,54 @@ function playChime(freq = 880, duration = 0.12) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. CARTOGRAPHY & PROGRESSIVE ZOOM ANIMATIONS (STRICTLY BOUNDED TO KOLKATA)
+// 2. AUTOMOTIVE CARTOGRAPHY ENGINE (NATIVE GOOGLE MAPS PRIMARY & DRIVER HUD)
 // -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-// 2. CARTOGRAPHY ENGINE (GOOGLE MAPS PRIMARY / LEAFLET FALLBACK)
-// -----------------------------------------------------------------------------
-const GOOGLE_MAPS_NAVY_STYLE = [
-    { elementType: "geometry", stylers: [{ color: "#0B132B" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#070B14" }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#8E9BB0" }] },
+const GOOGLE_MAPS_DRIVER_NAVY_STYLE = [
+    { elementType: "geometry", stylers: [{ color: "#070B14" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#070B14" }, { weight: 3 }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#F8FAFC" }] },
     { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#38BDF8" }] },
-    { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#64748B" }] },
-    { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#111A30" }] },
-    { featureType: "road", elementType: "geometry", stylers: [{ color: "#1E293B" }] },
-    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#0F172A" }] },
+    { featureType: "poi", stylers: [{ visibility: "off" }] },
+    { featureType: "transit", stylers: [{ visibility: "off" }] },
+    { featureType: "road", elementType: "geometry", stylers: [{ color: "#111A30" }] },
+    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1E293B" }, { weight: 1 }] },
     { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#94A3B8" }] },
+    { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#1E293B" }] },
+    { featureType: "road.arterial", elementType: "geometry.stroke", stylers: [{ color: "#38BDF8" }, { weight: 1.5 }] },
     { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#0284C7" }] },
-    { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#0369A1" }] },
-    { featureType: "transit", elementType: "geometry", stylers: [{ color: "#1E293B" }] },
-    { featureType: "water", elementType: "geometry", stylers: [{ color: "#070E1E" }] },
-    { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#38BDF8" }] }
+    { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#38BDF8" }, { weight: 2 }] },
+    { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#FFFFFF" }] },
+    { featureType: "water", elementType: "geometry", stylers: [{ color: "#0A1329" }] },
+    { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#0284C7" }] }
 ];
 
-let activeMapType = "leaflet"; // "google" | "leaflet"
-let googleMap = null;
-let googleRiderMarker = null;
-let googleDestMarker = null;
-let googleBlueGlowPolyline = null;
-let googleBlueCorePolyline = null;
+let activeMapType = "none"; // "google" | "canvas"
+let nativeCanvas = null;
+let nativeCtx = null;
 
 window.initGoogleMap = function() {
-    if (typeof google === 'undefined' || !google.maps) return;
+    if (typeof google === 'undefined' || !google.maps) {
+        initNativeNavCanvas();
+        return;
+    }
     const mapEl = document.getElementById('mapView');
     if (!mapEl) return;
 
     activeMapType = "google";
+    const canvasEl = document.getElementById("nativeNavCanvas");
+    if (canvasEl) canvasEl.style.display = "none";
+
     const kolkataCenter = { lat: 22.5726, lng: 88.3639 };
-    
+
     googleMap = new google.maps.Map(mapEl, {
         center: kolkataCenter,
-        zoom: 15,
+        zoom: 16,
         minZoom: 12,
-        maxZoom: 19,
-        styles: GOOGLE_MAPS_NAVY_STYLE,
+        maxZoom: 20,
+        styles: GOOGLE_MAPS_DRIVER_NAVY_STYLE,
         disableDefaultUI: true,
         gestureHandling: "greedy",
+        tilt: is3DMode ? 45 : 0,
         restriction: {
             latLngBounds: {
                 north: 22.7200,
@@ -165,33 +172,34 @@ window.initGoogleMap = function() {
         }
     });
 
-    // Custom SVG Rider Icon
+    // Custom High-Legibility Driver Rider Puck (Oversized 44px Glowing Cyan Arrow)
     const riderSvg = {
         path: "M12,2 L22,22 L12,18 L2,22 Z",
         fillColor: "#38BDF8",
         fillOpacity: 1.0,
         strokeColor: "#FFFFFF",
-        strokeWeight: 2,
-        scale: 1.4,
+        strokeWeight: 2.5,
+        scale: 1.6,
         anchor: new google.maps.Point(12, 12),
-        rotation: 45
+        rotation: currentRiderCoords.heading || 45
     };
 
     googleRiderMarker = new google.maps.Marker({
         position: kolkataCenter,
         map: googleMap,
         icon: riderSvg,
-        title: "Rider Current Position"
+        title: "Driver Vehicle Marker",
+        zIndex: 999
     });
 
-    // Custom SVG Destination Pin
+    // Custom Driver Destination Pin
     const pinSvg = {
         path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
-        fillColor: "#E23744",
+        fillColor: "#EF4444",
         fillOpacity: 1.0,
         strokeColor: "#FFFFFF",
-        strokeWeight: 1.5,
-        scale: 1.5,
+        strokeWeight: 2,
+        scale: 1.6,
         anchor: new google.maps.Point(12, 24)
     };
 
@@ -199,80 +207,183 @@ window.initGoogleMap = function() {
         position: kolkataCenter,
         map: null,
         icon: pinSvg,
-        title: "Delivery Waypoint"
+        title: "Destination Waypoint",
+        zIndex: 990
     });
 
-    console.log("[MAP] Google Maps Engine Active (Navy Blue Dark Theme)");
+    console.log("[MAP] Google Maps Automotive Driver Engine Initialized");
+};
+
+window.onGoogleMapsLoadError = function() {
+    console.warn("[MAP] Google Maps script failed or key not configured. Falling back to Native Driver HUD Canvas.");
+    initNativeNavCanvas();
 };
 
 function initKolkataMap() {
-    // If Google Maps is loaded and initialized, skip Leaflet
     if (window.google && window.google.maps) {
         initGoogleMap();
-        return;
+    } else {
+        initNativeNavCanvas();
     }
-    if (mapInstance || typeof L === 'undefined') return;
+}
 
-    activeMapType = "leaflet";
-    const kolkataCenter = [22.5726, 88.3639];
-    const kolkataBounds = [
-        [22.4200, 88.2200], // Southwest
-        [22.7200, 88.5200]  // Northeast
-    ];
+// -----------------------------------------------------------------------------
+// NATIVE DRIVER HUD CANVAS (OFFLINE / ZERO-WATERMARK AUTOMOTIVE VECTOR GRID)
+// -----------------------------------------------------------------------------
+function initNativeNavCanvas() {
+    activeMapType = "canvas";
+    nativeCanvas = document.getElementById("nativeNavCanvas");
+    if (!nativeCanvas) return;
+    nativeCanvas.style.display = "block";
+    nativeCanvas.width = 800;
+    nativeCanvas.height = 480;
+    nativeCtx = nativeCanvas.getContext("2d");
+    renderNativeNavCanvas();
+    console.log("[MAP] Native Driver HUD Canvas Initialized (Zero Watermark / Full Offline)");
+}
 
-    mapInstance = L.map('mapView', {
-        center: kolkataCenter,
-        zoom: 15,
-        minZoom: 12,
-        maxZoom: 18,
-        maxBounds: kolkataBounds,
-        maxBoundsViscosity: 1.0,
-        zoomControl: false,
-        attributionControl: false
-    });
+function renderNativeNavCanvas() {
+    if (activeMapType !== "canvas" || !nativeCtx) return;
+    const ctx = nativeCtx;
+    const w = 800;
+    const h = 480;
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: 'abcd',
-        attribution: '&copy; CARTO'
-    }).addTo(mapInstance);
+    // Deep Navy Base
+    ctx.fillStyle = "#070B14";
+    ctx.fillRect(0, 0, w, h);
 
-    const riderIcon = L.divIcon({
-        className: 'rider-puck-container',
-        html: `<div id="riderPuck" style="width:34px;height:34px;background:#0284C7;border:3px solid #FFF;border-radius:50%;box-shadow:0 0 14px rgba(2,132,199,0.8);display:flex;align-items:center;justify-content:center;transform:rotate(45deg);"><svg width="18" height="18" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,18 2,22" fill="#FFF"/></svg></div>`,
-        iconSize: [34, 34],
-        iconAnchor: [17, 17]
-    });
+    // Automotive Grid Lines
+    ctx.strokeStyle = "rgba(11, 19, 43, 0.8)";
+    ctx.lineWidth = 1;
+    const gridSize = 40;
+    for (let x = 0; x < w; x += gridSize) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    for (let y = 0; y < h; y += gridSize) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
 
-    riderMarker = L.marker(kolkataCenter, { icon: riderIcon }).addTo(mapInstance);
+    // Radial Radar Ring
+    const cx = w / 2;
+    const cy = h / 2 + 30; // 60% lower-third forward visibility
+    ctx.strokeStyle = "rgba(2, 132, 199, 0.15)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, 80, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 160, 0, Math.PI * 2); ctx.stroke();
 
-    const destIcon = L.divIcon({
-        className: 'dest-pin-container',
-        html: `<div id="destPinIcon" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#E23744"/></svg></div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 28]
-    });
+    // Active Route Polyline Vector
+    if (activeRoutePolyline && activeRoutePolyline.length >= 2) {
+        ctx.strokeStyle = "#075985";
+        ctx.lineWidth = 12;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        activeRoutePolyline.forEach((pt, i) => {
+            const px = cx + (pt[1] - currentRiderCoords.lng) * 4500;
+            const py = cy - (pt[0] - currentRiderCoords.lat) * 4500;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
 
-    destMarker = L.marker(kolkataCenter, { icon: destIcon });
-    console.log("[MAP] Leaflet Map Initialized (Fallback Mode)");
+        ctx.strokeStyle = "#0284C7";
+        ctx.lineWidth = 6;
+        ctx.stroke();
+    }
+
+    // Destination Pin
+    if (activeDestCoords) {
+        const dx = cx + (activeDestCoords.lng - currentRiderCoords.lng) * 4500;
+        const dy = cy - (activeDestCoords.lat - currentRiderCoords.lat) * 4500;
+        ctx.fillStyle = "#EF4444";
+        ctx.beginPath();
+        ctx.arc(dx, dy, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#FFF";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    // Driver Vehicle Arrow Puck (Center, Rotating)
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(((currentRiderCoords.heading || 0) * Math.PI) / 180);
+
+    // Glowing Halo
+    ctx.fillStyle = "rgba(56, 189, 248, 0.25)";
+    ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.fill();
+
+    // Cyan Directional Triangle
+    ctx.fillStyle = "#38BDF8";
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -18);
+    ctx.lineTo(12, 14);
+    ctx.lineTo(0, 8);
+    ctx.lineTo(-12, 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
+// -----------------------------------------------------------------------------
+// DRIVER-CENTRIC CAMERA & QUICK ACTIONS
+// -----------------------------------------------------------------------------
+function recenterMap() {
+    if (activeMapType === "google" && googleMap && googleRiderMarker) {
+        const pos = { lat: currentRiderCoords.lat, lng: currentRiderCoords.lng };
+        googleMap.panTo(pos);
+        googleMap.setZoom(16);
+    } else {
+        renderNativeNavCanvas();
+    }
+}
+
+function toggleMapTilt() {
+    is3DMode = !is3DMode;
+    const txt = document.getElementById("tiltModeText");
+    if (txt) txt.textContent = is3DMode ? "2D" : "3D";
+
+    if (activeMapType === "google" && googleMap) {
+        googleMap.setTilt(is3DMode ? 45 : 0);
+        if (is3DMode && currentRiderCoords.heading) {
+            googleMap.setHeading(currentRiderCoords.heading);
+        }
+    }
+}
+
+function zoomInMap() {
+    if (activeMapType === "google" && googleMap) {
+        googleMap.setZoom(googleMap.getZoom() + 1);
+    }
+}
+
+function zoomOutMap() {
+    if (activeMapType === "google" && googleMap) {
+        googleMap.setZoom(googleMap.getZoom() - 1);
+    }
 }
 
 function clearMapRoute() {
+    activeRoutePolyline = [];
+    activeDestCoords = null;
+
     if (activeMapType === "google" && googleMap) {
         if (googleBlueGlowPolyline) { googleBlueGlowPolyline.setMap(null); googleBlueGlowPolyline = null; }
         if (googleBlueCorePolyline) { googleBlueCorePolyline.setMap(null); googleBlueCorePolyline = null; }
         if (googleDestMarker) { googleDestMarker.setMap(null); }
-        return;
+    } else {
+        renderNativeNavCanvas();
     }
-    if (!mapInstance) return;
-    if (blueGlowPolyline) { mapInstance.removeLayer(blueGlowPolyline); blueGlowPolyline = null; }
-    if (blueCorePolyline) { mapInstance.removeLayer(blueCorePolyline); blueCorePolyline = null; }
-    if (destMarker && mapInstance.hasLayer(destMarker)) { mapInstance.removeLayer(destMarker); }
 }
 
 function renderBlueRoute(polyline, destCoords) {
     if (!polyline || polyline.length < 2) return;
     clearMapRoute();
+
+    activeRoutePolyline = polyline;
+    activeDestCoords = destCoords;
 
     if (activeMapType === "google" && googleMap) {
         const gPath = polyline.map(pt => ({ lat: pt[0], lng: pt[1] }));
@@ -294,28 +405,8 @@ function renderBlueRoute(polyline, destCoords) {
             googleDestMarker.setPosition({ lat: destCoords.lat, lng: destCoords.lng });
             googleDestMarker.setMap(googleMap);
         }
-        return;
-    }
-
-    if (!mapInstance) return;
-    blueGlowPolyline = L.polyline(polyline, {
-        color: '#075985',
-        weight: 10,
-        opacity: 0.5,
-        lineCap: 'round',
-        lineJoin: 'round'
-    }).addTo(mapInstance);
-
-    blueCorePolyline = L.polyline(polyline, {
-        color: '#0284C7',
-        weight: 6,
-        opacity: 0.98,
-        lineCap: 'round',
-        lineJoin: 'round'
-    }).addTo(mapInstance);
-
-    if (destCoords && destMarker) {
-        destMarker.setLatLng([destCoords.lat, destCoords.lng]).addTo(mapInstance);
+    } else {
+        renderNativeNavCanvas();
     }
 }
 
@@ -323,25 +414,6 @@ function smoothFlyToDestination(lat, lng, targetZoom = 17) {
     if (activeMapType === "google" && googleMap) {
         googleMap.panTo({ lat, lng });
         googleMap.setZoom(targetZoom);
-        return;
-    }
-    if (!mapInstance) return;
-    mapInstance.flyTo([lat, lng], targetZoom, {
-        animate: true,
-        duration: 1.8,
-        easeLinearity: 0.25
-    });
-}
-
-function recenterMap() {
-    if (activeMapType === "google" && googleMap && googleRiderMarker) {
-        googleMap.panTo(googleRiderMarker.getPosition());
-        googleMap.setZoom(16);
-        return;
-    }
-    if (riderMarker && mapInstance) {
-        const pos = riderMarker.getLatLng();
-        mapInstance.setView(pos, 16, { animate: true });
     }
 }
 
@@ -360,26 +432,25 @@ async function syncTelemetrySnapshot() {
         const speedEl = document.getElementById("speedNum");
         if (speedEl) speedEl.textContent = Math.round(gps.speed_kmh || 0);
 
-        // 2. Update Map Position
+        // 2. Update Map Position & Driver Forward Camera Tracking
         if (gps.latitude && gps.longitude) {
+            currentRiderCoords = {
+                lat: gps.latitude,
+                lng: gps.longitude,
+                heading: gps.heading_deg || 45
+            };
+
             if (activeMapType === "google" && googleMap && googleRiderMarker) {
                 const newPos = { lat: gps.latitude, lng: gps.longitude };
                 googleRiderMarker.setPosition(newPos);
                 if (isMoving) {
                     googleMap.panTo(newPos);
-                    const riderSvg = googleRiderMarker.getIcon();
-                    if (riderSvg && typeof riderSvg === 'object') {
-                        riderSvg.rotation = gps.heading_deg || 45;
-                        googleRiderMarker.setIcon(riderSvg);
+                    if (is3DMode) {
+                        googleMap.setHeading(gps.heading_deg || 0);
                     }
                 }
-            } else if (riderMarker) {
-                riderMarker.setLatLng([gps.latitude, gps.longitude]);
-                if (isMoving && mapInstance) {
-                    mapInstance.panTo([gps.latitude, gps.longitude], { animate: true, duration: 0.2 });
-                    const puck = document.getElementById("riderPuck");
-                    if (puck) puck.style.transform = `rotate(${gps.heading_deg || 45}deg)`;
-                }
+            } else if (activeMapType === "canvas") {
+                renderNativeNavCanvas();
             }
         }
 

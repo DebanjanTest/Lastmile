@@ -4,12 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=800, height=480, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LastMile Guard - Automotive HUD (Tauri v2 + Rust)</title>
-    <!-- Map Engines: Google Maps JavaScript API (Primary) with Leaflet Fallback -->
+    <!-- Native Google Maps JavaScript API (Sole Primary Engine) -->
     <script>
         window.GOOGLE_MAPS_API_KEY = window.GOOGLE_MAPS_API_KEY || "";
     </script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=&libraries=geometry&callback=initGoogleMap" async defer onerror="window.onGoogleMapsLoadError && window.onGoogleMapsLoadError()"></script>
     <link rel="stylesheet" href="static/css/tripper.css">
 </head>
 <body class="hud-body">
@@ -27,8 +26,25 @@
 
     <!-- 800x480 WVGA AUTOMOTIVE HUD CHASSIS -->
     <div class="hud-viewport" id="screenViewport">
-        <!-- FULLSCREEN LEAFLET MAP CANVAS (KOLKATA BOUNDED) -->
+        <!-- FULLSCREEN GOOGLE MAP CANVAS & NATIVE HUD GRID -->
         <div id="mapView" class="map-view"></div>
+        <canvas id="nativeNavCanvas" class="native-nav-canvas"></canvas>
+
+        <!-- DRIVER-CENTRIC MAP QUICK CONTROLS (HIGH-TARGET GLOVE FRIENDLY) -->
+        <div class="driver-map-controls">
+            <button class="btn-driver-map" id="btnRecenter" onclick="recenterMap()" title="Recenter Driver Position">
+                <svg class="icon-driver" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>
+            </button>
+            <button class="btn-driver-map" id="btnToggleTilt" onclick="toggleMapTilt()" title="Toggle 2D / 3D Perspective">
+                <span id="tiltModeText">3D</span>
+            </button>
+            <button class="btn-driver-map" onclick="zoomInMap()" title="Zoom In">
+                <svg class="icon-driver" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>
+            </button>
+            <button class="btn-driver-map" onclick="zoomOutMap()" title="Zoom Out">
+                <svg class="icon-driver" viewBox="0 0 24 24"><path d="M5 12h14" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>
+            </button>
+        </div>
 
         <!-- TOP BAR: SYSTEM STATUS & RIDER IDENTITY -->
         <div class="top-nav-bar">

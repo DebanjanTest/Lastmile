@@ -143,18 +143,64 @@ body.hud-body {
     width: 800px;
     height: 480px;
     z-index: 1;
-    background: #0E1726;
+    background: #070B14;
 }
 
-/* Hide Leaflet default zoom controls & clean attribution */
-.leaflet-control-zoom { display: none !important; }
-.leaflet-control-attribution {
-    background: rgba(11, 19, 43, 0.8) !important;
-    color: #4B5563 !important;
-    font-size: 8px !important;
-    padding: 1px 4px !important;
+/* Native High-Performance Automotive Vector Canvas (Zero External Watermarks) */
+.native-nav-canvas {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 800px;
+    height: 480px;
+    z-index: 2;
+    pointer-events: none;
+    display: none;
 }
-.leaflet-control-attribution a { color: #64748B !important; text-decoration: none; }
+
+/* DRIVER-CENTRIC MAP QUICK CONTROLS (MASSIVE 44PX GLOVE TARGETS) */
+.driver-map-controls {
+    position: absolute;
+    right: 12px;
+    top: 105px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 45;
+}
+
+.btn-driver-map {
+    width: 44px;
+    height: 44px;
+    background: rgba(11, 19, 43, 0.94);
+    backdrop-filter: blur(12px);
+    border: 1.5px solid var(--border-navy);
+    border-radius: 50%;
+    color: #F8FAFC;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    transition: all 0.15s ease;
+}
+
+.btn-driver-map:active {
+    transform: scale(0.92);
+    border-color: var(--accent-cyan);
+    background: #0284C7;
+}
+
+.icon-driver {
+    width: 20px;
+    height: 20px;
+}
+
+#tiltModeText {
+    font-size: 11px;
+    font-weight: 900;
+    color: var(--accent-cyan);
+    letter-spacing: 0.5px;
+}
 
 /* SVG Icon Standard */
 .icon-svg {
