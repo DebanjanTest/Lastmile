@@ -69,55 +69,62 @@ def fetch_road_route(
         except Exception as e:
             print(f"[ROUTER] Google Directions API unavailable: {e}")
 
-    # 2. Try OSRM (Open Source Routing Machine)
-    try:
-        osrm_url = f"http://router.project-osrm.org/route/v1/driving/{start_lng},{start_lat};{dest_lng},{dest_lat}?overview=full&geometries=geojson&steps=true"
-        req = urllib.request.Request(osrm_url, headers={"User-Agent": "LastMileGuard/1.1"})
-        with urllib.request.urlopen(req, timeout=3.0) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if data.get("code") == "Ok" and data.get("routes"):
-                route = data["routes"][0]
-                steps: List[RoutePoint] = []
-                polyline: List[List[float]] = []
+    # 2. Try OSRM (Open Source Routing Machine) with HTTPS / HTTP
+    for proto in ["https", "http"]:
+        try:
+            osrm_url = f"{proto}://router.project-osrm.org/route/v1/driving/{start_lng},{start_lat};{dest_lng},{dest_lat}?overview=full&geometries=geojson&steps=true"
+            req = urllib.request.Request(osrm_url, headers={"User-Agent": "LastMileGuard/1.1"})
+            with urllib.request.urlopen(req, timeout=2.0) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                if data.get("code") == "Ok" and data.get("routes"):
+                    route = data["routes"][0]
+                    steps: List[RoutePoint] = []
+                    polyline: List[List[float]] = []
 
-                # Extract polyline coordinates (GeoJSON is [lng, lat])
-                coords = route.get("geometry", {}).get("coordinates", [])
-                polyline = [[c[1], c[0]] for c in coords]
+                    # Extract polyline coordinates (GeoJSON is [lng, lat])
+                    coords = route.get("geometry", {}).get("coordinates", [])
+                    polyline = [[c[1], c[0]] for c in coords]
 
-                for leg in route.get("legs", []):
-                    for step in leg.get("steps", []):
-                        maneuver_dict = step.get("maneuver", {})
-                        m_type = _map_osrm_maneuver(maneuver_dict.get("type", ""), maneuver_dict.get("modifier", ""))
-                        road = step.get("name") or "Main Road"
-                        lat = maneuver_dict.get("location", [dest_lng, dest_lat])[1]
-                        lng = maneuver_dict.get("location", [dest_lng, dest_lat])[0]
-                        dist_m = float(step.get("distance", 250))
-                        instruction = f"{m_type.replace('_', ' ').title()} onto {road}" if road != "Main Road" else f"Proceed on road"
+                    for leg in route.get("legs", []):
+                        for step in leg.get("steps", []):
+                            maneuver_dict = step.get("maneuver", {})
+                            m_type = _map_osrm_maneuver(maneuver_dict.get("type", ""), maneuver_dict.get("modifier", ""))
+                            road = step.get("name") or "Main Road"
+                            lat = maneuver_dict.get("location", [dest_lng, dest_lat])[1]
+                            lng = maneuver_dict.get("location", [dest_lng, dest_lat])[0]
+                            dist_m = float(step.get("distance", 250))
+                            instruction = f"{m_type.replace('_', ' ').title()} onto {road}" if road != "Main Road" else f"Proceed on road"
 
-                        steps.append(RoutePoint(
-                            lat=lat,
-                            lng=lng,
-                            instruction=instruction,
-                            road_name=road,
-                            maneuver_type=m_type,
-                            dist_m=dist_m
-                        ))
+                            steps.append(RoutePoint(
+                                lat=lat,
+                                lng=lng,
+                                instruction=instruction,
+                                road_name=road,
+                                maneuver_type=m_type,
+                                dist_m=dist_m
+                            ))
 
-                steps.append(RoutePoint(dest_lat, dest_lng, f"Arriving at {dest_name}", dest_name, "DESTINATION", 0))
-                print(f"[ROUTER] Route generated via OSRM ({len(steps)} turns, {len(polyline)} points)")
-                return steps, polyline
-    except Exception as e:
-        print(f"[ROUTER] OSRM service unavailable: {e}")
+                    steps.append(RoutePoint(dest_lat, dest_lng, f"Arriving at {dest_name}", dest_name, "DESTINATION", 0))
+                    if len(polyline) >= 2:
+                        print(f"[ROUTER] Route generated via OSRM ({len(steps)} turns, {len(polyline)} points)")
+                        return steps, polyline
+        except Exception as e:
+            pass
 
-    # 3. Offline Interpolation Fallback
-    print(f"[ROUTER] Using offline geometric road interpolation...")
+    # 3. Guaranteed Geodesic Straight-Line Fallback (ALWAYS draws a path)
+    print(f"[ROUTER] Network road API unavailable. Generating guaranteed geodesic straight path for {dest_name}...")
+    num_points = 8
+    polyline = []
+    for i in range(num_points + 1):
+        frac = i / float(num_points)
+        lat = start_lat + (dest_lat - start_lat) * frac
+        lng = start_lng + (dest_lng - start_lng) * frac
+        polyline.append([lat, lng])
+
     steps = [
-        RoutePoint(start_lat, start_lng, f"Depart towards {dest_name}", "Starting Point", "STRAIGHT", 200),
-        RoutePoint(start_lat + (dest_lat - start_lat)*0.3, start_lng + (dest_lng - start_lng)*0.3, "In 300m Turn Right onto Main Arterial Rd", "Main Arterial Rd", "TURN_RIGHT", 400),
-        RoutePoint(start_lat + (dest_lat - start_lat)*0.7, start_lng + (dest_lng - start_lng)*0.7, "Continue straight along Express Corridor", "Express Corridor", "STRAIGHT", 600),
-        RoutePoint(dest_lat, dest_lng, f"Arrive at {dest_name}", dest_name, "DESTINATION", 0)
+        RoutePoint(start_lat, start_lng, f"Head directly towards {dest_name}", "Direct Corridor", "DEPART", 200.0),
+        RoutePoint(dest_lat, dest_lng, f"Arrive at {dest_name}", dest_name, "DESTINATION", 0.0)
     ]
-    polyline = [[s.lat, s.lng] for s in steps]
     return steps, polyline
 
 def _map_osrm_maneuver(m_type: str, modifier: str) -> str:

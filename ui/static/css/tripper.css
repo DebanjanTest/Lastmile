@@ -176,6 +176,14 @@ body.hud-body {
     display: none !important;
 }
 
+/* Route & Traffic Overlay Panes (Zero interaction interference) */
+.leaflet-pane.leaflet-routePane-pane,
+.leaflet-pane.leaflet-trafficPane-pane,
+.leaflet-pane.leaflet-routePane-pane svg,
+.leaflet-pane.leaflet-trafficPane-pane svg {
+    pointer-events: none !important;
+}
+
 /* Static rider puck overlay hidden in favor of road-anchored map markers */
 .rider-puck-anchor {
     display: none !important;

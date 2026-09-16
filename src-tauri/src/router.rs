@@ -72,22 +72,31 @@ impl RouterEngine {
             }
         }
 
-        // Try querying OSRM over HTTP via reqwest
+        // Try querying OSRM over HTTPS / HTTP via reqwest
         let mut polyline: Vec<[f64; 2]> = Vec::new();
         let mut steps: Vec<RoutePoint> = Vec::new();
 
-        let osrm_url = format!(
+        let osrm_https = format!(
+            "https://router.project-osrm.org/route/v1/driving/{},{};{},{}?overview=full&geometries=geojson&steps=true",
+            start_lng, start_lat, dest_lng, dest_lat
+        );
+        let osrm_http = format!(
             "http://router.project-osrm.org/route/v1/driving/{},{};{},{}?overview=full&geometries=geojson&steps=true",
             start_lng, start_lat, dest_lng, dest_lat
         );
 
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_millis(2500))
+            .timeout(std::time::Duration::from_millis(2000))
             .user_agent("LastMileGuard/2.2")
             .build();
 
         if let Ok(client) = client {
-            if let Ok(resp) = client.get(&osrm_url).send().await {
+            let resp_opt = match client.get(&osrm_https).send().await {
+                Ok(resp) if resp.status().is_success() => Some(resp),
+                _ => client.get(&osrm_http).send().await.ok(),
+            };
+
+            if let Some(resp) = resp_opt {
                 if let Ok(json) = resp.json::<serde_json::Value>().await {
                     if json["code"] == "Ok" && json["routes"].is_array() {
                         if let Some(route) = json["routes"].as_array().and_then(|r| r.first()) {
@@ -123,34 +132,35 @@ impl RouterEngine {
             }
         }
 
-        // Offline high-fidelity geometric fallback if OSRM is offline or timed out
-        if polyline.is_empty() {
-            println!("[ROUTER] Using offline high-fidelity geometric interpolation for {}", dest_name);
+        // Guaranteed Geodesic Straight-Line Fallback: Always generate path if road network fails
+        if polyline.len() < 2 {
+            println!("[ROUTER] Network road API unavailable. Generating guaranteed geodesic straight path for {}", dest_name);
+            polyline.clear();
             let num_points = 8;
             for i in 0..=num_points {
                 let frac = i as f64 / num_points as f64;
-                // Add slight organic curve
-                let curve = (frac * std::f64::consts::PI).sin() * 0.0025;
-                let lat = start_lat + (dest_lat - start_lat) * frac + curve * 0.4;
-                let lng = start_lng + (dest_lng - start_lng) * frac + curve;
+                let lat = start_lat + (dest_lat - start_lat) * frac;
+                let lng = start_lng + (dest_lng - start_lng) * frac;
                 polyline.push([lat, lng]);
             }
-            steps.push(RoutePoint {
-                lat: start_lat,
-                lng: start_lng,
-                instruction: format!("Depart towards {}", dest_name),
-                road_name: "Starting Corridor".to_string(),
-                maneuver_type: "DEPART".to_string(),
-                dist_m: 200.0,
-            });
-            steps.push(RoutePoint {
-                lat: dest_lat,
-                lng: dest_lng,
-                instruction: format!("Arrive at {}", dest_name),
-                road_name: dest_name.to_string(),
-                maneuver_type: "DESTINATION".to_string(),
-                dist_m: 0.0,
-            });
+            if steps.is_empty() {
+                steps.push(RoutePoint {
+                    lat: start_lat,
+                    lng: start_lng,
+                    instruction: format!("Head directly towards {}", dest_name),
+                    road_name: "Direct Route".to_string(),
+                    maneuver_type: "DEPART".to_string(),
+                    dist_m: 200.0,
+                });
+                steps.push(RoutePoint {
+                    lat: dest_lat,
+                    lng: dest_lng,
+                    instruction: format!("Arrive at {}", dest_name),
+                    road_name: dest_name.to_string(),
+                    maneuver_type: "DESTINATION".to_string(),
+                    dist_m: 0.0,
+                });
+            }
         }
 
         // Generate traffic congestion segments

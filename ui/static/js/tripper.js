@@ -172,12 +172,30 @@ function lerpAngle(start, end, factor) {
     return start + diff * factor;
 }
 
+function getBottomThirdCenter(lat, lng, zoom) {
+    if (!leafletMap) return [lat, lng];
+    try {
+        const z = (typeof zoom === 'number' && !isNaN(zoom)) ? zoom : (leafletMap.getZoom() || 16);
+        const targetPt = leafletMap.project([lat, lng], z);
+        const mapH = leafletMap.getSize().y || 480;
+        // HUD is 800x480 WVGA. Screen center is y = 240px.
+        // We want the rider puck in the lower 30% (~345px from top).
+        // Shifting camera center upwards by ~105px (mapH * 0.22) positions target at bottom-third.
+        const offsetY = mapH * 0.22;
+        const centerPt = L.point(targetPt.x, targetPt.y - offsetY);
+        return leafletMap.unproject(centerPt, z);
+    } catch (e) {
+        return [lat, lng];
+    }
+}
+
 function markUserPanning() {
     isUserPanning = true;
     const btn = document.getElementById("btnRecenter");
     if (btn) btn.classList.add("panning-active");
 
     if (userPanResetTimer) clearTimeout(userPanResetTimer);
+    // 6 seconds of total user inactivity returns camera smoothly to rider
     userPanResetTimer = setTimeout(() => {
         recenterMap();
     }, 6000);
@@ -248,20 +266,36 @@ function startKinematicsLerpLoop() {
     if (isLerpRunning) return;
     isLerpRunning = true;
 
+    let lastCameraLat = 0;
+    let lastCameraLng = 0;
+    let lastCameraZoom = 0;
+
     function frame() {
         const factor = 0.14; // Smooth 60fps convergence for 200ms ticks
         currentDisplayCoords.lat = lerp(currentDisplayCoords.lat, targetRiderCoords.lat, factor);
         currentDisplayCoords.lng = lerp(currentDisplayCoords.lng, targetRiderCoords.lng, factor);
         currentDisplayCoords.heading = lerpAngle(currentDisplayCoords.heading, targetRiderCoords.heading, factor);
-        currentZoom = lerp(currentZoom, targetZoom, 0.08);
+        currentZoom = lerp(currentZoom, targetZoom, 0.05);
 
         // Always update the rider vehicle position & heading on the map
         updateRiderMarkerOnMap(currentDisplayCoords.lat, currentDisplayCoords.lng, currentDisplayCoords.heading);
 
-        // ONLY force-center camera if user is NOT pushing/panning the map around
+        // ONLY auto-follow camera if user is NOT pushing/panning/zooming the map around
         if (!isUserPanning) {
             if (activeMapType === "leaflet" && leafletMap) {
-                leafletMap.setView([currentDisplayCoords.lat, currentDisplayCoords.lng], currentZoom, { animate: false });
+                const isDragging = leafletMap.dragging && leafletMap.dragging.moving && leafletMap.dragging.moving();
+                if (!isDragging && !leafletMap._animatingZoom) {
+                    const centerLatLng = getBottomThirdCenter(currentDisplayCoords.lat, currentDisplayCoords.lng, currentZoom);
+                    const dLat = Math.abs(centerLatLng.lat - lastCameraLat);
+                    const dLng = Math.abs(centerLatLng.lng - lastCameraLng);
+                    const dZ = Math.abs(currentZoom - lastCameraZoom);
+                    if (dLat > 0.000005 || dLng > 0.000005 || dZ > 0.02) {
+                        lastCameraLat = centerLatLng.lat;
+                        lastCameraLng = centerLatLng.lng;
+                        lastCameraZoom = currentZoom;
+                        leafletMap.setView(centerLatLng, currentZoom, { animate: false });
+                    }
+                }
             } else if (activeMapType === "google" && googleMap) {
                 googleMap.setCenter({ lat: currentDisplayCoords.lat, lng: currentDisplayCoords.lng });
             }
@@ -315,16 +349,34 @@ function initLeafletMap() {
     activeMapType = "leaflet";
     mapEl.innerHTML = "";
 
+    const initialCenter = getBottomThirdCenter(currentDisplayCoords.lat, currentDisplayCoords.lng, currentZoom);
+
     leafletMap = L.map('mapView', {
-        center: [currentDisplayCoords.lat, currentDisplayCoords.lng],
+        center: initialCenter,
         zoom: currentZoom,
         minZoom: 12,
         maxZoom: 19,
+        zoomSnap: 0.25,
+        zoomDelta: 0.5,
         zoomControl: false,
         attributionControl: false
     });
 
-    // Unmetered OpenStreetMap raster tiles with dark OLED inversion filter (zero watermark, zero API key)
+    // Dedicated high z-index panes so polylines render ABOVE tiles and NEVER block touch/drag
+    if (!leafletMap.getPane('routePane')) {
+        leafletMap.createPane('routePane');
+        const rp = leafletMap.getPane('routePane');
+        rp.style.zIndex = '450';
+        rp.style.pointerEvents = 'none';
+    }
+    if (!leafletMap.getPane('trafficPane')) {
+        leafletMap.createPane('trafficPane');
+        const tp = leafletMap.getPane('trafficPane');
+        tp.style.zIndex = '460';
+        tp.style.pointerEvents = 'none';
+    }
+
+    // Unmetered OpenStreetMap raster tiles with dark OLED inversion filter
     const osmUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     const osmHotFallbackUrl = 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
 
@@ -339,20 +391,24 @@ function initLeafletMap() {
         }
     });
 
-    // Wire interaction listeners so pushing the map enters free-pan browse mode
+    // Complete Gesture Decoupling (Directive 2):
+    // Listen for all user drag, pan, touch, wheel, zoom events
     leafletMap.on('dragstart', markUserPanning);
+    leafletMap.on('drag', markUserPanning);
+    leafletMap.on('dragend', markUserPanning);
+    leafletMap.on('zoomstart', markUserPanning);
+    leafletMap.on('zoomend', markUserPanning);
     leafletMap.on('movestart', function(e) {
-        if (e && e.originalEvent) markUserPanning();
-    });
-    leafletMap.on('zoomstart', function(e) {
         if (e && e.originalEvent) markUserPanning();
     });
 
     mapEl.addEventListener('mousedown', markUserPanning, { passive: true });
     mapEl.addEventListener('touchstart', markUserPanning, { passive: true });
+    mapEl.addEventListener('wheel', markUserPanning, { passive: true });
+    mapEl.addEventListener('pointerdown', markUserPanning, { passive: true });
 
     startKinematicsLerpLoop();
-    console.log("[MAP] Leaflet Unmetered Automotive Engine Active (Zero Watermarks, Heading-Up Lerp)");
+    console.log("[MAP] Leaflet Unmetered Automotive Engine Active (Bottom-Third Offset, Decoupled Gestures, High-Z Polyline)");
 }
 
 window.initGoogleMap = function() {
@@ -421,13 +477,15 @@ function renderDirectTiles() {
 function recenterMap() {
     clearUserPanning();
     targetZoom = 16.0;
+    currentZoom = 16.0;
     targetRiderCoords.lat = currentRiderCoords.lat;
     targetRiderCoords.lng = currentRiderCoords.lng;
     currentDisplayCoords.lat = currentRiderCoords.lat;
     currentDisplayCoords.lng = currentRiderCoords.lng;
 
     if (activeMapType === "leaflet" && leafletMap) {
-        leafletMap.setView([currentRiderCoords.lat, currentRiderCoords.lng], 16, { animate: true });
+        const centerLatLng = getBottomThirdCenter(currentRiderCoords.lat, currentRiderCoords.lng, 16.0);
+        leafletMap.flyTo(centerLatLng, 16.0, { duration: 0.8 });
     } else if (activeMapType === "google" && googleMap) {
         googleMap.panTo({ lat: currentRiderCoords.lat, lng: currentRiderCoords.lng });
         googleMap.setZoom(16);
@@ -442,11 +500,15 @@ function toggleMapTilt() {
 }
 
 function zoomInMap() {
+    markUserPanning();
     targetZoom = Math.min(19, targetZoom + 1);
+    if (leafletMap) leafletMap.setZoom(targetZoom);
 }
 
 function zoomOutMap() {
+    markUserPanning();
     targetZoom = Math.max(12, targetZoom - 1);
+    if (leafletMap) leafletMap.setZoom(targetZoom);
 }
 
 function clearMapRoute() {
@@ -478,13 +540,18 @@ function fitRouteBounds(polyline) {
     try {
         const bounds = L.latLngBounds(polyline);
         // Custom padding calibrated for 800x480 WVGA HUD:
-        // Top: 70px (Turn Card), Left: 50px (Controls), Right: 60px, Bottom: 80px (Bottom strip & puck offset)
+        // Top: 70px (Turn Card), Left: 50px (Controls), Right: 60px, Bottom: 110px (Bottom strip & puck offset)
         leafletMap.fitBounds(bounds, {
             paddingTopLeft: [50, 70],
-            paddingBottomRight: [60, 80],
+            paddingBottomRight: [60, 110],
             maxZoom: 17,
             animate: true
         });
+        const autoZ = leafletMap.getBoundsZoom(bounds, false, [50, 70], [60, 110]);
+        if (!isNaN(autoZ)) {
+            targetZoom = Math.min(17.0, autoZ);
+            currentZoom = targetZoom;
+        }
     } catch (e) {
         console.warn("[MAP] fitBounds error:", e);
     }
@@ -495,15 +562,15 @@ function updateDynamicRouteZoom(remainingDistKm, phase) {
     const pUpper = (phase || "").toUpperCase();
     if (pUpper.includes("ROUTE")) {
         if (remainingDistKm > 3.0) {
-            targetZoom = 14.5;
+            targetZoom = 15.0;
         } else if (remainingDistKm > 1.5) {
-            targetZoom = 15.2;
-        } else if (remainingDistKm > 0.8) {
-            targetZoom = 16.0;
-        } else if (remainingDistKm > 0.3) {
-            targetZoom = 16.8;
+            targetZoom = 15.8;
+        } else if (remainingDistKm > 0.6) {
+            targetZoom = 16.6;
+        } else if (remainingDistKm > 0.2) {
+            targetZoom = 17.4;
         } else {
-            targetZoom = 17.5;
+            targetZoom = 18.0;
         }
     } else if (pUpper.includes("AT_STORE") || pUpper.includes("ATSTORE")) {
         targetZoom = 17.5;
@@ -513,9 +580,38 @@ function updateDynamicRouteZoom(remainingDistKm, phase) {
 }
 
 function renderRoute(polyline, destCoords, mode = "blue", trafficSegments = [], forceFit = false) {
-    if (!polyline || polyline.length < 2) return;
+    if (!polyline) return;
 
-    const routeKey = `${mode}_${polyline.length}_${polyline[0][0].toFixed(3)}_${destCoords ? destCoords.lat.toFixed(3) : ''}`;
+    // 1. Robust normalization: handle [lat, lng], {lat, lng}, string/number coordinates
+    let cleanPolyline = [];
+    if (Array.isArray(polyline)) {
+        cleanPolyline = polyline.map(pt => {
+            if (Array.isArray(pt) && pt.length >= 2) {
+                const lat = Number(pt[0]);
+                const lng = Number(pt[1]);
+                if (!isNaN(lat) && !isNaN(lng)) return [lat, lng];
+            } else if (pt && typeof pt === 'object' && pt.lat != null && pt.lng != null) {
+                const lat = Number(pt.lat);
+                const lng = Number(pt.lng);
+                if (!isNaN(lat) && !isNaN(lng)) return [lat, lng];
+            }
+            return null;
+        }).filter(Boolean);
+    }
+
+    // 2. Guaranteed Geodesic Fallback: If less than 2 coordinates, draw direct straight line to destination
+    if (cleanPolyline.length < 2) {
+        if (destCoords && destCoords.lat != null && destCoords.lng != null) {
+            cleanPolyline = [
+                [currentRiderCoords.lat, currentRiderCoords.lng],
+                [Number(destCoords.lat), Number(destCoords.lng)]
+            ];
+        } else {
+            return;
+        }
+    }
+
+    const routeKey = `${mode}_${cleanPolyline.length}_${cleanPolyline[0][0].toFixed(3)}_${destCoords ? Number(destCoords.lat).toFixed(3) : ''}`;
     const isNewRoute = (currentRouteMode !== mode || lastFittedRouteKey !== routeKey);
 
     // If switching route mode (e.g. from Blue to Green), immediately clear previous route
@@ -524,7 +620,7 @@ function renderRoute(polyline, destCoords, mode = "blue", trafficSegments = [], 
     }
 
     currentRouteMode = mode;
-    activeRoutePolyline = polyline;
+    activeRoutePolyline = cleanPolyline;
     activeDestCoords = destCoords;
 
     const isGreen = (mode === "green");
@@ -532,30 +628,48 @@ function renderRoute(polyline, destCoords, mode = "blue", trafficSegments = [], 
     const glowColor = isGreen ? '#005C2B' : '#075985';
 
     if (activeMapType === "leaflet" && leafletMap) {
-        // Core and Glow Polylines
+        // Ensure dedicated high z-index panes exist so route is NEVER hidden beneath tiles
+        if (!leafletMap.getPane('routePane')) {
+            leafletMap.createPane('routePane');
+            const rp = leafletMap.getPane('routePane');
+            rp.style.zIndex = '450';
+            rp.style.pointerEvents = 'none';
+        }
+        if (!leafletMap.getPane('trafficPane')) {
+            leafletMap.createPane('trafficPane');
+            const tp = leafletMap.getPane('trafficPane');
+            tp.style.zIndex = '460';
+            tp.style.pointerEvents = 'none';
+        }
+
+        // Core and Glow Polylines (High z-index, zero interaction interference)
         if (!leafletRouteGlow) {
-            leafletRouteGlow = L.polyline(polyline, {
+            leafletRouteGlow = L.polyline(cleanPolyline, {
+                pane: 'routePane',
                 color: glowColor,
-                weight: 10,
-                opacity: 0.6,
+                weight: 12,
+                opacity: 0.65,
                 lineCap: 'round',
-                lineJoin: 'round'
+                lineJoin: 'round',
+                interactive: false
             }).addTo(leafletMap);
         } else {
-            leafletRouteGlow.setLatLngs(polyline);
+            leafletRouteGlow.setLatLngs(cleanPolyline);
             leafletRouteGlow.setStyle({ color: glowColor });
         }
 
         if (!leafletRouteCore) {
-            leafletRouteCore = L.polyline(polyline, {
+            leafletRouteCore = L.polyline(cleanPolyline, {
+                pane: 'routePane',
                 color: coreColor,
                 weight: 6,
                 opacity: 0.98,
                 lineCap: 'round',
-                lineJoin: 'round'
+                lineJoin: 'round',
+                interactive: false
             }).addTo(leafletMap);
         } else {
-            leafletRouteCore.setLatLngs(polyline);
+            leafletRouteCore.setLatLngs(cleanPolyline);
             leafletRouteCore.setStyle({ color: coreColor });
         }
 
@@ -569,9 +683,9 @@ function renderRoute(polyline, destCoords, mode = "blue", trafficSegments = [], 
 
         if (trafficSegments && trafficSegments.length > 0) {
             for (const seg of trafficSegments) {
-                const start = Math.max(0, Math.min(seg.start_idx, polyline.length - 1));
-                const end = Math.max(start + 1, Math.min(seg.end_idx + 1, polyline.length));
-                const segCoords = polyline.slice(start, end);
+                const start = Math.max(0, Math.min(seg.start_idx, cleanPolyline.length - 1));
+                const end = Math.max(start + 1, Math.min(seg.end_idx + 1, cleanPolyline.length));
+                const segCoords = cleanPolyline.slice(start, end);
                 if (segCoords.length >= 2) {
                     const status = (seg.status || "").toUpperCase();
                     let segColor = null;
@@ -585,11 +699,13 @@ function renderRoute(polyline, destCoords, mode = "blue", trafficSegments = [], 
                     }
                     if (segColor) {
                         const trafPoly = L.polyline(segCoords, {
+                            pane: 'trafficPane',
                             color: segColor,
                             weight: segWeight,
                             opacity: 0.95,
                             lineCap: 'round',
-                            lineJoin: 'round'
+                            lineJoin: 'round',
+                            interactive: false
                         }).addTo(leafletMap);
                         leafletTrafficLayers.push(trafPoly);
                     }
@@ -598,7 +714,9 @@ function renderRoute(polyline, destCoords, mode = "blue", trafficSegments = [], 
         }
 
         // Destination Marker
-        if (destCoords) {
+        if (destCoords && destCoords.lat != null && destCoords.lng != null) {
+            const destLat = Number(destCoords.lat);
+            const destLng = Number(destCoords.lng);
             if (!leafletDestMarker) {
                 const pinSvg = isGreen
                     ? `<svg width="34" height="34" viewBox="0 0 24 24" style="filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#00E676"/><circle cx="12" cy="9" r="2.5" fill="#FFFFFF"/></svg>`
@@ -609,19 +727,19 @@ function renderRoute(polyline, destCoords, mode = "blue", trafficSegments = [], 
                     iconSize: [34, 34],
                     iconAnchor: [17, 34]
                 });
-                leafletDestMarker = L.marker([destCoords.lat, destCoords.lng], { icon: pinIcon }).addTo(leafletMap);
+                leafletDestMarker = L.marker([destLat, destLng], { icon: pinIcon, zIndexOffset: 1500 }).addTo(leafletMap);
             } else {
-                leafletDestMarker.setLatLng([destCoords.lat, destCoords.lng]);
+                leafletDestMarker.setLatLng([destLat, destLng]);
             }
         }
 
         // Viewport Calibration: auto fitBounds when new route is formed or forced
-        if ((isNewRoute || forceFit) && polyline.length >= 2) {
-            fitRouteBounds(polyline);
+        if ((isNewRoute || forceFit) && cleanPolyline.length >= 2) {
+            fitRouteBounds(cleanPolyline);
             lastFittedRouteKey = routeKey;
         }
     } else if (activeMapType === "google" && googleMap) {
-        const gPath = polyline.map(pt => ({ lat: pt[0], lng: pt[1] }));
+        const gPath = cleanPolyline.map(pt => ({ lat: pt[0], lng: pt[1] }));
         if (!googleBlueGlowPolyline) {
             googleBlueGlowPolyline = new google.maps.Polyline({
                 path: gPath,
@@ -686,31 +804,24 @@ function computeHaversineKm(lat1, lon1, lat2, lon2) {
 }
 
 function checkProgressiveGeofenceZoom(order, riderLat, riderLng) {
-    if (!order || !riderLat || !riderLng) {
-        targetZoom = 15.0;
+    if (!order || !riderLat || !riderLng || isUserPanning) {
         return;
     }
     const p = (currentPhase || "").toUpperCase();
     if (p === "ROUTETOSTORE" || p === "ROUTE_TO_STORE") {
         const distToStore = computeHaversineKm(riderLat, riderLng, order.store_lat, order.store_lng);
         if (distToStore < 0.15) {
-            targetZoom = 17.0; // Progressive zoom upon entering store geofence
-        } else {
-            targetZoom = 15.2;
+            targetZoom = Math.max(targetZoom, 17.5);
         }
     } else if (p === "ATSTORE" || p === "AT_STORE") {
         targetZoom = 17.5;
     } else if (p === "ROUTETOCUSTOMER" || p === "ROUTE_TO_CUSTOMER") {
         const distToCustomer = computeHaversineKm(riderLat, riderLng, order.customer_lat, order.customer_lng);
         if (distToCustomer < 0.08) {
-            targetZoom = 18.5; // Progressive zoom upon entering customer doorstep geofence
-        } else {
-            targetZoom = 15.5;
+            targetZoom = Math.max(targetZoom, 18.2);
         }
     } else if (p === "ATCUSTOMER" || p === "AT_CUSTOMER") {
         targetZoom = 18.5;
-    } else {
-        targetZoom = 15.0;
     }
 }
 
