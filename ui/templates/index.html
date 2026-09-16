@@ -59,6 +59,10 @@
             <button class="btn-driver-map" id="btnToggleTilt" onclick="toggleMapTilt()" title="Toggle 2D / 3D Perspective">
                 <span id="tiltModeText">3D</span>
             </button>
+            <button class="btn-driver-map" id="btnThemeToggle" onclick="toggleThemeManual()" title="Toggle Day / Night Vision">
+                <svg id="themeIconSun" class="icon-driver" viewBox="0 0 24 24" style="display:none;"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14l-1.41 1.41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <svg id="themeIconMoon" class="icon-driver" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/></svg>
+            </button>
             <button class="btn-driver-map" onclick="zoomInMap()" title="Zoom In">
                 <svg class="icon-driver" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>
             </button>
@@ -146,6 +150,16 @@
 
         <!-- INCOMING ORDER STACK (IDLE FEED) -->
         <div class="incoming-order-stack order-notification-stack" id="orderNotificationStack"></div>
+
+        <!-- FLOATING RECENTER OVERRIDE BUTTON (FADES IN ONLY WHEN isUserPanning IS TRUE) -->
+        <button id="floatingRecenterBtn" class="floating-recenter-btn" onclick="recenterMap()" title="Recenter Map to Vehicle Position">
+            <svg class="recenter-svg" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3.5" fill="currentColor"/>
+                <path d="M12 2v4m0 12v4M2 12h4m12 0h4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="12" cy="12" r="7.5" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            </svg>
+            <span>RECENTER</span>
+        </button>
 
         <!-- BOTTOM HUD SUMMARY STRIP -->
         <div class="bottom-status-strip gmaps-bottom-card" id="bottomCard">

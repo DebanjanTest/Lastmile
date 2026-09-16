@@ -3,7 +3,8 @@
    Strict Navy Blue Theme • Zero-Clutter • Pure Native CSS • Zero Emojis
    ============================================================================== */
 
-:root {
+:root,
+body.theme-night {
     --bg-deep: #070B14;
     --bg-navy: #0B132B;
     --bg-surface: #111A30;
@@ -26,8 +27,40 @@
     --text-main: #FFFFFF;
     --text-muted: #8E9FB8;
     --text-dim: #556885;
-    
+
+    --hud-glass: rgba(11, 19, 43, 0.94);
+    --hud-dock-bg: rgba(17, 26, 48, 0.96);
+    --shadow-ambient: rgba(0, 0, 0, 0.7);
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body.theme-day {
+    --bg-deep: #E2E8F0;
+    --bg-navy: #CBD5E1;
+    --bg-surface: #FFFFFF;
+    --bg-surface-elevated: #F1F5F9;
+    --border-navy: #94A3B8;
+    --border-subtle: rgba(0, 0, 0, 0.1);
+    
+    --accent-blue: #0284C7;
+    --accent-cyan: #0369A1;
+    --accent-ice: #0F172A;
+    --accent-success: #15803D;
+    --accent-warning: #B45309;
+    --accent-danger: #DC2626;
+
+    --brand-zomato: #E23744;
+    --brand-swiggy: #EA580C;
+    --brand-zepto: #6D28D9;
+    --brand-amazon: #D97706;
+
+    --text-main: #0F172A;
+    --text-muted: #334155;
+    --text-dim: #64748B;
+
+    --hud-glass: rgba(255, 255, 255, 0.95);
+    --hud-dock-bg: rgba(248, 250, 252, 0.98);
+    --shadow-ambient: rgba(0, 0, 0, 0.18);
 }
 
 * {
@@ -48,6 +81,25 @@ body.hud-body {
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* Smooth Adaptive Vision Transition Across All Core Panels & HUD HUD Cards */
+.hud-viewport,
+.top-nav-bar,
+.system-status-chip,
+.center-clock,
+.btn-top-profile,
+.turn-guidance-card,
+.speed-cluster,
+.active-route-dock,
+.notification-card,
+.bottom-status-strip,
+.gmaps-bottom-card,
+.profile-drawer,
+.btn-driver-map,
+.floating-recenter-btn {
+    transition: background-color 0.5s ease, background 0.5s ease, color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
 }
 
 /* ==============================================================================
@@ -166,9 +218,10 @@ body.hud-body {
     background: #070B14;
 }
 
-/* OpenStreetMap unmetered dark inversion styling for automotive OLED depth */
+/* Native CARTO Cartography Tiles (True OLED Dark Matter & High-Contrast Daylight Voyager) */
 .leaflet-tile-pane {
-    filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(120%);
+    filter: none;
+    transition: opacity 0.4s ease;
 }
 
 .leaflet-control-container .leaflet-control-attribution,
@@ -272,6 +325,65 @@ body.hud-body {
     background: rgba(2, 132, 199, 0.4);
     color: #38BDF8;
     box-shadow: 0 0 14px rgba(56, 189, 248, 0.7);
+}
+
+/* ==============================================================================
+   FLOATING RECENTER BUTTON (APPEARS ONLY WHEN isUserPanning IS TRUE)
+   ============================================================================== */
+.floating-recenter-btn {
+    position: absolute;
+    bottom: 58px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    height: 38px;
+    padding: 0 16px;
+    background: var(--hud-glass);
+    backdrop-filter: blur(14px);
+    border: 1.5px solid var(--accent-cyan);
+    border-radius: 19px;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px var(--shadow-ambient), 0 0 14px rgba(56, 189, 248, 0.4);
+    z-index: 85;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, border-color 0.2s ease;
+}
+
+.floating-recenter-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+
+.floating-recenter-btn:active {
+    transform: translateX(-50%) scale(0.94);
+    background: var(--accent-blue);
+    color: #FFF;
+}
+
+.floating-recenter-btn .recenter-svg {
+    width: 18px;
+    height: 18px;
+    color: var(--accent-cyan);
+    flex-shrink: 0;
+}
+
+body.theme-day .floating-recenter-btn {
+    background: rgba(255, 255, 255, 0.96);
+    color: #0F172A;
+    border-color: #0284C7;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2), 0 0 10px rgba(2, 132, 199, 0.3);
+}
+
+body.theme-day .floating-recenter-btn .recenter-svg {
+    color: #0284C7;
 }
 
 .icon-driver {
@@ -1514,4 +1626,105 @@ body.hud-body {
     font-size: 9px;
     color: var(--text-muted);
     font-family: monospace;
+}
+
+/* ==============================================================================
+   ADAPTIVE VISION DAY THEME OVERRIDES (HIGH-CONTRAST AUTOMOTIVE ANTI-GLARE)
+   ============================================================================== */
+body.theme-day .hud-viewport {
+    background: #E2E8F0;
+    border-color: var(--border-navy);
+}
+
+body.theme-day .map-view,
+body.theme-day .map-container-outer {
+    background: #E2E8F0;
+}
+
+body.theme-day .system-status-chip,
+body.theme-day .center-clock,
+body.theme-day .btn-top-profile,
+body.theme-day .turn-guidance-card,
+body.theme-day .speed-cluster,
+body.theme-day .active-route-dock,
+body.theme-day .notification-card,
+body.theme-day .bottom-status-strip,
+body.theme-day .gmaps-bottom-card {
+    background: var(--hud-glass);
+    border-color: var(--border-navy);
+    box-shadow: 0 4px 16px var(--shadow-ambient);
+}
+
+body.theme-day .system-label,
+body.theme-day .center-clock,
+body.theme-day .turn-val,
+body.theme-day .turn-street,
+body.theme-day .speed-value,
+body.theme-day .dock-heading,
+body.theme-day .card-store-row strong,
+body.theme-day .trip-time-text,
+body.theme-day .dest-target,
+body.theme-day #topBarRiderName {
+    color: var(--text-main) !important;
+}
+
+body.theme-day .system-pill {
+    background: rgba(2, 132, 199, 0.15);
+    color: #0284C7;
+}
+
+body.theme-day .btn-driver-map {
+    color: #0F172A;
+    background: rgba(255, 255, 255, 0.94);
+    border-color: #CBD5E1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+body.theme-day .btn-driver-map:active {
+    background: #0284C7;
+    color: #FFF;
+}
+
+body.theme-day .btn-driver-map.panning-active {
+    background: rgba(2, 132, 199, 0.15);
+    border-color: #0284C7;
+    color: #0284C7;
+    box-shadow: 0 0 12px rgba(2, 132, 199, 0.4);
+}
+
+body.theme-day .card-store-row,
+body.theme-day .card-drop-row {
+    color: #334155;
+}
+
+body.theme-day .card-dist-pill {
+    background: rgba(2, 132, 199, 0.12);
+    color: #0284C7;
+}
+
+body.theme-day .btn-dock-tool {
+    background: #F1F5F9;
+    border-color: #CBD5E1;
+    color: #0F172A;
+}
+
+body.theme-day .dock-swipe-track {
+    background: #E2E8F0;
+    border-color: #CBD5E1;
+}
+
+body.theme-day .swipe-text-label {
+    color: #334155;
+}
+
+body.theme-day .btn-strip-infiltrate {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: #0284C7;
+    color: #0284C7;
+}
+
+body.theme-day .btn-strip-refresh {
+    background: #F1F5F9;
+    border-color: #CBD5E1;
+    color: #475569;
 }

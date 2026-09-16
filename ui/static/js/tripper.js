@@ -29,6 +29,25 @@ let leafletRouteCore = null;
 let leafletDestMarker = null;
 let leafletRiderMarker = null;
 
+let currentMapTheme = ""; // "day" | "night"
+let activeTileLayer = null;
+let manualThemeOverride = false;
+
+const THEME_TILES = {
+    night: {
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
+        subdomains: 'abcd',
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    },
+    day: {
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        subdomains: 'abcd',
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    }
+};
+
 let googleMap = null;
 let googleRiderMarker = null;
 let googleDestMarker = null;
@@ -60,9 +79,80 @@ let currentPendingOffer = null;
 let enteredOtpString = "";
 
 // -----------------------------------------------------------------------------
+// ADAPTIVE VISION ENGINE (AUTONOMOUS DAY/NIGHT & HOT-SWAP CARTOGRAPHY)
+// -----------------------------------------------------------------------------
+function checkAndApplyAdaptiveTheme(force = false) {
+    if (manualThemeOverride && !force) return;
+    const now = new Date();
+    const hour = now.getHours();
+    // Day defined as 06:00 to 18:00 (6 AM - 6 PM); Night defined as 18:00 to 06:00
+    const targetTheme = (hour >= 6 && hour < 18) ? "day" : "night";
+    applyTheme(targetTheme, force);
+}
+
+function applyTheme(targetTheme, force = false) {
+    if (!force && targetTheme === currentMapTheme) {
+        return;
+    }
+    const prevTheme = currentMapTheme;
+    currentMapTheme = targetTheme;
+    console.log(`[ADAPTIVE VISION] Switching to ${targetTheme.toUpperCase()} theme (Hour: ${new Date().getHours()})`);
+
+    // 1. Update Body Theme Class
+    if (targetTheme === "day") {
+        document.body.classList.add("theme-day");
+        document.body.classList.remove("theme-night");
+    } else {
+        document.body.classList.add("theme-night");
+        document.body.classList.remove("theme-day");
+    }
+
+    // 2. Update Theme Toggle Icon if present
+    const sunIcon = document.getElementById("themeIconSun");
+    const moonIcon = document.getElementById("themeIconMoon");
+    if (sunIcon && moonIcon) {
+        if (targetTheme === "day") {
+            sunIcon.style.display = "block";
+            moonIcon.style.display = "none";
+        } else {
+            sunIcon.style.display = "none";
+            moonIcon.style.display = "block";
+        }
+    }
+
+    // 3. Hot-swap Leaflet Tiles (without destroying map instance or polylines)
+    if (activeMapType === "leaflet" && leafletMap) {
+        const config = THEME_TILES[targetTheme];
+        const newLayer = L.tileLayer(config.url, {
+            subdomains: config.subdomains,
+            maxZoom: config.maxZoom,
+            attribution: config.attribution
+        });
+
+        newLayer.addTo(leafletMap);
+
+        if (activeTileLayer) {
+            const oldLayer = activeTileLayer;
+            setTimeout(() => {
+                try { leafletMap.removeLayer(oldLayer); } catch(e) {}
+            }, 350);
+        }
+        activeTileLayer = newLayer;
+    }
+}
+
+function toggleThemeManual() {
+    manualThemeOverride = true;
+    const nextTheme = (currentMapTheme === "day") ? "night" : "day";
+    applyTheme(nextTheme, true);
+    showHUDToast(`Adaptive Vision: ${nextTheme.toUpperCase()} Mode`);
+}
+
+// -----------------------------------------------------------------------------
 // 1. APPLICATION BOOTSTRAP & MINIMALIST NAVY LOADER SEQUENCE
 // -----------------------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", async () => {
+    checkAndApplyAdaptiveTheme(true);
     initAudio();
     initKolkataMap();
     setupSwipeSlider();
@@ -132,6 +222,10 @@ function updateClock() {
     if (clockEl) {
         clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
+    // Autonomous Day/Night Vision: Evaluates every minute on the minute
+    if (now.getSeconds() === 0) {
+        checkAndApplyAdaptiveTheme();
+    }
 }
 
 function initAudio() {
@@ -193,6 +287,8 @@ function markUserPanning() {
     isUserPanning = true;
     const btn = document.getElementById("btnRecenter");
     if (btn) btn.classList.add("panning-active");
+    const floatingBtn = document.getElementById("floatingRecenterBtn");
+    if (floatingBtn) floatingBtn.classList.add("visible");
 
     if (userPanResetTimer) clearTimeout(userPanResetTimer);
     // 6 seconds of total user inactivity returns camera smoothly to rider
@@ -205,6 +301,9 @@ function clearUserPanning() {
     isUserPanning = false;
     const btn = document.getElementById("btnRecenter");
     if (btn) btn.classList.remove("panning-active");
+    const floatingBtn = document.getElementById("floatingRecenterBtn");
+    if (floatingBtn) floatingBtn.classList.remove("visible");
+
     if (userPanResetTimer) {
         clearTimeout(userPanResetTimer);
         userPanResetTimer = null;
@@ -376,20 +475,17 @@ function initLeafletMap() {
         tp.style.pointerEvents = 'none';
     }
 
-    // Unmetered OpenStreetMap raster tiles with dark OLED inversion filter
-    const osmUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    const osmHotFallbackUrl = 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
+    // Unmetered CARTO Tiles (Dark Matter for Night / Voyager for Day - Zero Watermarks)
+    const hour = new Date().getHours();
+    const activeTheme = currentMapTheme || ((hour >= 6 && hour < 18) ? "day" : "night");
+    currentMapTheme = activeTheme;
+    const tileConfig = THEME_TILES[activeTheme];
 
-    const tileLayer = L.tileLayer(osmUrl, {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
+    activeTileLayer = L.tileLayer(tileConfig.url, {
+        subdomains: tileConfig.subdomains,
+        maxZoom: tileConfig.maxZoom,
+        attribution: tileConfig.attribution
     }).addTo(leafletMap);
-
-    tileLayer.on('tileerror', function() {
-        if (tileLayer._url !== osmHotFallbackUrl) {
-            tileLayer.setUrl(osmHotFallbackUrl);
-        }
-    });
 
     // Complete Gesture Decoupling (Directive 2):
     // Listen for all user drag, pan, touch, wheel, zoom events
