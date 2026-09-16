@@ -49,6 +49,9 @@ let isLerpRunning = false;
 
 let activeDestCoords = null;
 let activeRoutePolyline = [];
+let leafletTrafficLayers = [];
+let currentRouteMode = ""; // "blue" | "green"
+let lastFittedRouteKey = "";
 let audioCtx = null;
 
 let currentPhase = "Idle"; // Idle, RouteToStore, AtStore, RouteToCustomer, AtCustomer, Delivered
@@ -449,11 +452,19 @@ function zoomOutMap() {
 function clearMapRoute() {
     activeRoutePolyline = [];
     activeDestCoords = null;
+    currentRouteMode = "";
+    lastFittedRouteKey = "";
 
     if (activeMapType === "leaflet" && leafletMap) {
         if (leafletRouteGlow) { leafletMap.removeLayer(leafletRouteGlow); leafletRouteGlow = null; }
         if (leafletRouteCore) { leafletMap.removeLayer(leafletRouteCore); leafletRouteCore = null; }
         if (leafletDestMarker) { leafletMap.removeLayer(leafletDestMarker); leafletDestMarker = null; }
+        if (leafletTrafficLayers && leafletTrafficLayers.length > 0) {
+            leafletTrafficLayers.forEach(l => {
+                try { leafletMap.removeLayer(l); } catch(e) {}
+            });
+            leafletTrafficLayers = [];
+        }
     } else if (activeMapType === "google" && googleMap) {
         if (googleBlueGlowPolyline) { googleBlueGlowPolyline.setMap(null); googleBlueGlowPolyline = null; }
         if (googleBlueCorePolyline) { googleBlueCorePolyline.setMap(null); googleBlueCorePolyline = null; }
@@ -461,60 +472,195 @@ function clearMapRoute() {
     }
 }
 
-function renderBlueRoute(polyline, destCoords) {
-    if (!polyline || polyline.length < 2) return;
-    clearMapRoute();
+function fitRouteBounds(polyline) {
+    if (!leafletMap || !polyline || polyline.length < 2) return;
+    if (isUserPanning) return;
+    try {
+        const bounds = L.latLngBounds(polyline);
+        // Custom padding calibrated for 800x480 WVGA HUD:
+        // Top: 70px (Turn Card), Left: 50px (Controls), Right: 60px, Bottom: 80px (Bottom strip & puck offset)
+        leafletMap.fitBounds(bounds, {
+            paddingTopLeft: [50, 70],
+            paddingBottomRight: [60, 80],
+            maxZoom: 17,
+            animate: true
+        });
+    } catch (e) {
+        console.warn("[MAP] fitBounds error:", e);
+    }
+}
 
+function updateDynamicRouteZoom(remainingDistKm, phase) {
+    if (isUserPanning) return;
+    const pUpper = (phase || "").toUpperCase();
+    if (pUpper.includes("ROUTE")) {
+        if (remainingDistKm > 3.0) {
+            targetZoom = 14.5;
+        } else if (remainingDistKm > 1.5) {
+            targetZoom = 15.2;
+        } else if (remainingDistKm > 0.8) {
+            targetZoom = 16.0;
+        } else if (remainingDistKm > 0.3) {
+            targetZoom = 16.8;
+        } else {
+            targetZoom = 17.5;
+        }
+    } else if (pUpper.includes("AT_STORE") || pUpper.includes("ATSTORE")) {
+        targetZoom = 17.5;
+    } else if (pUpper.includes("AT_CUSTOMER") || pUpper.includes("ATCUSTOMER")) {
+        targetZoom = 18.2;
+    }
+}
+
+function renderRoute(polyline, destCoords, mode = "blue", trafficSegments = [], forceFit = false) {
+    if (!polyline || polyline.length < 2) return;
+
+    const routeKey = `${mode}_${polyline.length}_${polyline[0][0].toFixed(3)}_${destCoords ? destCoords.lat.toFixed(3) : ''}`;
+    const isNewRoute = (currentRouteMode !== mode || lastFittedRouteKey !== routeKey);
+
+    // If switching route mode (e.g. from Blue to Green), immediately clear previous route
+    if (currentRouteMode !== mode) {
+        clearMapRoute();
+    }
+
+    currentRouteMode = mode;
     activeRoutePolyline = polyline;
     activeDestCoords = destCoords;
 
+    const isGreen = (mode === "green");
+    const coreColor = isGreen ? '#00E676' : '#0284C7';
+    const glowColor = isGreen ? '#005C2B' : '#075985';
+
     if (activeMapType === "leaflet" && leafletMap) {
-        leafletRouteGlow = L.polyline(polyline, {
-            color: '#075985',
-            weight: 10,
-            opacity: 0.6,
-            lineCap: 'round',
-            lineJoin: 'round'
-        }).addTo(leafletMap);
+        // Core and Glow Polylines
+        if (!leafletRouteGlow) {
+            leafletRouteGlow = L.polyline(polyline, {
+                color: glowColor,
+                weight: 10,
+                opacity: 0.6,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(leafletMap);
+        } else {
+            leafletRouteGlow.setLatLngs(polyline);
+            leafletRouteGlow.setStyle({ color: glowColor });
+        }
 
-        leafletRouteCore = L.polyline(polyline, {
-            color: '#0284C7',
-            weight: 6,
-            opacity: 0.98,
-            lineCap: 'round',
-            lineJoin: 'round'
-        }).addTo(leafletMap);
+        if (!leafletRouteCore) {
+            leafletRouteCore = L.polyline(polyline, {
+                color: coreColor,
+                weight: 6,
+                opacity: 0.98,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(leafletMap);
+        } else {
+            leafletRouteCore.setLatLngs(polyline);
+            leafletRouteCore.setStyle({ color: coreColor });
+        }
 
-        if (destCoords) {
-            const pinIcon = L.divIcon({
-                className: 'dest-pin-leaflet',
-                html: `<svg width="34" height="34" viewBox="0 0 24 24" style="filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#EF4444"/><circle cx="12" cy="9" r="2.5" fill="#FFFFFF"/></svg>`,
-                iconSize: [34, 34],
-                iconAnchor: [17, 34]
+        // Render traffic congestion segment overlays (Amber/Red)
+        if (leafletTrafficLayers && leafletTrafficLayers.length > 0) {
+            leafletTrafficLayers.forEach(l => {
+                try { leafletMap.removeLayer(l); } catch(e) {}
             });
-            leafletDestMarker = L.marker([destCoords.lat, destCoords.lng], { icon: pinIcon }).addTo(leafletMap);
+            leafletTrafficLayers = [];
+        }
+
+        if (trafficSegments && trafficSegments.length > 0) {
+            for (const seg of trafficSegments) {
+                const start = Math.max(0, Math.min(seg.start_idx, polyline.length - 1));
+                const end = Math.max(start + 1, Math.min(seg.end_idx + 1, polyline.length));
+                const segCoords = polyline.slice(start, end);
+                if (segCoords.length >= 2) {
+                    const status = (seg.status || "").toUpperCase();
+                    let segColor = null;
+                    let segWeight = 6;
+                    if (status === "CONGESTED" || status === "HEAVY") {
+                        segColor = "#EF4444"; // Red
+                        segWeight = 7;
+                    } else if (status === "MODERATE" || status === "SLOW") {
+                        segColor = "#F59E0B"; // Amber / Orange
+                        segWeight = 6;
+                    }
+                    if (segColor) {
+                        const trafPoly = L.polyline(segCoords, {
+                            color: segColor,
+                            weight: segWeight,
+                            opacity: 0.95,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                        }).addTo(leafletMap);
+                        leafletTrafficLayers.push(trafPoly);
+                    }
+                }
+            }
+        }
+
+        // Destination Marker
+        if (destCoords) {
+            if (!leafletDestMarker) {
+                const pinSvg = isGreen
+                    ? `<svg width="34" height="34" viewBox="0 0 24 24" style="filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#00E676"/><circle cx="12" cy="9" r="2.5" fill="#FFFFFF"/></svg>`
+                    : `<svg width="34" height="34" viewBox="0 0 24 24" style="filter:drop-shadow(0 4px 8px rgba(0,0,0,0.8));"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#0284C7"/><circle cx="12" cy="9" r="2.5" fill="#FFFFFF"/></svg>`;
+                const pinIcon = L.divIcon({
+                    className: 'dest-pin-leaflet',
+                    html: pinSvg,
+                    iconSize: [34, 34],
+                    iconAnchor: [17, 34]
+                });
+                leafletDestMarker = L.marker([destCoords.lat, destCoords.lng], { icon: pinIcon }).addTo(leafletMap);
+            } else {
+                leafletDestMarker.setLatLng([destCoords.lat, destCoords.lng]);
+            }
+        }
+
+        // Viewport Calibration: auto fitBounds when new route is formed or forced
+        if ((isNewRoute || forceFit) && polyline.length >= 2) {
+            fitRouteBounds(polyline);
+            lastFittedRouteKey = routeKey;
         }
     } else if (activeMapType === "google" && googleMap) {
         const gPath = polyline.map(pt => ({ lat: pt[0], lng: pt[1] }));
-        googleBlueGlowPolyline = new google.maps.Polyline({
-            path: gPath,
-            map: googleMap,
-            strokeColor: '#075985',
-            strokeOpacity: 0.5,
-            strokeWeight: 10
-        });
-        googleBlueCorePolyline = new google.maps.Polyline({
-            path: gPath,
-            map: googleMap,
-            strokeColor: '#0284C7',
-            strokeOpacity: 0.98,
-            strokeWeight: 6
-        });
+        if (!googleBlueGlowPolyline) {
+            googleBlueGlowPolyline = new google.maps.Polyline({
+                path: gPath,
+                map: googleMap,
+                strokeColor: glowColor,
+                strokeOpacity: 0.5,
+                strokeWeight: 10
+            });
+        } else {
+            googleBlueGlowPolyline.setPath(gPath);
+            googleBlueGlowPolyline.setOptions({ strokeColor: glowColor });
+        }
+        if (!googleBlueCorePolyline) {
+            googleBlueCorePolyline = new google.maps.Polyline({
+                path: gPath,
+                map: googleMap,
+                strokeColor: coreColor,
+                strokeOpacity: 0.98,
+                strokeWeight: 6
+            });
+        } else {
+            googleBlueCorePolyline.setPath(gPath);
+            googleBlueCorePolyline.setOptions({ strokeColor: coreColor });
+        }
         if (destCoords && googleDestMarker) {
             googleDestMarker.setPosition({ lat: destCoords.lat, lng: destCoords.lng });
             googleDestMarker.setMap(googleMap);
         }
+        if ((isNewRoute || forceFit) && !isUserPanning) {
+            const gBounds = new google.maps.LatLngBounds();
+            polyline.forEach(pt => gBounds.extend({ lat: pt[0], lng: pt[1] }));
+            googleMap.fitBounds(gBounds);
+            lastFittedRouteKey = routeKey;
+        }
     }
+}
+
+function renderBlueRoute(polyline, destCoords) {
+    renderRoute(polyline, destCoords, "blue");
 }
 
 function smoothFlyToDestination(lat, lng, targetZoomLevel = 17) {
@@ -604,7 +750,7 @@ async function syncTelemetrySnapshot() {
         // 4. Phase Transition Evaluation
         currentPhase = snap.order_phase;
         activeSelectedOrder = snap.selected_order;
-        updateUIPhase(currentPhase, activeSelectedOrder, snap.daily_summary);
+        updateUIPhase(currentPhase, activeSelectedOrder, snap.daily_summary, snap.navigation);
 
         // 5. Automatic Doorstep OTP UI Presentation at AT_CUSTOMER
         const pUpper = (currentPhase || "").toUpperCase();
@@ -642,11 +788,16 @@ async function syncTelemetrySnapshot() {
     } catch (e) {}
 }
 
-function updateUIPhase(phase, order, daily) {
+function updateUIPhase(phase, order, daily, navigation) {
     const turnCard = document.getElementById("turnCard");
     const activeDock = document.getElementById("activeRouteDock");
     const bottomDestName = document.getElementById("destName");
     const destHeader = document.getElementById("destHeaderLabel");
+
+    const tripTimeEl = document.getElementById("tripTimeVal");
+    const trafficDelayEl = document.getElementById("trafficDelayText");
+    const tripDistEl = document.getElementById("tripDistVal");
+    const tripEtaEl = document.getElementById("tripEtaVal");
 
     // Daily Summary updates
     if (daily) {
@@ -661,6 +812,13 @@ function updateUIPhase(phase, order, daily) {
         if (activeDock) activeDock.style.display = "none";
         if (bottomDestName) bottomDestName.textContent = "Scanning Kolkata (Salt Lake, Newtown, Park St)...";
         if (destHeader) destHeader.textContent = "STATUS:";
+        if (tripTimeEl) tripTimeEl.textContent = "-- min";
+        if (trafficDelayEl) {
+            trafficDelayEl.textContent = "Standing by";
+            trafficDelayEl.style.color = "var(--text-muted)";
+        }
+        if (tripDistEl) tripDistEl.textContent = "-- km";
+        if (tripEtaEl) tripEtaEl.textContent = "--:--";
         clearMapRoute();
         return;
     }
@@ -675,13 +833,59 @@ function updateUIPhase(phase, order, daily) {
     const dockSwipeHandle = document.getElementById("dockSwipeHandle");
 
     const phaseNormalized = (phase || "").toUpperCase();
+    const isPhaseChange = (lastHandledPhase !== phaseNormalized);
+
+    // Compute dynamic distance, ETA, and traffic metrics
+    const distKm = (navigation && navigation.remaining_total_dist_km != null) 
+        ? navigation.remaining_total_dist_km 
+        : (order ? (phaseNormalized.includes("STORE") ? order.store_dist_km : order.drop_dist_km) : 0);
+    const etaMin = (navigation && navigation.eta_minutes) 
+        ? navigation.eta_minutes 
+        : Math.max(1, Math.round(distKm / 0.5));
+    const trafficDelay = (navigation && navigation.traffic_delay_minutes) ? navigation.traffic_delay_minutes : 0;
+    const trafStatus = (navigation && navigation.current_traffic_status) ? navigation.current_traffic_status : "FLOWING";
+    const trafColor = (navigation && navigation.current_traffic_color) ? navigation.current_traffic_color : "#00E676";
+
+    // Update .gmaps-bottom-card metrics in real-time
+    if (tripTimeEl) tripTimeEl.textContent = `${etaMin} min`;
+    if (tripDistEl) tripDistEl.textContent = `${distKm.toFixed(1)} km`;
+    if (trafficDelayEl) {
+        if (trafficDelay > 0) {
+            trafficDelayEl.textContent = `+${trafficDelay} min (${trafStatus})`;
+            trafficDelayEl.style.color = trafColor;
+        } else {
+            trafficDelayEl.textContent = "Flowing (Fastest Route)";
+            trafficDelayEl.style.color = "#00E676";
+        }
+    }
+    if (tripEtaEl) {
+        const arrivalDate = new Date(Date.now() + etaMin * 60000);
+        const hh = arrivalDate.getHours().toString().padStart(2, '0');
+        const mm = arrivalDate.getMinutes().toString().padStart(2, '0');
+        tripEtaEl.textContent = `${hh}:${mm}`;
+    }
+
+    // Dynamic Viewport Zoom as rider progresses
+    updateDynamicRouteZoom(distKm, phaseNormalized);
+
+    // Turn-by-Turn HUD Card updates
+    if (turnCard) {
+        const turnInstr = document.getElementById("turnInstruction");
+        const turnDist = document.getElementById("turnDistance");
+        if (navigation && navigation.instruction) {
+            if (turnInstr) turnInstr.textContent = navigation.instruction;
+            if (turnDist && navigation.distance_to_turn_m != null) {
+                turnDist.textContent = `${Math.round(navigation.distance_to_turn_m)} m`;
+            }
+        }
+    }
 
     if (phaseNormalized === "ROUTETOSTORE" || phaseNormalized === "ROUTE_TO_STORE") {
         if (turnCard) turnCard.style.display = "flex";
         dockBadge.textContent = "PHASE 1: ROUTE TO STORE";
         dockBadge.style.color = "#38BDF8";
         dockTitle.textContent = order.store_name;
-        dockSub.textContent = `${order.store_address} • ${order.store_dist_km} km`;
+        dockSub.textContent = `${order.store_address} • ${distKm.toFixed(1)} km`;
         if (dockBtn) {
             dockBtn.textContent = "REACHED STORE [R]";
             dockBtn.style.background = "linear-gradient(135deg, #0284C7, #0369A1)";
@@ -693,10 +897,14 @@ function updateUIPhase(phase, order, daily) {
         if (bottomDestName) bottomDestName.textContent = `Pickup: ${order.store_name}`;
         if (destHeader) destHeader.textContent = "PHASE 1:";
 
-        renderBlueRoute([
-            [currentRiderCoords.lat, currentRiderCoords.lng],
-            [order.store_lat, order.store_lng]
-        ], { lat: order.store_lat, lng: order.store_lng });
+        // Dynamic State-Driven Blue Polyline from Rider GPS to Store
+        const polyline = (navigation && navigation.route_polyline && navigation.route_polyline.length >= 2)
+            ? navigation.route_polyline
+            : [
+                [currentRiderCoords.lat, currentRiderCoords.lng],
+                [order.store_lat, order.store_lng]
+            ];
+        renderRoute(polyline, { lat: order.store_lat, lng: order.store_lng }, "blue", navigation ? navigation.traffic_segments : [], isPhaseChange);
 
     } else if (phaseNormalized === "ATSTORE" || phaseNormalized === "AT_STORE") {
         if (turnCard) turnCard.style.display = "none";
@@ -712,8 +920,11 @@ function updateUIPhase(phase, order, daily) {
         if (dockSwipeLabel) dockSwipeLabel.textContent = "SWIPE TO CONFIRM PICKUP [K]";
         if (dockSwipeHandle) dockSwipeHandle.className = "swipe-handle dock-swipe-handle pickup-mode";
 
+        if (bottomDestName) bottomDestName.textContent = `At: ${order.store_name}`;
+        if (destHeader) destHeader.textContent = "STORE:";
+
         // Trigger progressive map zoom into store once upon phase entry
-        if (lastHandledPhase !== phaseNormalized && !isUserPanning) {
+        if (isPhaseChange && !isUserPanning) {
             smoothFlyToDestination(order.store_lat, order.store_lng, 17);
         }
 
@@ -722,7 +933,7 @@ function updateUIPhase(phase, order, daily) {
         dockBadge.textContent = "PHASE 2: ROUTE TO CUSTOMER";
         dockBadge.style.color = "#00E676";
         dockTitle.textContent = `${order.customer_name} • ${order.customer_address}`;
-        dockSub.textContent = `${order.customer_instructions} • ${order.drop_dist_km} km`;
+        dockSub.textContent = `${order.customer_instructions} • ${distKm.toFixed(1)} km`;
         if (dockBtn) {
             dockBtn.textContent = "REACHED CUSTOMER [C]";
             dockBtn.style.background = "linear-gradient(135deg, #0284C7, #0369A1)";
@@ -734,10 +945,14 @@ function updateUIPhase(phase, order, daily) {
         if (bottomDestName) bottomDestName.textContent = `Drop: ${order.customer_name}`;
         if (destHeader) destHeader.textContent = "PHASE 2:";
 
-        renderBlueRoute([
-            [order.store_lat, order.store_lng],
-            [order.customer_lat, order.customer_lng]
-        ], { lat: order.customer_lat, lng: order.customer_lng });
+        // Dynamic State-Driven Green Polyline from Store (or live GPS) to Customer
+        const polyline = (navigation && navigation.route_polyline && navigation.route_polyline.length >= 2)
+            ? navigation.route_polyline
+            : [
+                [currentRiderCoords.lat, currentRiderCoords.lng],
+                [order.customer_lat, order.customer_lng]
+            ];
+        renderRoute(polyline, { lat: order.customer_lat, lng: order.customer_lng }, "green", navigation ? navigation.traffic_segments : [], isPhaseChange);
 
     } else if (phaseNormalized === "ATCUSTOMER" || phaseNormalized === "AT_CUSTOMER") {
         if (turnCard) turnCard.style.display = "none";
@@ -753,8 +968,11 @@ function updateUIPhase(phase, order, daily) {
         if (dockSwipeLabel) dockSwipeLabel.textContent = "SWIPE TO COMPLETE DELIVERY [U]";
         if (dockSwipeHandle) dockSwipeHandle.className = "swipe-handle dock-swipe-handle deliver-mode";
 
+        if (bottomDestName) bottomDestName.textContent = `Customer: ${order.customer_name}`;
+        if (destHeader) destHeader.textContent = "DOORSTEP:";
+
         // Trigger progressive map zoom into customer doorstep once upon phase entry
-        if (lastHandledPhase !== phaseNormalized && !isUserPanning) {
+        if (isPhaseChange && !isUserPanning) {
             smoothFlyToDestination(order.customer_lat, order.customer_lng, 18);
         }
     }
@@ -1547,6 +1765,7 @@ async function mockTauriBridge(cmd, args) {
                 return {
                     timestamp: data.timestamp,
                     gps: data.gps,
+                    navigation: data.navigation,
                     order_phase: data.order_phase,
                     selected_order: data.selected_order,
                     active_offers: data.active_offers,

@@ -6,6 +6,7 @@ mod hal;
 mod mock_engine;
 mod order;
 mod razorpay;
+mod router;
 
 use auth::{validate_firebase_jwt, SessionClaims};
 use db::{get_daily_summary, get_rider_profile, init_db, record_completed_order, update_rider_profile, CompletedOrderRecord, DailySummary, RiderProfile};
@@ -13,6 +14,7 @@ use hal::{GpsData, HalState};
 use mock_engine::{MockEngine, MockEvent};
 use order::{DeliveryOffer, OrderManager, OrderPhase};
 use razorpay::{request_razorpay_qr, spawn_payment_listener, RazorpayQrResponse};
+use router::{NavigationData, RouterEngine, TrafficSegment};
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -24,6 +26,7 @@ pub struct AppState {
     pub db: Mutex<Connection>,
     pub hal: Arc<Mutex<HalState>>,
     pub orders: Arc<Mutex<OrderManager>>,
+    pub router: Arc<RouterEngine>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,6 +39,7 @@ pub struct TelemetrySnapshot {
     pub daily_summary: DailySummary,
     pub is_emergency: bool,
     pub emergency_reason: String,
+    pub navigation: Option<NavigationData>,
 }
 
 // -----------------------------------------------------------------------------
@@ -49,6 +53,74 @@ fn get_telemetry_snapshot(state: State<AppState>) -> Result<TelemetrySnapshot, S
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let daily_summary = get_daily_summary(&db).map_err(|e| e.to_string())?;
 
+    let navigation = if let Some(ref order) = orders.selected_order {
+        let (dest_name, dest_coords) = match orders.current_phase {
+            OrderPhase::RouteToStore | OrderPhase::AtStore => {
+                (order.store_name.clone(), Some([order.store_lat, order.store_lng]))
+            }
+            OrderPhase::RouteToCustomer | OrderPhase::AtCustomer => {
+                (order.customer_name.clone(), Some([order.customer_lat, order.customer_lng]))
+            }
+            _ => ("Stationary".to_string(), None),
+        };
+
+        let remaining_km = if hal.route_polyline.len() > hal.current_step_idx {
+            let mut rem_deg = 0.0;
+            for w in hal.route_polyline[hal.current_step_idx..].windows(2) {
+                let dlat = w[1][0] - w[0][0];
+                let dlng = w[1][1] - w[0][1];
+                rem_deg += (dlat * dlat + dlng * dlng).sqrt();
+            }
+            rem_deg * 111.0
+        } else {
+            0.0
+        };
+
+        let speed = hal.gps.speed_kmh.max(35.0);
+        let base_eta = ((remaining_km / speed) * 60.0).ceil() as u32;
+        let traffic_delay = 2; // +2 min
+        let total_eta = base_eta + traffic_delay;
+
+        Some(NavigationData {
+            instruction: match orders.current_phase {
+                OrderPhase::RouteToStore => format!("Navigate to {}", order.store_name),
+                OrderPhase::AtStore => format!("Package ready at {}", order.store_name),
+                OrderPhase::RouteToCustomer => format!("Deliver to {}", order.customer_name),
+                OrderPhase::AtCustomer => format!("Doorstep: {}", order.customer_name),
+                _ => "Standing by".to_string(),
+            },
+            road_name: order.store_address.clone(),
+            remaining_total_dist_km: remaining_km,
+            eta_minutes: total_eta,
+            destination_name: dest_name,
+            destination_coords: dest_coords,
+            route_polyline: hal.route_polyline.clone(),
+            traffic_segments: vec![
+                TrafficSegment {
+                    start_idx: 0,
+                    end_idx: hal.route_polyline.len() / 2,
+                    status: "FLOWING".to_string(),
+                    color: "#00E676".to_string(),
+                    speed_factor: 1.0,
+                    delay_min: 0,
+                },
+                TrafficSegment {
+                    start_idx: hal.route_polyline.len() / 2,
+                    end_idx: hal.route_polyline.len(),
+                    status: "MODERATE".to_string(),
+                    color: "#F59E0B".to_string(),
+                    speed_factor: 0.7,
+                    delay_min: 2,
+                },
+            ],
+            traffic_delay_minutes: traffic_delay,
+            current_traffic_status: "MODERATE".to_string(),
+            current_traffic_color: "#F59E0B".to_string(),
+        })
+    } else {
+        None
+    };
+
     Ok(TelemetrySnapshot {
         timestamp: chrono::Utc::now().to_rfc3339(),
         gps: hal.gps.clone(),
@@ -58,24 +130,34 @@ fn get_telemetry_snapshot(state: State<AppState>) -> Result<TelemetrySnapshot, S
         daily_summary,
         is_emergency: hal.is_emergency,
         emergency_reason: hal.emergency_reason.clone(),
+        navigation,
     })
 }
 
 #[tauri::command]
-fn accept_order(order_id: String, state: State<AppState>) -> Result<Option<DeliveryOffer>, String> {
-    let mut orders = state.orders.lock().map_err(|e| e.to_string())?;
-    let mut hal = state.hal.lock().map_err(|e| e.to_string())?;
+async fn accept_order(order_id: String, state: State<'_, AppState>) -> Result<Option<DeliveryOffer>, String> {
+    let order_opt = {
+        let mut orders = state.orders.lock().map_err(|e| e.to_string())?;
+        orders.accept_order(&order_id)
+    };
 
-    if let Some(order) = orders.accept_order(&order_id) {
-        // Build road polyline from current rider GPS to Store coordinates
-        let polyline = vec![
-            [hal.gps.latitude, hal.gps.longitude],
-            [(hal.gps.latitude + order.store_lat) / 2.0, (hal.gps.longitude + order.store_lng) / 2.0],
-            [order.store_lat, order.store_lng],
-        ];
-        hal.set_route(polyline);
-        hal.set_motion(true);
-        println!("[ORDER] Accepted {}. Phase 1: Blue route to store", order.order_id);
+    if let Some(order) = order_opt {
+        let (rider_lat, rider_lng) = {
+            let hal = state.hal.lock().map_err(|e| e.to_string())?;
+            (hal.gps.latitude, hal.gps.longitude)
+        };
+
+        // Calculate dynamic road route from Rider GPS to Store
+        let (_steps, polyline, _traffic, _delay) = state.router.get_route(
+            rider_lat, rider_lng, order.store_lat, order.store_lng, &order.store_name, false
+        ).await;
+
+        {
+            let mut hal = state.hal.lock().map_err(|e| e.to_string())?;
+            hal.set_route(polyline);
+            hal.set_motion(true);
+        }
+        println!("[ORDER] Accepted {}. Phase 1: Dynamic Blue route to store", order.order_id);
         Ok(Some(order))
     } else {
         Ok(None)
@@ -97,20 +179,24 @@ fn reach_store(state: State<AppState>) -> Result<Option<DeliveryOffer>, String> 
 }
 
 #[tauri::command]
-fn pickup_order(state: State<AppState>) -> Result<Option<DeliveryOffer>, String> {
-    let mut orders = state.orders.lock().map_err(|e| e.to_string())?;
-    let mut hal = state.hal.lock().map_err(|e| e.to_string())?;
+async fn pickup_order(state: State<'_, AppState>) -> Result<Option<DeliveryOffer>, String> {
+    let order_opt = {
+        let mut orders = state.orders.lock().map_err(|e| e.to_string())?;
+        orders.pickup_order()
+    };
 
-    if let Some(order) = orders.pickup_order() {
-        // Build road polyline from Store to Customer coordinates
-        let polyline = vec![
-            [order.store_lat, order.store_lng],
-            [(order.store_lat + order.customer_lat) / 2.0, (order.store_lng + order.customer_lng) / 2.0],
-            [order.customer_lat, order.customer_lng],
-        ];
-        hal.set_route(polyline);
-        hal.set_motion(true);
-        println!("[ORDER] Food picked up! Phase 2: Route to customer {}", order.customer_name);
+    if let Some(order) = order_opt {
+        // Immediately clear previous store route and compute store to customer route
+        let (_steps, polyline, _traffic, _delay) = state.router.get_route(
+            order.store_lat, order.store_lng, order.customer_lat, order.customer_lng, &order.customer_name, false
+        ).await;
+
+        {
+            let mut hal = state.hal.lock().map_err(|e| e.to_string())?;
+            hal.set_route(polyline);
+            hal.set_motion(true);
+        }
+        println!("[ORDER] Food picked up! Phase 2: Dynamic Green route to customer {}", order.customer_name);
         Ok(Some(order))
     } else {
         Ok(None)
@@ -288,6 +374,7 @@ fn main() {
 
     let hal_state = Arc::new(Mutex::new(HalState::new()));
     let order_manager = Arc::new(Mutex::new(OrderManager::new()));
+    let router_engine = Arc::new(RouterEngine::new());
 
     // 2. Spawn 5 Hz Kinematics & RAM Dashcam Worker Loop
     let hal_worker = Arc::clone(&hal_state);
@@ -309,6 +396,7 @@ fn main() {
             db: Mutex::new(db_conn),
             hal: Arc::clone(&hal_state),
             orders: Arc::clone(&order_manager),
+            router: Arc::clone(&router_engine),
         })
         .setup(|app| {
             MockEngine::spawn_autonomous_engine(app.handle().clone());
