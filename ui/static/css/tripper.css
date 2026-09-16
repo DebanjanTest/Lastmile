@@ -332,7 +332,7 @@ body.hud-body {
    ============================================================================== */
 .floating-recenter-btn {
     position: absolute;
-    bottom: 58px;
+    bottom: 62px;
     left: 50%;
     transform: translateX(-50%) translateY(10px);
     height: 38px;
@@ -353,7 +353,13 @@ body.hud-body {
     z-index: 85;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, border-color 0.2s ease;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, border-color 0.2s ease, bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Elevated safely above the Route Banner (~95px) + swipe slider when active */
+body.route-active .floating-recenter-btn,
+.floating-recenter-btn.dock-elevated {
+    bottom: 155px;
 }
 
 .floating-recenter-btn.visible {
@@ -1369,7 +1375,7 @@ body.theme-day .floating-recenter-btn .recenter-svg {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 12px rgba(56, 189, 248, 0.4);
     border-radius: 20px;
     padding: 6px 16px;
-    z-index: 500;
+    z-index: 1200;
     animation: toast-drop 0.25s ease-out;
 }
 .toast-inner {

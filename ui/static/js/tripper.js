@@ -35,13 +35,13 @@ let manualThemeOverride = false;
 
 const THEME_TILES = {
     night: {
-        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png',
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png',
         subdomains: 'abcd',
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
     },
     day: {
-        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
         subdomains: 'abcd',
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
@@ -126,7 +126,8 @@ function applyTheme(targetTheme, force = false) {
         const newLayer = L.tileLayer(config.url, {
             subdomains: config.subdomains,
             maxZoom: config.maxZoom,
-            attribution: config.attribution
+            attribution: config.attribution,
+            detectRetina: true
         });
 
         newLayer.addTo(leafletMap);
@@ -266,21 +267,55 @@ function lerpAngle(start, end, factor) {
     return start + diff * factor;
 }
 
-function getBottomThirdCenter(lat, lng, zoom) {
-    if (!leafletMap) return [lat, lng];
+/**
+ * Dynamic Camera Offset Helper (Directives 1 & 2):
+ * Offsets the Leaflet camera to target the center of the unobstructed visible viewport
+ * (above the active route banner and bottom strip), locking the rider puck in the lower-third
+ * of the unobstructed map area without ever sliding beneath swipe sliders.
+ */
+function getCameraOffsetLatLng(coords, zoom) {
+    if (!leafletMap || !coords) return coords;
     try {
-        const z = (typeof zoom === 'number' && !isNaN(zoom)) ? zoom : (leafletMap.getZoom() || 16);
-        const targetPt = leafletMap.project([lat, lng], z);
-        const mapH = leafletMap.getSize().y || 480;
-        // HUD is 800x480 WVGA. Screen center is y = 240px.
-        // We want the rider puck in the lower 30% (~345px from top).
-        // Shifting camera center upwards by ~105px (mapH * 0.22) positions target at bottom-third.
-        const offsetY = mapH * 0.22;
-        const centerPt = L.point(targetPt.x, targetPt.y - offsetY);
-        return leafletMap.unproject(centerPt, z);
+        let lat, lng;
+        if (Array.isArray(coords)) {
+            lat = Number(coords[0]);
+            lng = Number(coords[1]);
+        } else if (coords && typeof coords === 'object') {
+            lat = Number(coords.lat != null ? coords.lat : coords[0]);
+            lng = Number(coords.lng != null ? coords.lng : coords[1]);
+        }
+        if (isNaN(lat) || isNaN(lng)) return coords;
+
+        const currentZoomLevel = (typeof zoom === 'number' && !isNaN(zoom)) ? zoom : (leafletMap.getZoom() || 16);
+
+        // 1. Get the target coordinate in pixel space via Leaflet projection
+        let targetPoint = leafletMap.project([lat, lng], currentZoomLevel);
+
+        // 2. Calibrate vertical offset: The bottom UI (.active-route-dock + .gmaps-bottom-card)
+        // occupies ~140-160px. In Leaflet Web Mercator, containerPoint.y = (mapH / 2) + (targetPoint.y - cameraPoint.y).
+        // By shifting the camera center coordinate south (+Y in projection space), the rider puck is pushed UP
+        // on the screen into the unobstructed visible viewport (~190-230px from top of container).
+        const routeDock = document.getElementById("activeRouteDock");
+        const isDockActive = routeDock && (routeDock.style.display !== "none" && routeDock.style.display !== "");
+
+        // Calibrated pixel delta based on combined height of .active-route-dock (~95px) and .gmaps-bottom-card (48px)
+        const calibratedYOffset = isDockActive ? 75 : 30;
+        const perspectiveBonus = (is3DMode && !isUserPanning) ? 20 : 0;
+
+        // Shift camera target in pixel space to clear bottom UI and center unobstructed viewport
+        targetPoint.y += (calibratedYOffset + perspectiveBonus);
+
+        // 3. Convert back to LatLng coordinates
+        let offsetLatLng = leafletMap.unproject(targetPoint, currentZoomLevel);
+        return offsetLatLng;
     } catch (e) {
-        return [lat, lng];
+        return coords;
     }
+}
+
+// Backward-compatible alias
+function getBottomThirdCenter(lat, lng, zoom) {
+    return getCameraOffsetLatLng([lat, lng], zoom);
 }
 
 function markUserPanning() {
@@ -288,7 +323,15 @@ function markUserPanning() {
     const btn = document.getElementById("btnRecenter");
     if (btn) btn.classList.add("panning-active");
     const floatingBtn = document.getElementById("floatingRecenterBtn");
-    if (floatingBtn) floatingBtn.classList.add("visible");
+    if (floatingBtn) {
+        floatingBtn.classList.add("visible");
+        const routeDock = document.getElementById("activeRouteDock");
+        if (routeDock && (routeDock.style.display !== "none" && routeDock.style.display !== "")) {
+            floatingBtn.classList.add("dock-elevated");
+        } else {
+            floatingBtn.classList.remove("dock-elevated");
+        }
+    }
 
     if (userPanResetTimer) clearTimeout(userPanResetTimer);
     // 6 seconds of total user inactivity returns camera smoothly to rider
@@ -384,15 +427,15 @@ function startKinematicsLerpLoop() {
             if (activeMapType === "leaflet" && leafletMap) {
                 const isDragging = leafletMap.dragging && leafletMap.dragging.moving && leafletMap.dragging.moving();
                 if (!isDragging && !leafletMap._animatingZoom) {
-                    const centerLatLng = getBottomThirdCenter(currentDisplayCoords.lat, currentDisplayCoords.lng, currentZoom);
-                    const dLat = Math.abs(centerLatLng.lat - lastCameraLat);
-                    const dLng = Math.abs(centerLatLng.lng - lastCameraLng);
+                    const offsetLatLng = getCameraOffsetLatLng(currentDisplayCoords, currentZoom);
+                    const dLat = Math.abs(offsetLatLng.lat - lastCameraLat);
+                    const dLng = Math.abs(offsetLatLng.lng - lastCameraLng);
                     const dZ = Math.abs(currentZoom - lastCameraZoom);
                     if (dLat > 0.000005 || dLng > 0.000005 || dZ > 0.02) {
-                        lastCameraLat = centerLatLng.lat;
-                        lastCameraLng = centerLatLng.lng;
+                        lastCameraLat = offsetLatLng.lat;
+                        lastCameraLng = offsetLatLng.lng;
                         lastCameraZoom = currentZoom;
-                        leafletMap.setView(centerLatLng, currentZoom, { animate: false });
+                        leafletMap.setView(offsetLatLng, currentZoom, { animate: false });
                     }
                 }
             } else if (activeMapType === "google" && googleMap) {
@@ -448,7 +491,7 @@ function initLeafletMap() {
     activeMapType = "leaflet";
     mapEl.innerHTML = "";
 
-    const initialCenter = getBottomThirdCenter(currentDisplayCoords.lat, currentDisplayCoords.lng, currentZoom);
+    const initialCenter = getCameraOffsetLatLng(currentDisplayCoords, currentZoom);
 
     leafletMap = L.map('mapView', {
         center: initialCenter,
@@ -484,7 +527,8 @@ function initLeafletMap() {
     activeTileLayer = L.tileLayer(tileConfig.url, {
         subdomains: tileConfig.subdomains,
         maxZoom: tileConfig.maxZoom,
-        attribution: tileConfig.attribution
+        attribution: tileConfig.attribution,
+        detectRetina: true
     }).addTo(leafletMap);
 
     // Complete Gesture Decoupling (Directive 2):
@@ -580,8 +624,8 @@ function recenterMap() {
     currentDisplayCoords.lng = currentRiderCoords.lng;
 
     if (activeMapType === "leaflet" && leafletMap) {
-        const centerLatLng = getBottomThirdCenter(currentRiderCoords.lat, currentRiderCoords.lng, 16.0);
-        leafletMap.flyTo(centerLatLng, 16.0, { duration: 0.8 });
+        const offsetLatLng = getCameraOffsetLatLng(currentRiderCoords, 16.0);
+        leafletMap.flyTo(offsetLatLng, 16.0, { duration: 0.8 });
     } else if (activeMapType === "google" && googleMap) {
         googleMap.panTo({ lat: currentRiderCoords.lat, lng: currentRiderCoords.lng });
         googleMap.setZoom(16);
@@ -1015,6 +1059,9 @@ function updateUIPhase(phase, order, daily, navigation) {
     const pUpper = (phase || "").toUpperCase();
     if (!order || pUpper === "IDLE" || pUpper === "DELIVERED" || pUpper === "SEARCHING" || pUpper === "SEARCHING_FOR_ORDERS") {
         lastHandledPhase = "";
+        document.body.classList.remove("route-active");
+        const floatingRecenter = document.getElementById("floatingRecenterBtn");
+        if (floatingRecenter) floatingRecenter.classList.remove("dock-elevated");
         if (turnCard) turnCard.style.display = "none";
         if (activeDock) activeDock.style.display = "none";
         if (bottomDestName) bottomDestName.textContent = "Scanning Kolkata (Salt Lake, Newtown, Park St)...";
@@ -1031,6 +1078,9 @@ function updateUIPhase(phase, order, daily, navigation) {
     }
 
     // Active Order Visible in Dock
+    document.body.classList.add("route-active");
+    const floatingRecenter = document.getElementById("floatingRecenterBtn");
+    if (floatingRecenter) floatingRecenter.classList.add("dock-elevated");
     if (activeDock) activeDock.style.display = "flex";
     const dockBadge = document.getElementById("dockPhaseBadge");
     const dockTitle = document.getElementById("dockTitle");
