@@ -1,0 +1,39 @@
+[all]
+# Run in 64-bit mode & max performance
+arm_64bit=1
+arm_boost=1
+
+# Enable maximum USB current on Pi 5 for mechanical 500GB HDD
+usb_max_current_enable=1
+
+# Kernel and initramfs boot assets
+kernel=kernel_2712.img
+auto_initramfs=1
+initramfs initrd.img followkernel
+
+# Hardware interfaces
+dtparam=i2c_arm=on
+dtparam=spi=on
+dtparam=audio=on
+enable_uart=1
+
+# Display & Camera auto-detect
+camera_auto_detect=1
+display_auto_detect=1
+disable_overscan=1
+
+# Linux DRM/KMS graphics driver
+dtoverlay=vc4-kms-v3d
+max_framebuffers=2
+
+# ADS7846 Touchscreen controller overlay (CS=1, PenIRQ=GPIO 25)
+# Disabled by default to avoid HDMI display hangs; uncomment if using SPI resistive touch
+# dtoverlay=ads7846,cs=1,penirq=25,penirq_pull=2,speed=50000,keep_vref_on=0,swapxy=0,pmax=255,xohms=150,xmin=200,xmax=3900,ymin=200,ymax=3900
+
+[cm4]
+otg_mode=1
+
+[cm5]
+dtoverlay=dwc2,dr_mode=host
+
+[all]

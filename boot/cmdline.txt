@@ -1,0 +1,1 @@
+zswap.enabled=1 zswap.compressor=zstd multipath=off console=tty1 root=LABEL=writable rootfstype=ext4 panic=10 rootwait fixrtc
