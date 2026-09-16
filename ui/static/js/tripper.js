@@ -1147,7 +1147,7 @@ let currentUserProfile = null;
 async function initFirebaseAuth() {
     try {
         let config = window.FIREBASE_CONFIG;
-        if (!config || !config.apiKey) {
+        if (!config || !config.apiKey || config.apiKey.startsWith("AIzaSyDummy")) {
             const res = await fetch('/api/auth/config');
             if (res.ok) {
                 config = await res.json();
@@ -1155,11 +1155,13 @@ async function initFirebaseAuth() {
             }
         }
 
-        if (window.firebase && config && config.apiKey && !firebase.apps.length) {
-            firebase.initializeApp(config);
+        if (window.firebase && config && config.apiKey) {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(config);
+            }
             firebase.auth().onAuthStateChanged(async (user) => {
                 if (user) {
-                    await handleGoogleAuthSuccess(user);
+                    await handleGoogleAuthSuccess(user, false);
                 } else {
                     handleGoogleAuthSignedOut();
                 }
@@ -1172,32 +1174,81 @@ async function initFirebaseAuth() {
 
 async function signInWithGoogle() {
     playChime(1000, 0.15);
+
+    // 1. Offline detection: notify rider without forcing fallback
+    if (!navigator.onLine) {
+        showHUDToast("Network disconnected. Please check your connection or continue offline.");
+        return;
+    }
+
+    // 2. Ensure Firebase SDK is loaded
+    if (!window.firebase || !firebase.auth) {
+        showHUDToast("Firebase Auth SDK initializing... Please retry in a moment.");
+        return;
+    }
+
+    // 3. Ensure Firebase App is initialized with active config
     try {
-        if (window.firebase && firebase.apps.length && window.FIREBASE_CONFIG && !window.FIREBASE_CONFIG.apiKey.startsWith("AIzaSyDummy")) {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            const result = await firebase.auth().signInWithPopup(provider);
-            if (result && result.user) {
-                await handleGoogleAuthSuccess(result.user);
-                showHUDToast(`Welcome, ${result.user.displayName || "Rider"}!`);
+        if (!firebase.apps.length) {
+            let config = window.FIREBASE_CONFIG;
+            if (!config || !config.apiKey || config.apiKey.startsWith("AIzaSyDummy")) {
+                const res = await fetch('/api/auth/config');
+                if (res.ok) {
+                    config = await res.json();
+                    window.FIREBASE_CONFIG = config;
+                }
+            }
+            if (config && config.apiKey) {
+                firebase.initializeApp(config);
+            } else {
+                showHUDToast("Missing Firebase credentials. Check config.json.");
                 return;
             }
         }
-    } catch (e) {
-        console.warn("[GOOGLE POPUP NOTICE] Fallback to simulated test account:", e.message);
+    } catch (initErr) {
+        console.error("[FIREBASE INIT ERROR]", initErr);
+        showHUDToast("Firebase initialization failed: " + initErr.message);
+        return;
     }
 
-    // High-Fidelity Test / Fallback Driver Account Simulation
+    // 4. Strictly invoke Google OAuth popup without silent mock fallback
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await firebase.auth().signInWithPopup(provider);
+        if (result && result.user) {
+            await handleGoogleAuthSuccess(result.user, false);
+            showHUDToast(`Welcome, ${result.user.displayName || "Rider"}!`);
+        }
+    } catch (e) {
+        console.error("[FIREBASE AUTH ERROR]", e);
+        if (e.code === "auth/popup-closed-by-user") {
+            showHUDToast("Sign-in cancelled.");
+        } else if (e.code === "auth/popup-blocked") {
+            showHUDToast("Popup blocked! Please allow popups for localhost:8000.");
+        } else if (e.code === "auth/unauthorized-domain") {
+            showHUDToast("Unauthorized domain: Add localhost to Firebase authorized domains.");
+        } else if (e.code === "auth/network-request-failed" || !navigator.onLine) {
+            showHUDToast("Network disconnected. Please check your connection or continue offline.");
+        } else {
+            showHUDToast(`Sign-In error (${e.code || e.message}). See console.`);
+        }
+    }
+}
+
+async function continueOfflineMock() {
+    playChime(900, 0.12);
     const mockUser = (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.mock_account) || {
         uid: "google_test_rider_debanjan",
         displayName: "Debanjan Mondal",
         email: "debanjan.rider@lastmile.io",
         photoURL: ""
     };
-    await handleGoogleAuthSuccess(mockUser);
-    showHUDToast(`Connected as ${mockUser.displayName} (Google Test Mode)`);
+    await handleGoogleAuthSuccess(mockUser, true);
+    showHUDToast(`Operating in Offline / Test Mode (${mockUser.displayName})`);
 }
 
-async function handleGoogleAuthSuccess(user) {
+async function handleGoogleAuthSuccess(user, isOffline = false) {
     const displayName = user.displayName || user.name || "Debanjan Mondal";
     const email = user.email || "debanjan.rider@lastmile.io";
     const photoURL = user.photoURL || user.picture || "";
@@ -1206,7 +1257,8 @@ async function handleGoogleAuthSuccess(user) {
         name: displayName,
         email: email,
         photo_url: photoURL,
-        is_authenticated: true
+        is_authenticated: true,
+        is_offline: isOffline
     };
 
     // Update Top Bar
@@ -1223,7 +1275,7 @@ async function handleGoogleAuthSuccess(user) {
     if (topBarAuthDot) {
         topBarAuthDot.classList.remove("unlinked");
         topBarAuthDot.classList.add("linked");
-        topBarAuthDot.title = "Google Auth: Connected (" + email + ")";
+        topBarAuthDot.title = isOffline ? "Offline Mode: Connected (" + email + ")" : "Google Auth: Verified (" + email + ")";
     }
 
     // Update Drawer Elements
@@ -1234,6 +1286,12 @@ async function handleGoogleAuthSuccess(user) {
         signedInBox.style.display = "block";
         document.getElementById("drawerGoogleName").textContent = displayName;
         document.getElementById("drawerGoogleEmail").textContent = email;
+        const badge = document.querySelector("#googleSignedInBox .badge-verified");
+        if (badge) {
+            badge.textContent = isOffline ? "OFFLINE / TEST" : "VERIFIED";
+            badge.style.color = isOffline ? "#FFD54F" : "#00E676";
+            badge.style.borderColor = isOffline ? "#FFD54F" : "#00E676";
+        }
         const drawerAvatar = document.getElementById("drawerAvatarImg");
         if (drawerAvatar) {
             drawerAvatar.src = photoURL || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300F0FF'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-4-4z'/%3E%3C/svg%3E";
@@ -1242,8 +1300,12 @@ async function handleGoogleAuthSuccess(user) {
 
     // Sync with backend / SQLite
     try {
+        let token = "mock_jwt_token";
+        if (user.getIdToken && typeof user.getIdToken === "function") {
+            try { token = await user.getIdToken(); } catch(e) {}
+        }
         await tauriInvoke("firebase_verify", {
-            id_token: "mock_jwt_token",
+            id_token: token,
             user_info: {
                 uid: user.uid,
                 displayName: displayName,

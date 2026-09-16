@@ -107,6 +107,21 @@ def create_app(engine: LastMileEngine) -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     templates = Jinja2Templates(directory=str(templates_dir))
 
+    def get_fresh_config() -> dict:
+        config_path = Path(__file__).parent.parent / "config.json"
+        if config_path.exists():
+            try:
+                return json.loads(config_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        return engine.config
+
+    @app.middleware("http")
+    async def add_auth_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+        return response
+
     @app.on_event("startup")
     async def startup_event():
         init_sqlite_db()
@@ -118,15 +133,16 @@ def create_app(engine: LastMileEngine) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def get_tripper_ui(request: Request):
+        cfg = get_fresh_config()
         return templates.TemplateResponse(
             request=request,
             name="index.html",
             context={
-                "app_name": engine.config.get("app_name", "LastMile Guard"),
+                "app_name": cfg.get("app_name", "LastMile Guard"),
                 "version": "2.2.0",
-                "google_maps_api_key": engine.config.get("maps", {}).get("google_maps_api_key", ""),
-                "firebase_config": engine.config.get("firebase", {}),
-                "razorpay_config": engine.config.get("razorpay", {})
+                "google_maps_api_key": cfg.get("maps", {}).get("google_maps_api_key", ""),
+                "firebase_config": cfg.get("firebase", {}),
+                "razorpay_config": cfg.get("razorpay", {})
             }
         )
 
@@ -252,7 +268,8 @@ def create_app(engine: LastMileEngine) -> FastAPI:
 
     @app.get("/api/auth/config")
     async def api_get_auth_config():
-        fb_cfg = engine.config.get("firebase", {})
+        cfg = get_fresh_config()
+        fb_cfg = cfg.get("firebase", {})
         return {
             "apiKey": fb_cfg.get("apiKey", ""),
             "authDomain": fb_cfg.get("authDomain", ""),
