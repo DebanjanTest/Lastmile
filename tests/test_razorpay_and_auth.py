@@ -7,6 +7,51 @@ from pathlib import Path
 
 class TestRazorpayAndAuth(unittest.TestCase):
     BASE_URL = "http://localhost:8000"
+    server_thread = None
+
+    @classmethod
+    def setUpClass(cls):
+        # Verify if an existing server is running on port 8000
+        server_running = False
+        try:
+            with urllib.request.urlopen(f"{cls.BASE_URL}/api/telemetry", timeout=1) as resp:
+                if resp.status == 200:
+                    server_running = True
+        except Exception:
+            pass
+
+        if not server_running:
+            import time
+            import threading
+            import uvicorn
+            from core.engine import LastMileEngine
+            from ui.server import create_app
+
+            config_path = Path(__file__).resolve().parent.parent / "config.json"
+            cfg = {}
+            if config_path.exists():
+                try:
+                    cfg = json.loads(config_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            engine = LastMileEngine(cfg)
+            app = create_app(engine)
+            cls.server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=8000, log_level="error"))
+            cls.server_thread = threading.Thread(target=cls.server.run, daemon=True)
+            cls.server_thread.start()
+
+            for _ in range(40):
+                try:
+                    with urllib.request.urlopen(f"{cls.BASE_URL}/api/telemetry", timeout=0.5) as resp:
+                        if resp.status == 200:
+                            break
+                except Exception:
+                    time.sleep(0.1)
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.server_thread and hasattr(cls, 'server'):
+            cls.server.should_exit = True
 
     def get_json(self, path):
         req = urllib.request.Request(f"{self.BASE_URL}{path}")
