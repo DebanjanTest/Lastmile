@@ -559,20 +559,27 @@ body.hud-body {
     box-shadow: 0 0 10px rgba(255, 213, 79, 0.8);
 }
 
-/* ==============================================================================
-   7. INCOMING DELIVERY NOTIFICATION FEED (IDLE STATE)
-   ============================================================================== */
-.incoming-order-stack {
+.incoming-order-stack,
+.order-notification-stack {
     position: absolute;
     top: 48px;
+    bottom: 54px;
     right: 10px;
     width: 290px;
-    max-height: 380px;
+    max-height: calc(100% - 104px);
     display: flex;
     flex-direction: column;
     gap: 8px;
-    z-index: 55;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    z-index: 40;
     pointer-events: none;
+}
+.incoming-order-stack::-webkit-scrollbar,
+.order-notification-stack::-webkit-scrollbar {
+    display: none;
 }
 
 .notification-card {
@@ -656,10 +663,11 @@ body.hud-body {
 /* ==============================================================================
    8. BOTTOM HUD SUMMARY STRIP
    ============================================================================== */
-.bottom-status-strip {
+.bottom-status-strip,
+.gmaps-bottom-card {
     position: absolute;
     bottom: 0; left: 0; right: 0;
-    height: 42px;
+    height: 48px;
     background: rgba(11, 19, 43, 0.98);
     backdrop-filter: blur(12px);
     border-top: 1px solid var(--border-navy);
@@ -667,7 +675,8 @@ body.hud-body {
     align-items: center;
     justify-content: space-between;
     padding: 0 12px;
-    z-index: 40;
+    z-index: 100;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.85);
 }
 .strip-left { display: flex; flex-direction: column; gap: 1px; }
 .strip-duration { display: flex; align-items: baseline; gap: 6px; }

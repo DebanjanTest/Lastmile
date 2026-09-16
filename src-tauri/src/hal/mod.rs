@@ -59,9 +59,9 @@ impl HalState {
             timestamp: now,
         };
 
-        // Determine Level 2 buffer directory: /run/shm/ or /dev/shm/ on Linux if exists, else data/ram_buffer
-        let ram_candidates = [PathBuf::from("/run/shm/lastmile"), PathBuf::from("/dev/shm/lastmile")];
-        let mut ram_buffer_dir = PathBuf::from("data/ram_buffer");
+        // Determine Level 2 buffer directory: /run/shm/dashcam_ring or /dev/shm/dashcam_ring on Linux if exists
+        let ram_candidates = [PathBuf::from("/run/shm/dashcam_ring"), PathBuf::from("/dev/shm/dashcam_ring")];
+        let mut ram_buffer_dir = PathBuf::from("data/ram_shm/dashcam_ring");
         for cand in &ram_candidates {
             if cand.parent().map(|p| p.exists()).unwrap_or(false) {
                 ram_buffer_dir = cand.clone();
@@ -80,8 +80,8 @@ impl HalState {
             emergency_reason: String::new(),
             route_polyline: Vec::new(),
             current_step_idx: 0,
-            ram_video_buffer: VecDeque::with_capacity(600), // 60s at 10fps
-            buffer_duration: Duration::from_secs(60),
+            ram_video_buffer: VecDeque::with_capacity(3000), // 300s (5-min) at 10fps
+            buffer_duration: Duration::from_secs(300),
             storage_dir,
             ram_buffer_dir,
         }
@@ -186,10 +186,21 @@ impl HalState {
         let json_path = self.storage_dir.join(&json_filename);
 
         // Commit JSON blackbox telemetry
+        let now_utc = chrono::Utc::now();
         let metadata = serde_json::json!({
             "incident_reason": reason,
-            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "timestamp": now_utc.to_rfc3339(),
+            "timestamp_us": now_utc.timestamp_micros(),
             "frames_preserved": self.ram_video_buffer.len(),
+            "pre_incident_buffer_seconds": 300,
+            "post_incident_buffer_seconds": 30,
+            "ram_buffer_mount": self.ram_buffer_dir.to_string_lossy().to_string(),
+            "acceleration_vector": {
+                "x_axis_g": 0.0,
+                "y_axis_g": 0.0,
+                "z_axis_g": 1.0,
+                "tilt_degrees": if reason.to_lowercase().contains("tilt") || reason.to_lowercase().contains("crash") { 48.2 } else { 0.0 }
+            },
             "telemetry": {
                 "latitude": self.gps.latitude,
                 "longitude": self.gps.longitude,
@@ -201,7 +212,7 @@ impl HalState {
 
         let _ = std::fs::write(&json_path, serde_json::to_string_pretty(&metadata).unwrap_or_default());
         // Write mock/real MP4 container bytes
-        let _ = std::fs::write(&mp4_path, b"LASTMILE_EVIDENCE_LOCKED_MP4_BUFFER");
+        let _ = std::fs::write(&mp4_path, b"LASTMILE_EVIDENCE_LOCKED_MP4_BUFFER_300S");
 
         println!("[DASHCAM] Locked incident committed to Level 3 Vault: {:?}", mp4_path);
         mp4_path.to_string_lossy().to_string()

@@ -8,6 +8,7 @@ import asyncio
 import json
 from typing import Dict, Any, Optional, Set, List
 from datetime import datetime
+import time
 
 from hal.factory import create_hal, HALContainer
 from core.navigation import NavigationEngine, Maneuver
@@ -72,19 +73,30 @@ class LastMileEngine:
         self.hal.sensors.stop()
         print("[ENGINE] LastMile Guard Engine Stopped.")
 
+    def _dispatch_emergency_hazard_alert(self, reason: str, gps_fix: Any) -> None:
+        """Simulates automated emergency dispatch routine to Fleet HQ via telephony/MQTT."""
+        lat = getattr(gps_fix, 'latitude', 0.0)
+        lng = getattr(gps_fix, 'longitude', 0.0)
+        speed = getattr(gps_fix, 'speed_kmh', 0.0)
+        print(f"[EMERGENCY DISPATCH] >>> ALERT DISPATCHED TO FLEET HQ & POLICE HELPLINE 112 <<<")
+        print(f"[EMERGENCY DISPATCH] Reason: {reason} | Coordinates: {lat:.6f}, {lng:.6f} | Speed: {speed:.1f} km/h")
+        print(f"[EMERGENCY DISPATCH] Microsecond Timestamp: {int(time.time() * 1_000_000)} | Protocol: MQTT/LTE-CAT-M1 (Failover: SMS)")
+
     def on_sos_triggered(self) -> None:
         print("[SAFETY] SOS BUTTON PRESSED! Initiating emergency protocol...")
         gps_fix = self.hal.gps.get_latest_fix()
         self.is_emergency = True
         self.emergency_reason = "MANUAL SOS BUTTON"
         self.dashcam.trigger_incident_lock("MANUAL_SOS_ALERT", gps_fix)
+        self._dispatch_emergency_hazard_alert("MANUAL_SOS_ALERT", gps_fix)
 
     def on_tilt_triggered(self) -> None:
         print("[SAFETY] VEHICLE TILT / CRASH DETECTED! Initiating emergency protocol...")
         gps_fix = self.hal.gps.get_latest_fix()
         self.is_emergency = True
-        self.emergency_reason = "CRASH / TILT DETECTED (>45 deg)"
+        self.emergency_reason = "CRASH / TILT DETECTED (>45 deg sustained)"
         self.dashcam.trigger_incident_lock("VEHICLE_CRASH_TILT", gps_fix)
+        self._dispatch_emergency_hazard_alert("VEHICLE_CRASH_TILT", gps_fix)
 
     def reset_emergency(self) -> None:
         self.is_emergency = False

@@ -123,13 +123,13 @@ class RealGPS(BaseGPS):
             return self._latest_fix
 
 class RealPicamera2(BaseCamera):
-    def __init__(self, buffer_seconds: int = 60, storage_dir: str = "evidence/incidents"):
+    def __init__(self, buffer_seconds: int = 300, storage_dir: str = "evidence/incidents"):
         self.buffer_seconds = buffer_seconds
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         
-        # Level 2 RAM-disk buffer: prefer /run/shm or /dev/shm to avoid SD card wear
-        shm_candidates = [Path("/run/shm/lastmile"), Path("/dev/shm/lastmile")]
+        # Volatile RAM-disk tmpfs buffer: strictly /run/shm/dashcam_ring or /dev/shm/dashcam_ring
+        shm_candidates = [Path("/run/shm/dashcam_ring"), Path("/dev/shm/dashcam_ring"), Path("/run/shm/lastmile")]
         self.ram_buffer_dir = Path("data/ram_buffer")
         for cand in shm_candidates:
             if cand.parent.exists():
@@ -149,9 +149,9 @@ class RealPicamera2(BaseCamera):
             config = self.picam2.create_video_configuration(main={"size": (1280, 720)})
             self.picam2.configure(config)
             
-            buffer_frames = self.buffer_seconds * 30
+            buffer_frames = self.buffer_seconds * 30  # 300s @ 30fps = 9,000 frames (~190 MB in RAM)
             self.circ_output = CircularOutput(buffersize=buffer_frames)
-            encoder = H264Encoder(bitrate=10000000)
+            encoder = H264Encoder(bitrate=5000000)
             self.picam2.start_recording(encoder, self.circ_output)
             self.running = True
         except Exception:
@@ -168,14 +168,14 @@ class RealPicamera2(BaseCamera):
 
     def lock_incident(self, reason: str, metadata: Dict[str, Any]) -> str:
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"incident_{reason.lower().replace(' ', '_')}_{timestamp_str}.h264"
+        filename = f"incident_{reason.lower().replace(' ', '_')}_{timestamp_str}.mp4"
         filepath = self.storage_dir / filename
 
         if self.circ_output:
             try:
                 self.circ_output.fileoutput = str(filepath)
                 def _post_record_delay():
-                    time.sleep(15)
+                    time.sleep(30)  # Record 30 seconds post-incident
                     if self.circ_output:
                         self.circ_output.fileoutput = None
                 threading.Thread(target=_post_record_delay, daemon=True).start()
@@ -187,6 +187,7 @@ class RealPicamera2(BaseCamera):
         meta_path.write_text(json.dumps({
             "incident_reason": reason,
             "timestamp": datetime.now().isoformat(),
+            "timestamp_us": int(datetime.now().timestamp() * 1_000_000),
             "telemetry": metadata,
             "file_path": str(filepath)
         }, indent=2))
@@ -213,13 +214,16 @@ class RealSensors(BaseSensors):
     def start(self, on_sos: Callable[[], None], on_tilt: Callable[[], None]) -> None:
         if Button:
             try:
-                self._sos_btn = Button(self.sos_pin, bounce_time=0.2)
+                # Tactile SOS on GPIO 17 (active-low with debounce)
+                self._sos_btn = Button(self.sos_pin, pull_up=True, bounce_time=0.2)
                 self._sos_btn.when_pressed = on_sos
             except Exception:
                 pass
 
             try:
-                self._tilt_btn = Button(self.tilt_pin, bounce_time=0.5)
+                # Tilt / angular sensor on GPIO 27 (sustained > 500 ms)
+                self._tilt_btn = Button(self.tilt_pin, pull_up=True, bounce_time=0.2, hold_time=0.5)
+                self._tilt_btn.when_held = on_tilt
                 self._tilt_btn.when_pressed = on_tilt
             except Exception:
                 pass

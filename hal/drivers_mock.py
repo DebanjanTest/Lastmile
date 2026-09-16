@@ -95,10 +95,18 @@ class MockGPS(BaseGPS):
             return self._latest_fix
 
 class MockCamera(BaseCamera):
-    def __init__(self, buffer_seconds: int = 60, storage_dir: str = "evidence/incidents"):
+    def __init__(self, buffer_seconds: int = 300, storage_dir: str = "evidence/incidents"):
         self.buffer_seconds = buffer_seconds
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
+        # Allocate volatile ring buffer in Linux tmpfs (/run/shm) if available
+        self.ram_disk_dir = Path("/run/shm/dashcam_ring") if Path("/run/shm").exists() else (
+            Path("/dev/shm/dashcam_ring") if Path("/dev/shm").exists() else Path("evidence/ram_shm/dashcam_ring")
+        )
+        try:
+            self.ram_disk_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
         self.running = False
         self._frame_buffer: List[tuple[float, Any]] = []
         self._lock = threading.Lock()
@@ -138,7 +146,7 @@ class MockCamera(BaseCamera):
         # OSD Telemetry HUD Stamp
         time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-4]
         cv2.putText(img, f"LASTMILE DASHCAM - {time_str}", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 230, 118), 1)
-        cv2.putText(img, "REC [BUFFERING 60s RAM]", (15, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 255), 1)
+        cv2.putText(img, "REC [BUFFERING 300s RAM /run/shm]", (15, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 255), 1)
         return img
 
     def get_latest_frame(self) -> Optional[Any]:
@@ -174,19 +182,30 @@ class MockCamera(BaseCamera):
         
         meta_file = dest_file.with_suffix('.json')
         import json
+        now_ts = time.time()
         with open(meta_file, 'w') as f:
             json.dump({
                 "reason": reason,
                 "incident_reason": reason,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp_us": int(now_ts * 1_000_000),
                 "frame_count": len(frames_to_save),
                 "frames_preserved": len(frames_to_save),
+                "pre_incident_buffer_seconds": self.buffer_seconds,
+                "post_incident_buffer_seconds": 30,
+                "ram_buffer_mount": str(self.ram_disk_dir),
+                "acceleration_vector": metadata.get("acceleration_vector", {
+                    "x_axis_g": 0.0,
+                    "y_axis_g": 0.0,
+                    "z_axis_g": 1.0,
+                    "tilt_degrees": 48.2 if "tilt" in reason.lower() or "crash" in reason.lower() else 0.0
+                }),
                 "metadata": metadata,
                 "telemetry": metadata
             }, f, indent=2)
             
         with open(dest_file, 'wb') as f:
-            f.write(b"MOCK_LOCKED_MP4_EVIDENCE_BUFFER")
+            f.write(b"MOCK_LOCKED_MP4_EVIDENCE_BUFFER_300S_PRE_ROLL")
             
         return str(dest_file)
 

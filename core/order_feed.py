@@ -9,7 +9,7 @@ import math
 import random
 import uuid
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Set
 
 @dataclass
 class DeliveryOffer:
@@ -271,6 +271,7 @@ class OrderFeedManager:
         self.daily_target_inr: float = 800.0
         self._last_rider_lat = 22.5643
         self._last_rider_lng = 88.3693
+        self._dismissed_ids: Set[str] = set()
 
     def _haversine_km(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         R = 6371.0
@@ -321,17 +322,21 @@ class OrderFeedManager:
         )
 
     def _generate_fresh_offer(self, rider_lat: float, rider_lng: float) -> DeliveryOffer:
-        """Generates a unique, high-quality offer not currently present in the active pool."""
-        active_ids = {o.order_id for o in self.active_offers}
-        candidates = [p for p in self.RICH_ORDER_PRESETS if p.get("id_tag") not in active_ids]
+        """Generates a unique, high-quality offer not currently present in the active pool or recently dismissed."""
+        excluded_ids = {o.order_id for o in self.active_offers}.union(self._dismissed_ids)
+        candidates = [p for p in self.RICH_ORDER_PRESETS if p.get("id_tag") not in excluded_ids]
         if candidates:
             preset = random.choice(candidates)
             return self.build_offer_from_preset(preset, rider_lat, rider_lng)
         
-        # If all presets currently present, synthesize a variation with distinct ID & OTP
+        # If all presets currently present or dismissed, synthesize a variation with distinct ID & OTP
         base = random.choice(self.RICH_ORDER_PRESETS).copy()
         tag_num = random.randint(100, 999)
-        base["id_tag"] = f"ORD-{base['platform'][:3].upper()}-{tag_num}"
+        cand_id = f"ORD-{base['platform'][:3].upper()}-{tag_num}"
+        while cand_id in excluded_ids:
+            tag_num = random.randint(100, 999)
+            cand_id = f"ORD-{base['platform'][:3].upper()}-{tag_num}"
+        base["id_tag"] = cand_id
         base["otp"] = f"{random.randint(1000, 9999)}"
         # Subtle coordinate offset to represent a neighboring customer/store
         base["store_offset"] = (base["store_offset"][0] + random.uniform(-0.002, 0.002),
@@ -350,6 +355,7 @@ class OrderFeedManager:
         """Pre-populates stable, rich, diverse mock orders across platforms."""
         self._last_rider_lat = rider_lat
         self._last_rider_lng = rider_lng
+        self._dismissed_ids.clear()
         
         # Pick 4 distinct platforms for diversity (e.g. Zomato, Swiggy, Zepto, Blinkit)
         seen_platforms = set()
@@ -532,6 +538,7 @@ class OrderFeedManager:
         }
 
     def dismiss_offer(self, order_id: str) -> None:
+        self._dismissed_ids.add(order_id)
         self.active_offers = [o for o in self.active_offers if o.order_id != order_id]
         # Always maintain at least 4 available orders
         if len(self.active_offers) < 4:

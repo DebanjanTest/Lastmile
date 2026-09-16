@@ -321,18 +321,18 @@ function initLeafletMap() {
         attributionControl: false
     });
 
-    // Unmetered CARTO Dark Matter raster tiles (zero watermark, zero API key requirement)
-    const cartoDarkUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png';
+    // Unmetered OpenStreetMap raster tiles with dark OLED inversion filter (zero watermark, zero API key)
     const osmUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const osmHotFallbackUrl = 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
 
-    const tileLayer = L.tileLayer(cartoDarkUrl, {
-        subdomains: 'abcd',
-        maxZoom: 19
+    const tileLayer = L.tileLayer(osmUrl, {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
     }).addTo(leafletMap);
 
     tileLayer.on('tileerror', function() {
-        if (tileLayer._url !== osmUrl) {
-            tileLayer.setUrl(osmUrl);
+        if (tileLayer._url !== osmHotFallbackUrl) {
+            tileLayer.setUrl(osmHotFallbackUrl);
         }
     });
 
