@@ -27,7 +27,7 @@ class TestHardwareAndRamdisk(unittest.TestCase):
         self.assertTrue(cam.ram_buffer_dir.exists())
         # Check if on Linux with /run/shm, it uses RAM-disk
         if Path("/run/shm").exists() and os.access("/run/shm", os.W_OK):
-            self.assertEqual(str(cam.ram_buffer_dir), str(Path("/run/shm/lastmile")))
+            self.assertIn(str(cam.ram_buffer_dir), [str(Path("/run/shm/dashcam_ring")), str(Path("/run/shm/lastmile"))])
         else:
             self.assertTrue("ram_buffer" in str(cam.ram_buffer_dir) or "shm" in str(cam.ram_buffer_dir))
 

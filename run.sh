@@ -29,7 +29,13 @@ sleep 0.5
 # 3. Detect / Setup Python environment
 PY_BIN="python3"
 
-if [ -f "$PROJECT_DIR/venv/bin/python3" ]; then
+if [ -f "$PROJECT_DIR/.venv/bin/python" ]; then
+    PY_BIN="$PROJECT_DIR/.venv/bin/python"
+    echo "[OK] Using Python venv: $PY_BIN"
+elif [ -f "$PROJECT_DIR/.venv/bin/python3" ]; then
+    PY_BIN="$PROJECT_DIR/.venv/bin/python3"
+    echo "[OK] Using Python venv: $PY_BIN"
+elif [ -f "$PROJECT_DIR/venv/bin/python3" ]; then
     PY_BIN="$PROJECT_DIR/venv/bin/python3"
     echo "[OK] Using Python venv: $PY_BIN"
 elif [ -f "$PROJECT_DIR/venv/bin/python" ]; then
@@ -81,21 +87,27 @@ elif command -v chromium >/dev/null 2>&1; then
     BROWSER_CMD="chromium"
 elif command -v google-chrome >/dev/null 2>&1; then
     BROWSER_CMD="google-chrome"
+elif command -v firefox >/dev/null 2>&1; then
+    BROWSER_CMD="firefox"
 fi
 
 if [ -n "$BROWSER_CMD" ] && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
-    $BROWSER_CMD \
-        --app="http://localhost:8000" \
-        --window-size=800,480 \
-        --window-position=0,0 \
-        --start-fullscreen \
-        --noerrdialogs \
-        --disable-infobars \
-        --check-for-update-interval=31536000 \
-        --disable-features=TranslateUI \
-        --disable-session-crashed-bubble \
-        --kiosk \
-        "http://localhost:8000" >/dev/null 2>&1 &
+    if [ "$BROWSER_CMD" = "firefox" ]; then
+        firefox --kiosk "http://localhost:8000" >/dev/null 2>&1 &
+    else
+        $BROWSER_CMD \
+            --app="http://localhost:8000" \
+            --window-size=800,480 \
+            --window-position=0,0 \
+            --start-fullscreen \
+            --noerrdialogs \
+            --disable-infobars \
+            --check-for-update-interval=31536000 \
+            --disable-features=TranslateUI \
+            --disable-session-crashed-bubble \
+            --kiosk \
+            "http://localhost:8000" >/dev/null 2>&1 &
+    fi
 elif command -v xdg-open >/dev/null 2>&1 && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
     xdg-open "http://localhost:8000" >/dev/null 2>&1 &
 else

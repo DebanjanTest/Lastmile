@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#182030"/>
+      <stop offset="100%" stop-color="#080c14"/>
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A73E8"/>
+      <stop offset="50%" stop-color="#00E676"/>
+      <stop offset="100%" stop-color="#00B0FF"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Squircle Chassis -->
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="url(#bgGrad)" stroke="#2a3850" stroke-width="4"/>
+  <rect x="24" y="24" width="208" height="208" rx="40" fill="none" stroke="#1A73E8" stroke-width="2" stroke-opacity="0.4"/>
+
+  <!-- Outer Tripper Dial Ring -->
+  <circle cx="128" cy="128" r="82" fill="none" stroke="#1e293b" stroke-width="8"/>
+  <circle cx="128" cy="128" r="82" fill="none" stroke="url(#ringGrad)" stroke-width="8"
+          stroke-dasharray="360 160" stroke-linecap="round" transform="rotate(-90 128 128)" filter="url(#glow)"/>
+
+  <!-- Compass / Dial Tick Marks -->
+  <circle cx="128" cy="46" r="3" fill="#00E676"/>
+  <circle cx="210" cy="128" r="3" fill="#64748b"/>
+  <circle cx="128" cy="210" r="3" fill="#64748b"/>
+  <circle cx="46" cy="128" r="3" fill="#64748b"/>
+
+  <!-- Center Core Inner Display -->
+  <circle cx="128" cy="128" r="62" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+
+  <!-- Dynamic Vector Navigation Arrow (Turn Right / Forward) -->
+  <path d="M 104 168 L 104 136 Q 104 114 122 114 L 138 114 L 138 98 L 168 124 L 138 150 L 138 134 L 124 134 Q 118 134 118 142 L 118 168 Z"
+        fill="#FFFFFF" filter="url(#glow)"/>
+
+  <!-- Safety Sentinel / Witness Camera Lens Dot -->
+  <circle cx="128" cy="32" r="5" fill="#FF1744" filter="url(#glow)"/>
+  <circle cx="128" cy="32" r="2" fill="#FFFFFF"/>
+</svg>

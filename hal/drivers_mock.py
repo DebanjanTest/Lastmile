@@ -204,8 +204,26 @@ class MockCamera(BaseCamera):
                 "telemetry": metadata
             }, f, indent=2)
             
-        with open(dest_file, 'wb') as f:
-            f.write(b"MOCK_LOCKED_MP4_EVIDENCE_BUFFER_300S_PRE_ROLL")
+        written_video = False
+        if cv2 is not None and frames_to_save:
+            try:
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                sample = frames_to_save[0][1]
+                if isinstance(sample, np.ndarray):
+                    h, w = sample.shape[:2]
+                    writer = cv2.VideoWriter(str(dest_file), fourcc, 10.0, (w, h))
+                    for _, frame_img in frames_to_save:
+                        if isinstance(frame_img, np.ndarray):
+                            writer.write(frame_img)
+                    writer.release()
+                    if dest_file.exists() and dest_file.stat().st_size > 0:
+                        written_video = True
+            except Exception as e:
+                pass
+
+        if not written_video:
+            with open(dest_file, 'wb') as f:
+                f.write(b"MOCK_LOCKED_MP4_EVIDENCE_BUFFER_300S_PRE_ROLL")
             
         return str(dest_file)
 

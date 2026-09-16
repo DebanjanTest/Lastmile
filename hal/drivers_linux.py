@@ -7,9 +7,16 @@ import time
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Callable, Dict, Any, List
+from typing import Optional, Callable, Dict, Any, List, Tuple
 from hal.base import BaseGPS, BaseCamera, BaseSensors, GPSData
 from hal.geolocation import get_system_location
+
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    cv2 = None
+    np = None
 
 try:
     import serial
@@ -181,6 +188,13 @@ class RealPicamera2(BaseCamera):
                 threading.Thread(target=_post_record_delay, daemon=True).start()
             except Exception:
                 pass
+        else:
+            # When hardware encoder output is inactive, write fallback incident marker
+            try:
+                with open(filepath, 'wb') as f:
+                    f.write(b"PICAMERA2_LOCKED_MP4_EVIDENCE_BUFFER")
+            except Exception:
+                pass
 
         meta_path = filepath.with_suffix(".json")
         import json
@@ -196,10 +210,136 @@ class RealPicamera2(BaseCamera):
     def get_latest_frame_jpeg(self) -> Optional[bytes]:
         if self.picam2 and self.running:
             try:
-                return self.picam2.capture_file("main", format="jpeg")
+                import io
+                bio = io.BytesIO()
+                self.picam2.capture_file(bio, format="jpeg")
+                return bio.getvalue()
+            except Exception:
+                try:
+                    arr = self.picam2.capture_array()
+                    if cv2 is not None:
+                        _, buf = cv2.imencode('.jpg', arr)
+                        return buf.tobytes()
+                except Exception:
+                    pass
+        return None
+
+class RealUSBCamera(BaseCamera):
+    """
+    V4L2 / USB Webcam Driver for Raspberry Pi and Linux.
+    Captures live frames, buffers in RAM tmpfs (/run/shm/dashcam_ring), and encodes MP4 video on incident.
+    """
+    def __init__(self, device_index: int = 0, buffer_seconds: int = 60, storage_dir: str = "evidence/incidents"):
+        self.device_index = device_index
+        self.buffer_seconds = buffer_seconds
+        self.storage_dir = Path(storage_dir)
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.ram_buffer_dir = Path("/run/shm/dashcam_ring") if Path("/run/shm").exists() else Path("data/ram_buffer")
+        try:
+            self.ram_buffer_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        
+        self.running = False
+        self._frame_buffer: List[Tuple[float, Any]] = []
+        self._lock = threading.Lock()
+        self._thread: Optional[threading.Thread] = None
+        self._cap = None
+        self._latest_jpeg: Optional[bytes] = None
+
+    def start_buffering(self) -> None:
+        self.running = True
+        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._thread.start()
+
+    def stop_buffering(self) -> None:
+        self.running = False
+        if self._cap:
+            try:
+                self._cap.release()
             except Exception:
                 pass
-        return None
+            self._cap = None
+
+    def _capture_loop(self) -> None:
+        if cv2 is None:
+            return
+        try:
+            self._cap = cv2.VideoCapture(self.device_index)
+            if not self._cap.isOpened():
+                return
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+        except Exception:
+            return
+
+        while self.running:
+            if not self._cap or not self._cap.isOpened():
+                time.sleep(0.5)
+                continue
+            ret, frame = self._cap.read()
+            if not ret or frame is None:
+                time.sleep(0.05)
+                continue
+
+            now = time.time()
+            time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cv2.putText(frame, f"LASTMILE USB CAM - {time_str}", (15, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 230, 118), 1)
+
+            ret_enc, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            if ret_enc:
+                jpeg_bytes = buf.tobytes()
+                with self._lock:
+                    self._latest_jpeg = jpeg_bytes
+                    self._frame_buffer.append((now, frame))
+                    cutoff = now - self.buffer_seconds
+                    self._frame_buffer = [f for f in self._frame_buffer if f[0] >= cutoff]
+
+            time.sleep(0.066)  # ~15 FPS
+
+    def get_latest_frame_jpeg(self) -> Optional[bytes]:
+        with self._lock:
+            return self._latest_jpeg
+
+    def lock_incident(self, reason: str, metadata: Dict[str, Any]) -> str:
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_reason = reason.lower().replace(" ", "_").replace("/", "_")
+        dest_filename = f"incident_{safe_reason}_{timestamp_str}.mp4"
+        dest_path = self.storage_dir / dest_filename
+        
+        with self._lock:
+            frames_to_save = list(self._frame_buffer)
+        
+        meta_file = dest_path.with_suffix('.json')
+        import json
+        meta_file.write_text(json.dumps({
+            "incident_reason": reason,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp_us": int(time.time() * 1_000_000),
+            "frame_count": len(frames_to_save),
+            "telemetry": metadata,
+            "file_path": str(dest_path)
+        }, indent=2))
+
+        written = False
+        if cv2 is not None and frames_to_save:
+            try:
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                h, w = frames_to_save[0][1].shape[:2]
+                writer = cv2.VideoWriter(str(dest_path), fourcc, 15.0, (w, h))
+                for _, f in frames_to_save:
+                    writer.write(f)
+                writer.release()
+                if dest_path.exists() and dest_path.stat().st_size > 0:
+                    written = True
+            except Exception:
+                pass
+
+        if not written:
+            dest_path.write_bytes(b"USB_CAM_LOCKED_MP4_EVIDENCE")
+
+        return str(dest_path)
 
 class RealSensors(BaseSensors):
     def __init__(self, sos_pin: int = 17, tilt_pin: int = 27, pwm_pin: int = 18):

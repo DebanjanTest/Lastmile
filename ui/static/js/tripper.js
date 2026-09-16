@@ -639,6 +639,19 @@ function toggleMapTilt() {
     if (txt) txt.textContent = is3DMode ? "2D" : "3D";
 }
 
+// ponytail: native HTML <img> stream toggle, zero external player libraries
+function toggleDashcam() {
+    const pip = document.getElementById("dashcamPip");
+    const feed = document.getElementById("dashcamFeed");
+    const btn = document.getElementById("btnToggleDashcam");
+    if (!pip || !feed) return;
+    const isHidden = pip.style.display === "none";
+    pip.style.display = isHidden ? "flex" : "none";
+    feed.src = isHidden ? "/api/camera/stream" : "";
+    if (btn) btn.classList.toggle("active", isHidden);
+    showHUDToast(isHidden ? "Live Dashcam: ON" : "Live Dashcam: OFF");
+}
+
 function zoomInMap() {
     markUserPanning();
     targetZoom = Math.min(19, targetZoom + 1);
@@ -1906,11 +1919,15 @@ async function dismissOffer(orderId) {
 function triggerSos() {
     tauriInvoke("trigger_sos");
     showHUDToast("SOS EMERGENCY PROTOCOL ACTIVATED");
+    const pip = document.getElementById("dashcamPip");
+    if (pip && pip.style.display === "none") toggleDashcam();
 }
 
 function triggerTilt() {
     tauriInvoke("trigger_tilt");
     showHUDToast("VEHICLE TILT / CRASH DETECTED");
+    const pip = document.getElementById("dashcamPip");
+    if (pip && pip.style.display === "none") toggleDashcam();
 }
 
 function resetEmergency() {
@@ -1964,6 +1981,7 @@ document.addEventListener("keydown", (e) => {
     else if (key === "U") { if (p === "ATCUSTOMER" || p === "AT_CUSTOMER") handlePrimaryDockAction(); }
     else if (key === "S") triggerSos();
     else if (key === "T") triggerTilt();
+    else if (key === "D") toggleDashcam();
     else if (e.key === "Escape") {
         closeOfferModal();
         closeOtpModal();

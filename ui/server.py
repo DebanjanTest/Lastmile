@@ -456,7 +456,6 @@ def create_app(engine: LastMileEngine) -> FastAPI:
                 if frame_bytes:
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-                import time
                 time.sleep(0.1)
         return StreamingResponse(_frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
 
