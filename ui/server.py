@@ -260,6 +260,7 @@ def create_app(engine: LastMileEngine) -> FastAPI:
             "storageBucket": fb_cfg.get("storageBucket", ""),
             "messagingSenderId": fb_cfg.get("messagingSenderId", ""),
             "appId": fb_cfg.get("appId", ""),
+            "measurementId": fb_cfg.get("measurementId", ""),
             "mock_account": fb_cfg.get("mock_account", {
                 "uid": "google_test_rider_debanjan",
                 "displayName": "Debanjan Mondal",
