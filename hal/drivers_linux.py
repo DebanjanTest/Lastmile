@@ -70,12 +70,17 @@ class RealGPS(BaseGPS):
         if not serial or not pynmea2:
             return
 
+        backoff = 1.0
         while self.running:
             try:
                 if not self._serial_conn or not self._serial_conn.is_open:
                     self._serial_conn = serial.Serial(self.port, self.baudrate, timeout=1)
+                    backoff = 1.0
 
                 line = self._serial_conn.readline().decode('ascii', errors='replace').strip()
+                if not line:
+                    continue
+
                 if line.startswith('$GPRMC') or line.startswith('$GNRMC'):
                     msg = pynmea2.parse(line)
                     if getattr(msg, 'status', '') == 'A':
@@ -98,8 +103,20 @@ class RealGPS(BaseGPS):
                             self._latest_fix.altitude_m = float(msg.altitude or 0.0)
                             self._latest_fix.satellites = int(msg.num_sats or 0)
                             self._latest_fix.is_fixed = True
+            except (serial.SerialException, OSError):
+                # Auto-heal from serial dropouts or UART baud glitched line
+                if self._serial_conn:
+                    try:
+                        self._serial_conn.close()
+                    except Exception:
+                        pass
+                    self._serial_conn = None
+                with self._lock:
+                    self._latest_fix.is_fixed = False
+                time.sleep(backoff)
+                backoff = min(10.0, backoff * 1.5)
             except Exception:
-                time.sleep(1.0)
+                time.sleep(0.5)
 
     def get_latest_fix(self) -> GPSData:
         with self._lock:

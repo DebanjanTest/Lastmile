@@ -272,6 +272,12 @@ fn inject_mock_event(event_type: String, title: String, description: String, app
     Ok(event)
 }
 
+#[tauri::command]
+fn get_system_health(state: State<AppState>) -> Result<hal::SystemHealth, String> {
+    let hal = state.hal.lock().map_err(|e| e.to_string())?;
+    Ok(hal.get_system_health())
+}
+
 // -----------------------------------------------------------------------------
 // APPLICATION BOOTSTRAP
 // -----------------------------------------------------------------------------
@@ -310,6 +316,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_telemetry_snapshot,
+            get_system_health,
             accept_order,
             reach_store,
             pickup_order,

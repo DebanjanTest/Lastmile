@@ -206,4 +206,50 @@ impl HalState {
         println!("[DASHCAM] Locked incident committed to Level 3 Vault: {:?}", mp4_path);
         mp4_path.to_string_lossy().to_string()
     }
+
+    // Direct Linux sysfs thermal & memory health telemetry for Ubuntu/Pi 5
+    pub fn get_system_health(&self) -> SystemHealth {
+        let mut cpu_temp = 45.0;
+        let mut ram_usage = 24.5;
+        let mut is_throttled = false;
+
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(raw) = std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp") {
+                if let Ok(milli_c) = raw.trim().parse::<f64>() {
+                    cpu_temp = milli_c / 1000.0;
+                }
+            }
+
+            if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
+                let mut total = 0.0;
+                let mut free = 0.0;
+                for line in meminfo.lines() {
+                    if line.starts_with("MemTotal:") {
+                        total = line.split_whitespace().nth(1).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+                    } else if line.starts_with("MemAvailable:") {
+                        free = line.split_whitespace().nth(1).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+                    }
+                }
+                if total > 0.0 {
+                    ram_usage = ((total - free) / total) * 100.0;
+                }
+            }
+
+            if cpu_temp >= 70.0 {
+                is_throttled = true;
+            }
+        }
+
+        SystemHealth {
+            cpu_temp_c: cpu_temp,
+            ram_usage_pct: ram_usage,
+            is_throttled,
+            device_model: if cfg!(target_os = "linux") {
+                "Raspberry Pi 5 (Ubuntu 24.04 / Bookworm)".to_string()
+            } else {
+                "Desktop Simulation (Windows/macOS)".to_string()
+            },
+        }
+    }
 }
