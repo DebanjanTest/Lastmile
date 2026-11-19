@@ -1,9 +1,7 @@
 {
-  "version": 2,
-  "public": false,
+  "outputDirectory": "ui",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/static/(.*)", "destination": "/ui/static/$1" },
-    { "source": "/(.*)", "destination": "/ui/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
