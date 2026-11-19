@@ -459,6 +459,7 @@ function startKinematicsLerpLoop() {
 }
 
 function initKolkataMap() {
+    // ponytail: Unmetered Leaflet + CARTO dark vector/raster tiles primary engine
     if (typeof L !== 'undefined') {
         initLeafletMap();
         return;
@@ -477,7 +478,7 @@ function initKolkataMap() {
         } else if (window.google && window.google.maps && window.GOOGLE_MAPS_API_KEY && window.GOOGLE_MAPS_API_KEY.length > 10) {
             clearInterval(checkMaps);
             initGoogleMap();
-        } else if (attempts > 15) {
+        } else if (attempts > 30) {
             clearInterval(checkMaps);
             mountDirectGoogleMap();
         }
