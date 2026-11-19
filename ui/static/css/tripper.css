@@ -178,11 +178,14 @@ body.hud-body {
 }
 
 /* ==============================================================================
-   2. 800x480 WVGA VIEWPORT ARCHITECTURE
+   2. 800x480 WVGA VIEWPORT ARCHITECTURE & APPLE RESPONSIVE CONTAINER
    ============================================================================== */
 .hud-viewport {
     width: 800px;
     height: 480px;
+    max-width: 100vw;
+    max-height: 100vh;
+    aspect-ratio: 5 / 3;
     position: relative;
     background: #000;
     overflow: hidden;
@@ -190,15 +193,34 @@ body.hud-body {
     box-shadow: 0 0 50px rgba(0, 0, 0, 0.95);
 }
 
+/* On standard browser preview or desktop, scale proportionally while preserving 800x480 automotive aspect ratio */
+@media screen and (min-width: 801px) and (min-height: 481px) {
+    .hud-viewport {
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+}
+
+/* Edge-to-edge on 800x480 physical hardware displays (Raspberry Pi 5 DSI / HDMI) */
+@media screen and (max-width: 800px), screen and (max-height: 480px) {
+    .hud-viewport {
+        width: 100vw;
+        height: 100vh;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+}
+
 /* AUTOMOTIVE CARTOGRAPHY VIEWPORT & LOWER-THIRD OFFSET (800x480) */
 .map-container-outer {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    width: 800px;
-    height: 480px;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
     z-index: 1;
-    background: #070B14;
+    background: #050811;
 }
 
 .map-rotation-wrapper {
@@ -302,23 +324,24 @@ body.hud-body {
 .btn-driver-map {
     width: 44px;
     height: 44px;
-    background: rgba(11, 19, 43, 0.94);
-    backdrop-filter: blur(12px);
-    border: 1.5px solid var(--border-navy);
+    background: var(--hud-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-navy);
     border-radius: 50%;
     color: #F8FAFC;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 14px var(--shadow-ambient);
     transition: all 0.15s ease;
 }
 
 .btn-driver-map:active {
     transform: scale(0.92);
     border-color: var(--accent-cyan);
-    background: #0284C7;
+    background: var(--accent-blue);
 }
 
 .btn-driver-map.panning-active {
