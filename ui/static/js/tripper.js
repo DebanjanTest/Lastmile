@@ -35,18 +35,31 @@ let manualThemeOverride = false;
 
 const THEME_TILES = {
     night: {
-        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png',
-        subdomains: 'abcd',
+        style: 'https://tiles.openfreemap.org/styles/dark',
         maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        attribution: '&copy; OpenStreetMap contributors &copy; OpenFreeMap'
     },
     day: {
-        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        subdomains: 'abcd',
+        style: 'https://tiles.openfreemap.org/styles/liberty',
         maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        attribution: '&copy; OpenStreetMap contributors &copy; OpenFreeMap'
     }
 };
+
+function createOpenFreeMapLayer(styleUrl) {
+    if (typeof L.maplibreGL === 'function') {
+        return L.maplibreGL({
+            style: styleUrl,
+            attribution: '&copy; OpenStreetMap contributors &copy; OpenFreeMap'
+        });
+    }
+    // Fallback if MapLibre plugin is not loaded: CSS-inverted OpenStreetMap tile layer
+    return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+        className: 'map-tiles-inverted'
+    });
+}
 
 let googleMap = null;
 let googleRiderMarker = null;
@@ -120,15 +133,10 @@ function applyTheme(targetTheme, force = false) {
         }
     }
 
-    // 3. Hot-swap Leaflet Tiles (without destroying map instance or polylines)
+    // 3. Hot-swap Leaflet Vector Map Layer (without destroying map instance or polylines)
     if (activeMapType === "leaflet" && leafletMap) {
         const config = THEME_TILES[targetTheme];
-        const newLayer = L.tileLayer(config.url, {
-            subdomains: config.subdomains,
-            maxZoom: config.maxZoom,
-            attribution: config.attribution,
-            detectRetina: true
-        });
+        const newLayer = createOpenFreeMapLayer(config.style);
 
         newLayer.addTo(leafletMap);
 
@@ -519,18 +527,13 @@ function initLeafletMap() {
         tp.style.pointerEvents = 'none';
     }
 
-    // Unmetered CARTO Tiles (Dark Matter for Night / Voyager for Day - Zero Watermarks)
+    // Truly unmetered OpenFreeMap vector tiles (Dark for Night / Liberty for Day - No API key required)
     const hour = new Date().getHours();
     const activeTheme = currentMapTheme || ((hour >= 6 && hour < 18) ? "day" : "night");
     currentMapTheme = activeTheme;
     const tileConfig = THEME_TILES[activeTheme];
 
-    activeTileLayer = L.tileLayer(tileConfig.url, {
-        subdomains: tileConfig.subdomains,
-        maxZoom: tileConfig.maxZoom,
-        attribution: tileConfig.attribution,
-        detectRetina: true
-    }).addTo(leafletMap);
+    activeTileLayer = createOpenFreeMapLayer(tileConfig.style).addTo(leafletMap);
 
     // Complete Gesture Decoupling (Directive 2):
     // Listen for all user drag, pan, touch, wheel, zoom events

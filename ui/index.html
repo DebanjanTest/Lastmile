@@ -30,9 +30,12 @@
             merchant_vpa: "razorpay.lastmile@icici"
         };
     </script>
-    <!-- Leaflet & CARTO unmetered maps engine (no API key required) -->
+    <!-- Leaflet & OpenFreeMap vector map engine (no API key required) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.20/leaflet-maplibre-gl.js"></script>
     <script>
         // ponytail: Google Maps is disabled by default for zero-cost unmetered Leaflet operation
         if (window.GOOGLE_MAPS_API_KEY && window.GOOGLE_MAPS_API_KEY.length > 10) {

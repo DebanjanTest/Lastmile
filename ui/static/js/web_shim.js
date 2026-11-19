@@ -22,6 +22,9 @@
             customer_instructions: "Call from gate, don't ring bell",
             pickup_distance_km: 1.2,
             drop_distance_km: 3.4,
+            store_dist_km: 1.2,
+            drop_dist_km: 3.4,
+            total_dist_km: 4.6,
             payout_inr: 85.00,
             order_amount_inr: 640.00,
             payment_mode: "COD"
@@ -42,6 +45,9 @@
             customer_instructions: "Leave with security if not reachable",
             pickup_distance_km: 2.1,
             drop_distance_km: 4.8,
+            store_dist_km: 2.1,
+            drop_dist_km: 4.8,
+            total_dist_km: 6.9,
             payout_inr: 110.00,
             order_amount_inr: 920.00,
             payment_mode: "PREPAID"
@@ -62,6 +68,9 @@
             customer_instructions: "Deliver to 2nd floor, lift available",
             pickup_distance_km: 0.8,
             drop_distance_km: 1.6,
+            store_dist_km: 0.8,
+            drop_dist_km: 1.6,
+            total_dist_km: 2.4,
             payout_inr: 65.00,
             order_amount_inr: 380.00,
             payment_mode: "COD"
@@ -82,6 +91,9 @@
             customer_instructions: "Gate security will verify OTP",
             pickup_distance_km: 1.5,
             drop_distance_km: 5.2,
+            store_dist_km: 1.5,
+            drop_dist_km: 5.2,
+            total_dist_km: 6.7,
             payout_inr: 135.00,
             order_amount_inr: 1250.00,
             payment_mode: "PREPAID"
