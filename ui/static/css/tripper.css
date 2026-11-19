@@ -5,19 +5,20 @@
 
 :root,
 body.theme-night {
-    --bg-deep: #070B14;
-    --bg-navy: #0B132B;
-    --bg-surface: #111A30;
-    --bg-surface-elevated: #162342;
-    --border-navy: #1F2E52;
-    --border-subtle: rgba(255, 255, 255, 0.08);
+    /* Apple HIG Automotive Dark Mode Palette: Tonal Elevation Hierarchy */
+    --bg-deep: #050811;
+    --bg-navy: #0A1128;
+    --bg-surface: #101935;
+    --bg-surface-elevated: #162447;
+    --border-navy: #1F305E;
+    --border-subtle: rgba(255, 255, 255, 0.09);
     
-    --accent-blue: #0284C7;
-    --accent-cyan: #38BDF8;
-    --accent-ice: #E0F2FE;
-    --accent-success: #00E676;
-    --accent-warning: #F59E0B;
-    --accent-danger: #EF4444;
+    --accent-blue: #0A84FF;       /* Apple System Blue Dark */
+    --accent-cyan: #64D2FF;       /* Apple System Cyan Dark */
+    --accent-ice: #F0F9FF;
+    --accent-success: #30D158;    /* Apple System Green Dark */
+    --accent-warning: #FF9F0A;    /* Apple System Orange Dark */
+    --accent-danger: #FF453A;     /* Apple System Red Dark */
 
     --brand-zomato: #E23744;
     --brand-swiggy: #FC8019;
@@ -25,13 +26,13 @@ body.theme-night {
     --brand-amazon: #FF9900;
 
     --text-main: #FFFFFF;
-    --text-muted: #8E9FB8;
-    --text-dim: #556885;
+    --text-muted: #94A3B8;
+    --text-dim: #64748B;
 
-    --hud-glass: rgba(11, 19, 43, 0.94);
-    --hud-dock-bg: rgba(17, 26, 48, 0.96);
-    --shadow-ambient: rgba(0, 0, 0, 0.7);
-    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --hud-glass: rgba(10, 17, 40, 0.92);
+    --hud-dock-bg: rgba(16, 25, 53, 0.95);
+    --shadow-ambient: rgba(0, 0, 0, 0.6);
+    --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
 }
 
 body.theme-day {
@@ -414,12 +415,12 @@ body.theme-day .floating-recenter-btn .recenter-svg {
 }
 
 /* ==============================================================================
-   3. TOP HUD BAR (SYSTEM STATUS & PROFILE)
+   3. TOP HUD BAR (SYSTEM STATUS & PROFILE) - Apple HIG ≥44pt Tap Targets
    ============================================================================== */
 .top-nav-bar {
     position: absolute;
-    top: 8px; left: 10px; right: 10px;
-    height: 34px;
+    top: 6px; left: 10px; right: 10px;
+    height: 44px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -428,151 +429,176 @@ body.theme-day .floating-recenter-btn .recenter-svg {
 }
 
 .system-status-chip {
-    background: rgba(11, 19, 43, 0.92);
-    backdrop-filter: blur(10px);
+    background: var(--hud-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--border-navy);
-    border-radius: 18px;
-    padding: 3px 10px;
+    border-radius: 22px;
+    height: 38px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     pointer-events: auto;
+    box-shadow: 0 2px 8px var(--shadow-ambient);
 }
 .status-indicator {
-    width: 6px; height: 6px;
+    width: 8px; height: 8px;
     background: var(--accent-success);
     border-radius: 50%;
-    box-shadow: 0 0 6px var(--accent-success);
+    box-shadow: 0 0 8px var(--accent-success);
 }
 .system-label {
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 1px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
     color: #FFF;
 }
 .system-pill {
-    font-size: 8px;
-    font-weight: 800;
-    background: rgba(2, 132, 199, 0.3);
+    font-size: 9px;
+    font-weight: 700;
+    background: rgba(10, 132, 255, 0.25);
     color: var(--accent-cyan);
-    padding: 1px 5px;
-    border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 6px;
 }
 
 .center-clock {
-    background: rgba(11, 19, 43, 0.92);
-    backdrop-filter: blur(10px);
+    background: var(--hud-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--border-navy);
-    border-radius: 10px;
-    padding: 3px 12px;
-    font-size: 12px;
-    font-weight: 900;
+    border-radius: 18px;
+    height: 38px;
+    padding: 0 14px;
+    font-size: 14px;
+    font-weight: 700;
     color: #F8FAFC;
+    display: flex;
+    align-items: center;
     pointer-events: auto;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px var(--shadow-ambient);
 }
 
 .top-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     pointer-events: auto;
 }
 
 .btn-top-profile {
-    background: rgba(11, 19, 43, 0.92);
-    backdrop-filter: blur(10px);
+    background: var(--hud-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--border-navy);
-    border-radius: 14px;
-    padding: 4px 10px;
+    border-radius: 22px;
+    height: 38px;
+    padding: 0 14px;
     color: #FFF;
     display: flex;
     align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 700;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
+    box-shadow: 0 2px 8px var(--shadow-ambient);
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+.btn-top-profile:active {
+    transform: scale(0.96);
+    background: var(--bg-surface-elevated);
 }
 
 .btn-top-sos {
     background: var(--accent-danger);
     color: #FFF;
     border: none;
-    border-radius: 14px;
-    padding: 4px 10px;
-    font-size: 11px;
-    font-weight: 900;
+    border-radius: 22px;
+    height: 38px;
+    padding: 0 14px;
+    font-size: 12px;
+    font-weight: 800;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 4px;
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+    gap: 6px;
+    box-shadow: 0 0 14px rgba(255, 69, 58, 0.45);
+    transition: transform 0.15s ease;
+}
+.btn-top-sos:active {
+    transform: scale(0.96);
 }
 
 /* ==============================================================================
-   4. NAVIGATION TURN GUIDANCE CARD
+   4. NAVIGATION TURN GUIDANCE CARD - Apple Glanceability Specification
    ============================================================================== */
 .turn-guidance-card {
     position: absolute;
-    top: 48px;
+    top: 54px;
     left: 10px;
-    width: 250px;
-    background: rgba(11, 19, 43, 0.95);
-    backdrop-filter: blur(12px);
+    width: 260px;
+    background: var(--hud-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--border-navy);
-    border-radius: 10px;
-    padding: 8px 10px;
+    border-radius: 14px;
+    padding: 10px 12px;
     z-index: 50;
     display: flex;
     align-items: center;
-    gap: 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+    gap: 12px;
+    box-shadow: 0 8px 24px var(--shadow-ambient);
 }
 
 .turn-icon-container {
-    width: 38px; height: 38px;
+    width: 44px; height: 44px;
     background: var(--accent-blue);
-    border-radius: 8px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);
 }
-.turn-svg-icon { width: 22px; height: 22px; }
+.turn-svg-icon { width: 24px; height: 24px; }
 
-.turn-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.turn-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .turn-distance-row { display: flex; align-items: baseline; gap: 4px; }
-.turn-val { font-size: 18px; font-weight: 900; color: #FFF; line-height: 1; }
-.turn-unit { font-size: 11px; font-weight: 700; color: var(--accent-cyan); }
+.turn-val { font-size: 20px; font-weight: 800; color: #FFF; line-height: 1; font-feature-settings: "tnum"; }
+.turn-unit { font-size: 12px; font-weight: 700; color: var(--accent-cyan); }
 .traffic-tag {
-    font-size: 9px;
-    font-weight: 800;
-    background: rgba(0, 230, 118, 0.2);
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(48, 209, 88, 0.2);
     color: var(--accent-success);
-    padding: 1px 5px;
-    border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 6px;
     margin-left: auto;
 }
 .turn-street {
-    font-size: 12px;
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 700;
     color: #FFF;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.turn-next { font-size: 9px; color: var(--text-muted); }
+.turn-next { font-size: 10px; font-weight: 500; color: var(--text-muted); }
 
 /* ==============================================================================
-   5. FLOATING SPEEDOMETER CLUSTER
+   5. FLOATING SPEEDOMETER CLUSTER (HIG Cockpit Dial)
    ============================================================================== */
 .speed-cluster {
     position: absolute;
-    bottom: 52px;
-    left: 10px;
-    width: 62px;
-    height: 62px;
-    background: rgba(11, 19, 43, 0.94);
-    backdrop-filter: blur(10px);
+    bottom: 56px;
+    left: 12px;
+    width: 68px;
+    height: 68px;
+    background: var(--hud-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 2px solid var(--border-navy);
     border-radius: 50%;
     display: flex;
@@ -580,39 +606,40 @@ body.theme-day .floating-recenter-btn .recenter-svg {
     align-items: center;
     justify-content: center;
     z-index: 45;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 6px 20px var(--shadow-ambient);
 }
-.speed-value { font-size: 22px; font-weight: 900; color: #FFF; line-height: 1; }
-.speed-metric { font-size: 8px; font-weight: 800; color: var(--accent-cyan); letter-spacing: 0.5px; }
+.speed-value { font-size: 26px; font-weight: 800; color: #FFF; line-height: 1; font-feature-settings: "tnum"; }
+.speed-metric { font-size: 9px; font-weight: 700; color: var(--accent-cyan); letter-spacing: 0.6px; margin-top: 1px; }
 
 /* ==============================================================================
-   6. SPLIT-SCREEN ACTIVE ROUTE DOCK (MASSIVE TOUCH TARGETS)
+   6. SPLIT-SCREEN ACTIVE ROUTE DOCK (Apple HIG Touch Targets & Translucent Dock)
    ============================================================================== */
 .active-route-dock {
     position: absolute;
-    bottom: 50px;
+    bottom: 54px;
     left: 10px;
     right: 10px;
-    background: rgba(17, 26, 48, 0.96);
-    backdrop-filter: blur(12px);
+    background: var(--hud-dock-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--border-navy);
-    border-radius: 10px;
-    padding: 8px 12px;
+    border-radius: 16px;
+    padding: 10px 14px;
     z-index: 60;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85);
+    gap: 6px;
+    box-shadow: 0 10px 30px var(--shadow-ambient);
 }
 .dock-top-meta { display: flex; justify-content: space-between; align-items: center; }
-.dock-status-tag { font-size: 10px; font-weight: 800; color: var(--accent-cyan); letter-spacing: 0.5px; }
-.dock-eta-tag { font-size: 11px; font-weight: 900; color: var(--accent-success); }
-.dock-heading { font-size: 14px; font-weight: 900; color: #FFF; line-height: 1.2; }
-.dock-subtext { font-size: 10px; color: var(--text-muted); }
+.dock-status-tag { font-size: 11px; font-weight: 700; color: var(--accent-cyan); letter-spacing: 0.6px; }
+.dock-eta-tag { font-size: 12px; font-weight: 800; color: var(--accent-success); }
+.dock-heading { font-size: 15px; font-weight: 800; color: #FFF; line-height: 1.25; }
+.dock-subtext { font-size: 11px; font-weight: 500; color: var(--text-muted); }
 
 .dock-button-grid {
     display: grid;
-    grid-template-columns: 80px 80px 1fr;
+    grid-template-columns: 88px 88px 1fr;
     gap: 8px;
     margin-top: 4px;
 }
@@ -620,33 +647,41 @@ body.theme-day .floating-recenter-btn .recenter-svg {
     background: var(--bg-surface-elevated);
     border: 1px solid var(--border-navy);
     color: #E2E8F0;
-    border-radius: 8px;
-    font-size: 11px;
-    font-weight: 700;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    height: 40px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 6px;
+    transition: transform 0.1s ease;
+}
+.btn-dock-tool:active {
+    transform: scale(0.96);
 }
 .btn-dock-action {
-    background: linear-gradient(135deg, var(--accent-success), #00B359);
-    color: #070B14;
+    background: linear-gradient(135deg, var(--accent-success), #28A745);
+    color: #050811;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 800;
     cursor: pointer;
-    height: 40px;
+    height: 44px;
     letter-spacing: 0.5px;
-    box-shadow: 0 4px 12px rgba(0, 230, 118, 0.35);
+    box-shadow: 0 4px 14px rgba(48, 209, 88, 0.4);
+    transition: transform 0.1s ease;
+}
+.btn-dock-action:active {
+    transform: scale(0.97);
 }
 
 /* Glove-Friendly Dock Swipe Slider */
 .dock-slider-wrapper {
     width: 100%;
-    height: 40px;
+    height: 44px;
 }
 .dock-swipe-track {
     position: relative;
@@ -688,11 +723,11 @@ body.theme-day .floating-recenter-btn .recenter-svg {
 .incoming-order-stack,
 .order-notification-stack {
     position: absolute;
-    top: 48px;
+    top: 54px;
     bottom: 54px;
-    right: 10px;
-    width: 290px;
-    max-height: calc(100% - 104px);
+    right: 12px;
+    width: 280px;
+    max-height: calc(100% - 112px);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -709,17 +744,19 @@ body.theme-day .floating-recenter-btn .recenter-svg {
 }
 
 .notification-card {
-    background: rgba(17, 26, 48, 0.95);
-    backdrop-filter: blur(10px);
+    background: var(--hud-glass);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     border: 1px solid var(--border-navy);
     border-left: 4px solid var(--accent-cyan);
-    border-radius: 8px;
-    padding: 8px 10px;
+    border-radius: 14px;
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
+    gap: 6px;
+    box-shadow: 0 8px 24px var(--shadow-ambient);
     pointer-events: auto;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .card-top-row {
@@ -728,29 +765,31 @@ body.theme-day .floating-recenter-btn .recenter-svg {
     align-items: center;
 }
 .card-platform-badge {
-    font-size: 9px;
-    font-weight: 900;
-    padding: 2px 6px;
-    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
     color: #FFF;
     letter-spacing: 0.5px;
 }
-.card-payout { font-size: 15px; font-weight: 900; color: var(--accent-success); }
+.card-payout { font-size: 17px; font-weight: 800; color: var(--accent-success); font-feature-settings: "tnum"; }
 
 .card-store-row, .card-drop-row {
     display: flex;
     align-items: baseline;
     gap: 6px;
     font-size: 11px;
+    font-weight: 500;
     color: #CBD5E1;
 }
-.card-store-row strong { color: #FFF; font-size: 12px; }
+.card-store-row strong { color: #FFF; font-size: 13px; font-weight: 700; }
 .card-dist-pill {
-    font-size: 9px;
+    font-size: 10px;
+    font-weight: 700;
     color: var(--accent-cyan);
-    background: rgba(2, 132, 199, 0.2);
-    padding: 1px 4px;
-    border-radius: 3px;
+    background: rgba(10, 132, 255, 0.2);
+    padding: 2px 6px;
+    border-radius: 6px;
     margin-left: auto;
 }
 
@@ -759,94 +798,112 @@ body.theme-day .floating-recenter-btn .recenter-svg {
     justify-content: space-between;
     align-items: center;
     border-top: 1px solid var(--border-subtle);
-    padding-top: 4px;
-    margin-top: 2px;
+    padding-top: 6px;
+    margin-top: 3px;
 }
-.total-dist-tag { font-size: 10px; font-weight: 700; color: var(--text-muted); }
-.card-buttons { display: flex; gap: 6px; }
+.total-dist-tag { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.card-buttons { display: flex; gap: 8px; }
 
 .btn-card-dismiss {
     background: transparent;
     border: 1px solid var(--border-navy);
     color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 700;
-    padding: 4px 8px;
-    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
     cursor: pointer;
+    transition: transform 0.1s ease;
+}
+.btn-card-dismiss:active {
+    transform: scale(0.96);
 }
 .btn-card-accept {
     background: var(--accent-blue);
     border: none;
     color: #FFF;
-    font-size: 10px;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 8px;
     cursor: pointer;
+    box-shadow: 0 2px 8px rgba(10, 132, 255, 0.4);
+    transition: transform 0.1s ease;
+}
+.btn-card-accept:active {
+    transform: scale(0.96);
 }
 
 /* ==============================================================================
-   8. BOTTOM HUD SUMMARY STRIP
+   8. BOTTOM HUD SUMMARY STRIP - Apple Glanceable Footer & 44pt Touch Action
    ============================================================================== */
 .bottom-status-strip,
 .gmaps-bottom-card {
     position: absolute;
     bottom: 0; left: 0; right: 0;
     height: 48px;
-    background: rgba(11, 19, 43, 0.98);
-    backdrop-filter: blur(12px);
+    background: var(--hud-glass);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     border-top: 1px solid var(--border-navy);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 12px;
+    padding: 0 14px;
     z-index: 100;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.85);
+    box-shadow: 0 -4px 20px var(--shadow-ambient);
 }
-.strip-left { display: flex; flex-direction: column; gap: 1px; }
+.strip-left { display: flex; flex-direction: column; gap: 2px; }
 .strip-duration { display: flex; align-items: baseline; gap: 6px; }
-.trip-time-text { font-size: 13px; font-weight: 900; color: #FFF; }
-.trip-delay-text { font-size: 10px; font-weight: 700; color: var(--accent-success); }
-.strip-details { font-size: 10px; color: var(--text-muted); display: flex; gap: 4px; }
+.trip-time-text { font-size: 14px; font-weight: 800; color: #FFF; font-feature-settings: "tnum"; }
+.trip-delay-text { font-size: 11px; font-weight: 700; color: var(--accent-success); }
+.strip-details { font-size: 11px; font-weight: 500; color: var(--text-muted); display: flex; gap: 5px; }
 .separator { color: var(--text-dim); }
 
-.strip-center { display: flex; align-items: baseline; gap: 5px; }
-.dest-prefix { font-size: 10px; font-weight: 800; color: var(--text-dim); }
-.dest-target { font-size: 11px; font-weight: 700; color: #E2E8F0; }
+.strip-center { display: flex; align-items: baseline; gap: 6px; }
+.dest-prefix { font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.dest-target { font-size: 12px; font-weight: 700; color: #E2E8F0; }
 
 .btn-strip-infiltrate {
-    background: rgba(2, 132, 199, 0.2);
+    background: rgba(10, 132, 255, 0.2);
     border: 1px solid var(--accent-cyan);
     color: var(--accent-cyan);
-    border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 10px;
-    font-weight: 800;
+    border-radius: 8px;
+    height: 34px;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     cursor: pointer;
     transition: all 0.15s ease;
 }
 .btn-strip-infiltrate:active {
     background: var(--accent-blue);
     color: #FFF;
-    transform: scale(0.95);
+    transform: scale(0.96);
 }
 
 .btn-strip-refresh {
     background: var(--bg-surface-elevated);
     border: 1px solid var(--border-navy);
     color: var(--text-muted);
-    border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 10px;
-    font-weight: 800;
+    border-radius: 8px;
+    height: 34px;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     cursor: pointer;
+    transition: transform 0.1s ease;
+}
+.btn-strip-refresh:active {
+    transform: scale(0.96);
 }
 
 /* ==============================================================================
