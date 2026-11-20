@@ -3,15 +3,8 @@
 // Strict Navy Blue Theme • Zero Emojis • Pure SVG Icons • Kolkata Bounds
 // ==============================================================================
 
-// Safe Tauri v2 IPC Resolver with Standalone Browser Fallback
-const tauriInvoke = (cmd, args = {}) => {
-    if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
-        return window.__TAURI__.core.invoke(cmd, args);
-    } else if (window.__TAURI__ && window.__TAURI__.invoke) {
-        return window.__TAURI__.invoke(cmd, args);
-    }
-    return mockTauriBridge(cmd, args);
-};
+// ponytail: direct native REST dispatch to FastAPI endpoints
+const tauriInvoke = (cmd, args = {}) => mockTauriBridge(cmd, args);
 
 const tauriListen = (event, callback) => {
     if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {

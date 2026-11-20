@@ -13,7 +13,6 @@ import time
 from hal.factory import create_hal, HALContainer
 from core.navigation import NavigationEngine, Maneuver
 from core.dashcam import DashcamManager
-from core.delivery_parser import DeliveryParser, DeliveryAlert
 from core.system_health import SystemHealthSentinel
 from core.order_feed import OrderFeedManager, DeliveryOffer
 
@@ -48,7 +47,6 @@ class LastMileEngine:
             thermal_crit_c=config.get("system_monitor", {}).get("thermal_critical_celsius", 80.0)
         )
         
-        self.active_alert: Optional[DeliveryAlert] = None
         self.is_emergency: bool = False
         self.emergency_reason: str = ""
         self.connected_clients: Set[Any] = set()
@@ -102,14 +100,6 @@ class LastMileEngine:
         self.is_emergency = False
         self.emergency_reason = ""
         print("[SAFETY] Emergency state cleared by rider.")
-
-    def post_delivery_alert(self, title: str, body: str, package_name: str = "") -> DeliveryAlert:
-        alert = DeliveryParser.parse_notification(title, body, package_name)
-        self.active_alert = alert
-        return alert
-
-    def clear_active_alert(self) -> None:
-        self.active_alert = None
 
     def import_destination(self, name: str, lat: float, lng: float) -> None:
         self.navigation.import_destination(name, lat, lng)
@@ -186,7 +176,7 @@ class LastMileEngine:
             "brightness": brightness,
             "is_emergency": self.is_emergency,
             "emergency_reason": self.emergency_reason,
-            "active_alert": self.active_alert.to_dict() if self.active_alert else None,
+            "active_alert": None,
             "feed": feed_snap,
             "order_phase": feed_snap["order_phase"],
             "active_offers": feed_snap["active_offers"],

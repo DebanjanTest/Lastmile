@@ -16,7 +16,6 @@ from hal.kinematic_simulator import KinematicVehicleSimulator
 from core.navigation import NavigationEngine
 from core.traffic import TrafficEngine
 from core.order_feed import OrderFeedManager, DeliveryOffer
-from core.delivery_parser import DeliveryParser
 from core.dashcam import DashcamManager
 from core.system_health import SystemHealthSentinel
 
@@ -110,14 +109,6 @@ class TestLastMileGuard(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(feed.order_phase, "DELIVERED")
         self.assertGreater(feed.earnings_today_inr, 485.0)
-
-    def test_delivery_parser(self):
-        zomato = DeliveryParser.parse_notification(
-            raw_title="Zomato Partner",
-            raw_body="Pickup Order #9812 from Burger King",
-            package_name="com.application.zomato"
-        )
-        self.assertEqual(zomato.source, "zomato")
 
     def test_system_health(self):
         class MockHealth:

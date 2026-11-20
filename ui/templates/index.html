@@ -6,10 +6,31 @@
     <title>LastMile Guard - Automotive HUD (Tauri v2 + Rust)</title>
     <!-- Cartography Engines: Leaflet Unmetered Dark Navigation + Optional Google Maps -->
     <script>
-        window.GOOGLE_MAPS_API_KEY = "{{ google_maps_api_key or '' }}";
-        window.FIREBASE_CONFIG = {{ (firebase_config or {}) | tojson }};
-        window.RAZORPAY_CONFIG = {{ (razorpay_config or {}) | tojson }};
+        // ponytail: dual-mode config (defaults for static hosting, overriden by Jinja2 if server-rendered)
+        window.GOOGLE_MAPS_API_KEY = "{{ google_maps_api_key or '' }}".replace(/^\{\{.*\}\}$/, "");
+        window.FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCoWNJ8Ya69jNio-yvOxvAAiuFnb5C7upw",
+            authDomain: "lastmile-2d28c.firebaseapp.com",
+            projectId: "lastmile-2d28c",
+            storageBucket: "lastmile-2d28c.firebasestorage.app",
+            messagingSenderId: "765741840946",
+            appId: "1:765741840946:web:6eaacdd5a1be9a49df1a2b",
+            mock_account: { uid: "google_test_rider", displayName: "Debanjan Mondal", email: "debanjan.rider@lastmile.io" }
+        };
+        window.RAZORPAY_CONFIG = {
+            enabled: true,
+            is_test_mode: true,
+            key_id: "rzp_test_5WqgY9Q2Z1X3lK",
+            merchant_name: "LastMile Guard Logistics",
+            merchant_vpa: "razorpay.lastmile@icici"
+        };
     </script>
+    {% if firebase_config %}
+    <script>window.FIREBASE_CONFIG = {{ firebase_config | tojson }};</script>
+    {% endif %}
+    {% if razorpay_config %}
+    <script>window.RAZORPAY_CONFIG = {{ razorpay_config | tojson }};</script>
+    {% endif %}
     {% if google_maps_api_key and google_maps_api_key|length > 10 %}
     <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=geometry&callback=initGoogleMap" async defer></script>
     {% endif %}
