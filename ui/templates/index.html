@@ -60,7 +60,8 @@
         </div>
     </div>
 
-    <!-- 800x480 WVGA AUTOMOTIVE HUD CHASSIS -->
+    <!-- 800x480 WVGA AUTOMOTIVE HUD CHASSIS (LETTERBOXED & SCALED CONTAINER) -->
+    <div class="hud-canvas-container" id="hudCanvasContainer">
     <div class="hud-viewport" id="screenViewport">
         <!-- AUTOMOTIVE CARTOGRAPHY VIEWPORT WITH HEADING-UP ROTATION -->
         <div class="map-container-outer" id="mapOuter">
@@ -219,16 +220,6 @@
             <div class="strip-center">
                 <span class="dest-prefix" id="destHeaderLabel">STATUS:</span>
                 <span class="dest-target" id="destName">Scanning Kolkata (Salt Lake, Newtown, Park St)...</span>
-            </div>
-            <div class="strip-right">
-                <button class="btn-strip-infiltrate" onclick="infiltrateOrder()" title="Simulate Customer Placing New Order [I]">
-                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    <span>+ Customer Order [I]</span>
-                </button>
-                <button class="btn-strip-refresh" onclick="refreshOffers()" title="Refresh Offers [O]">
-                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-                    <span>Refresh [O]</span>
-                </button>
             </div>
         </div>
 
@@ -454,6 +445,21 @@
                     </div>
                 </div>
                 <button class="btn-save-drawer" onclick="saveProfileChanges()">Save Profile & Target</button>
+
+                <!-- DEVELOPER / DEMO CONTROLS -->
+                <div class="drawer-dev-tools">
+                    <div class="drawer-dev-tools-title">Simulation & Feed Controls</div>
+                    <div class="drawer-dev-row">
+                        <button class="btn-strip-infiltrate" id="btnSimOrder" onclick="infiltrateOrder()" title="Simulate Customer Placing New Order [I]">
+                            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                            <span>+ Customer Order [I]</span>
+                        </button>
+                        <button class="btn-strip-refresh" id="btnRefreshFeed" onclick="refreshOffers()" title="Refresh Offers [O]">
+                            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                            <span>Refresh [O]</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -477,6 +483,7 @@
                 <span id="toastMessage" class="toast-text">Notification</span>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- NATIVE TAURI CLIENT CONTROLLER -->

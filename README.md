@@ -300,49 +300,32 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 ---
 
-## 6. Directory Layout
+## 6. Subdirectories & System Boundaries
 
-```
-Lastmile/
-|-- .github/workflows/         # Automated GitHub Actions CI pipeline
-|-- core/                      # Core vehicle & navigation engines
-|   |-- dashcam.py             # 5-minute rolling circular buffer in /run/shm/
-|   |-- engine.py              # Central telemetry & event coordinator
-|   |-- navigation.py          # Dynamic turn guidance & ETA calculation
-|   |-- order_feed.py          # Multi-app delivery stream & ledger
-|   |-- router.py              # OSRM road-network client with geodesic fallback
-|-- data/                      # Persistent database storage
-|   `-- lastmile.db            # SQLite WAL database (rider_profile, completed_orders)
-|-- evidence/incidents/        # Immutable locked crash and SOS recordings
-|-- hal/                       # Hardware Abstraction Layer
-|   |-- drivers_linux.py       # Linux GPIO, UART GPS, and camera drivers
-|   |-- drivers_mock.py        # Windows simulation virtual drivers
-|   |-- kinematic_simulator.py # Physics-based velocity and coordinate lerp
-|-- scripts/                   # System configuration & calibration scripts
-|   |-- setup_ubuntu.sh        # Linux RAM-disk, permissions, and service setup
-|   |-- setup_touch_calibration.sh # xinput 800x480 touch transformation matrix
-|-- src-tauri/                 # Tauri v2 + Rust production runtime
-|   |-- Cargo.toml             # Rust package definition & optimizations
-|   |-- src/main.rs            # Tauri application entrypoint & IPC commands
-|   |-- src/db.rs              # rusqlite database management & WAL mode
-|   |-- src/razorpay.rs        # Razorpay dynamic QR & payment polling daemon
-|   |-- src/router.rs          # Native Rust OSRM client & geodesic fallback
-|-- tests/                     # 24-test comprehensive verification harness
-|-- ui/                        # Presentation layer & HUD chassis
-|   |-- static/css/tripper.css # Automotive design system & day/night tokens
-|   |-- static/js/tripper.js   # 60 FPS lerp kinematics & Leaflet cartography
-|   |-- templates/index.html   # 800x480 WVGA HUD chassis layout
-|-- config.json                # Hardware pins, baudrates, and API configuration
-|-- main.py                    # Multi-platform development server entrypoint
-|-- requirements.txt           # Lean Python dependencies
-|-- CONTRIBUTING.md            # Contribution protocols & design guidelines
-|-- LICENSE                    # Apache License 2.0
-`-- README.md                  # Comprehensive technical documentation
-```
+- [boot](./boot/README.md): Raspberry Pi 5 bootloader, firmware, and display timing configurations for the 800x480 WVGA touchscreen.
+- [core](./core/README.md): Central engine coordinating kinematics, turn-by-turn navigation, order feed management, and dashcam recordings.
+- [hal](./hal/README.md): Modular Hardware Abstraction Layer supporting real Linux/Pi hardware and desktop simulation mocks.
+- [scripts](./scripts/README.md): System setup, display calibration, virtual environment setup, and test automation scripts.
+- [src-tauri](./src-tauri/README.md): Lightweight native Tauri + Rust desktop and embedded binary packaging.
+- [ui](./ui/README.md): FastAPI application server and automotive 800x480 WVGA Heads-Up Display frontend.
+
+## 7. Global Invariants
+- Vehicle stationary state strictly clamps speed to 0.0 km/h and halts kinematic step simulation.
+- Off-route recalculation triggers when vehicle deviation from the road polyline exceeds 50 meters for > 5 seconds.
+- Dashcam circular video frame buffer runs strictly in volatile RAM (`/run/shm` or tmpfs) with maximum 5-minute capacity (3,000 frames) to prevent SD card storage wear.
+- Completed order payouts enforce OTP verification before committing settlement records to the local SQLite ledger.
+
+## 8. Global Side Effects
+- Reads and updates persistent SQLite database tables (`rider_profile` and `completed_orders` / `order_ledger`) in `data/`.
+- Flushes locked video evidence files and metadata JSON to disk in `evidence/incidents/` upon SOS or collision detection.
+- Initiates external network HTTP calls to OSRM / Google Maps for route generation, ip-api for geolocation, and Razorpay for UPI QR generation.
+
+## 9. System Verification
+- Run: `python3 -m unittest discover tests/`
 
 ---
 
-## 7. License
+## 10. License
 
 Licensed under the **Apache License, Version 2.0** (the "License"). You may obtain a copy of the License at [LICENSE](LICENSE) or at:
 

@@ -3,8 +3,15 @@
 // Strict Navy Blue Theme • Zero Emojis • Pure SVG Icons • Kolkata Bounds
 // ==============================================================================
 
-// ponytail: direct native REST dispatch to FastAPI endpoints
-const tauriInvoke = (cmd, args = {}) => mockTauriBridge(cmd, args);
+// Safe Tauri v2 IPC Resolver with Standalone Browser Fallback
+const tauriInvoke = (cmd, args = {}) => {
+    if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+        return window.__TAURI__.core.invoke(cmd, args);
+    } else if (window.__TAURI__ && window.__TAURI__.invoke) {
+        return window.__TAURI__.invoke(cmd, args);
+    }
+    return mockTauriBridge(cmd, args);
+};
 
 const tauriListen = (event, callback) => {
     if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
@@ -15,6 +22,7 @@ const tauriListen = (event, callback) => {
 };
 
 // Global Map & HUD Navigation State
+let currentHudScale = 1.0;
 let activeMapType = "none"; // "leaflet" | "google" | "direct_google"
 let leafletMap = null;
 let leafletRouteGlow = null;
@@ -150,10 +158,21 @@ function toggleThemeManual() {
     showHUDToast(`Adaptive Vision: ${nextTheme.toUpperCase()} Mode`);
 }
 
+function initViewportScaling() {
+    function updateScale() {
+        // Dynamic proportional scaling locked to 800x480 WVGA canonical resolution
+        currentHudScale = Math.min(window.innerWidth / 800, window.innerHeight / 480);
+        document.documentElement.style.setProperty('--hud-scale', currentHudScale);
+    }
+    window.addEventListener('resize', () => requestAnimationFrame(updateScale));
+    updateScale();
+}
+
 // -----------------------------------------------------------------------------
 // 1. APPLICATION BOOTSTRAP & MINIMALIST NAVY LOADER SEQUENCE
 // -----------------------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", async () => {
+    initViewportScaling();
     checkAndApplyAdaptiveTheme(true);
     initAudio();
     initKolkataMap();
@@ -489,6 +508,22 @@ function initKolkataMap() {
 function initLeafletMap() {
     const mapEl = document.getElementById('mapView');
     if (!mapEl || activeMapType === "leaflet") return;
+
+    // Patch Leaflet coordinate calculation for CSS transform scaling
+    if (typeof L !== 'undefined' && L.Map && L.Map.prototype) {
+        L.Map.prototype.mouseEventToContainerPoint = function(e) {
+            const rect = this._container.getBoundingClientRect();
+            const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+            const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
+            if (currentHudScale && currentHudScale !== 1.0) {
+                return L.point(
+                    (clientX - rect.left) / currentHudScale,
+                    (clientY - rect.top) / currentHudScale
+                );
+            }
+            return L.point(clientX - rect.left, clientY - rect.top);
+        };
+    }
 
     activeMapType = "leaflet";
     mapEl.innerHTML = "";

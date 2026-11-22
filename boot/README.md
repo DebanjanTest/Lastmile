@@ -1,21 +1,21 @@
-# Raspberry Pi 5 Boot & Firmware Configuration
+# Boot
 
-This directory contains verified bootloader and kernel parameters for running **LastMile Guard** on Ubuntu 24.04 LTS / Debian Bookworm on the Raspberry Pi 5.
+## Overview
+Raspberry Pi 5 bootloader, firmware, and display configuration installer for LastMile Guard. It configures `/boot/firmware` (or `/boot`) with display timings, GPU overlays, and kernel command lines for the 800x480 WVGA touchscreen, resolving black screen signal drops and supplying USB drive power.
 
-## Problem Resolved
-- **Black Screen / No Display:** Ubuntu Desktop previously forced `video=HDMI-A-1:800x480M@60D` in `cmdline.txt` and loaded an SPI touchscreen overlay (`ads7846`), causing standard HDMI monitors to reject the video signal and drop into standby once the Linux DRM/KMS graphics driver (`vc4-kms-v3d`) took over.
-- **500GB USB Drive Power:** Configures `usb_max_current_enable=1` in `config.txt` to supply full USB current to external mechanical HDDs.
-- **Boot Visibility:** Removed `quiet splash` so kernel and systemd initialization logs stream directly to the display for rapid diagnosis.
+## Interface
+- `[apply_boot_config.sh:main]`
+- `[apply_boot_config.sh:BOOT_DIR]`
 
-## Files
-- `config.txt`: Configures hardware interfaces (I2C, SPI, UART, Audio), enables maximum USB current on Pi 5, loads `vc4-kms-v3d` graphics driver with `display_auto_detect=1`, and keeps SPI touch overlays disabled by default.
-- `cmdline.txt`: Standard Linux kernel command line with auto EDID resolution negotiation, fast `zstd` zswap, and visible console output (`console=tty1`).
-- `apply_boot_config.sh`: Automated installer script to safely back up existing configs and copy these into `/boot/firmware` (or `/boot`).
+## Invariants
+- `[apply_boot_config.sh:set -e]` Halts immediately on unhandled command failure.
+- `[apply_boot_config.sh:EUID]` Requires root / superuser privileges (`$EUID -eq 0`) to write to `/boot/firmware` or `/boot`.
+- Backs up existing `config.txt` and `cmdline.txt` with timestamped `.bak_YYYYMMDD_HHMMSS` before installation.
 
-## Deployment on Raspberry Pi
-From the project root:
-```bash
-sudo chmod +x boot/apply_boot_config.sh
-sudo ./boot/apply_boot_config.sh
-sudo reboot
-```
+## Side Effects
+- Copies `config.txt` and `cmdline.txt` into `/boot/firmware` (or `/boot`).
+- Synchronizes `/boot/firmware/current/cmdline.txt` when Ubuntu piboot-try scheme is present.
+- Creates backup files on the boot partition filesystem.
+
+## Verification
+- Run: `python3 -m unittest discover tests/`
